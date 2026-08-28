@@ -6,10 +6,14 @@ use App\Repository\PersonnelRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 #[ORM\Entity(repositoryClass: PersonnelRepository::class)]
-class Personnel
+class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
 {
+    public const STATUS_ACTIF = 'ACTIF';
+    public const STATUS_INACTIF = 'INACTIF';
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -24,7 +28,7 @@ class Personnel
     #[ORM\Column(length: 50, nullable: true)]
     private ?string $prenom = null;
 
-    #[ORM\Column(length: 15)]
+    #[ORM\Column(length: 15, unique: true)]
     private ?string $telephone = null;
 
     #[ORM\Column(length: 100, nullable: true)]
@@ -42,7 +46,7 @@ class Personnel
     #[ORM\Column(length: 20)]
     private ?string $status = null;
 
-    #[ORM\Column(length: 20, nullable: true)]
+    #[ORM\Column(length: 20, unique: true)]
     private ?string $matricule = null;
 
     #[ORM\Column(length: 20, nullable: true)]
@@ -196,7 +200,7 @@ class Personnel
         return $this->matricule;
     }
 
-    public function setMatricule(?string $matricule): static
+    public function setMatricule(string $matricule): static
     {
         $this->matricule = $matricule;
 
@@ -254,12 +258,12 @@ class Personnel
     /**
      * @return Collection<int, Role>
      */
-    public function getRoles(): Collection
+    public function getAssignedRoles(): Collection
     {
         return $this->roles;
     }
 
-    public function addRole(Role $role): static
+    public function addAssignedRole(Role $role): static
     {
         if (!$this->roles->contains($role)) {
             $this->roles->add($role);
@@ -268,11 +272,40 @@ class Personnel
         return $this;
     }
 
-    public function removeRole(Role $role): static
+    public function removeAssignedRole(Role $role): static
     {
         $this->roles->removeElement($role);
 
         return $this;
+    }
+
+    public function getUserIdentifier(): string
+    {
+        return (string) $this->telephone;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getRoles(): array
+    {
+        $roles = ['ROLE_PERSONNEL'];
+
+        foreach ($this->roles as $role) {
+            $code = strtoupper((string) $role->getCode());
+            $roles[] = str_starts_with($code, 'ROLE_') ? $code : 'ROLE_' . $code;
+        }
+
+        return array_values(array_unique($roles));
+    }
+
+    public function eraseCredentials(): void
+    {
+    }
+
+    public function isActive(): bool
+    {
+        return self::STATUS_ACTIF === $this->status;
     }
 
     /**

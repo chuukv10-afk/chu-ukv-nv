@@ -1,0 +1,35 @@
+<?php
+
+namespace App\Controller\Api;
+
+use App\Entity\Personnel;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\CurrentUser;
+
+#[Route('/api')]
+class AuthController extends AbstractController
+{
+    #[Route('/me', name: 'api_me', methods: ['GET'])]
+    public function me(#[CurrentUser] ?Personnel $personnel): JsonResponse
+    {
+        if (!$personnel instanceof Personnel) {
+            return $this->json(['message' => 'Non authentifié.'], JsonResponse::HTTP_UNAUTHORIZED);
+        }
+
+        return $this->json([
+            'id' => $personnel->getId(),
+            'matricule' => $personnel->getMatricule(),
+            'nom' => $personnel->getNom(),
+            'postNom' => $personnel->getPostNom(),
+            'prenom' => $personnel->getPrenom(),
+            'telephone' => $personnel->getTelephone(),
+            'type' => $personnel->getType(),
+            'status' => $personnel->getStatus(),
+            'roles' => $personnel->getRoles(),
+            'service' => $personnel->getService()?->getLibelle(),
+            'grade' => $personnel->getGrade()?->getLibelle(),
+        ]);
+    }
+}

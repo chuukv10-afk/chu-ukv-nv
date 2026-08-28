@@ -88,7 +88,7 @@ class Role
     {
         if (!$this->personnels->contains($personnel)) {
             $this->personnels->add($personnel);
-            $personnel->addRole($this);
+            $personnel->addAssignedRole($this);
         }
 
         return $this;
@@ -97,7 +97,7 @@ class Role
     public function removePersonnel(Personnel $personnel): static
     {
         if ($this->personnels->removeElement($personnel)) {
-            $personnel->removeRole($this);
+            $personnel->removeAssignedRole($this);
         }
 
         return $this;
