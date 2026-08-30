@@ -2,20 +2,22 @@
 
 namespace App\Entity;
 
+use App\Entity\Trait\UuidV7PrimaryKeyTrait;
 use App\Repository\RoleRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: RoleRepository::class)]
+#[ORM\HasLifecycleCallbacks]
 class Role
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column]
-    private ?int $id = null;
+    use UuidV7PrimaryKeyTrait;
 
-    #[ORM\Column(length: 8)]
+    public const CODE_ADMIN = 'ADMIN';
+    public const CODE_PERSONNEL = 'PERSONNEL';
+
+    #[ORM\Column(length: 20, unique: true)]
     private ?string $code = null;
 
     #[ORM\Column(length: 100)]
@@ -25,19 +27,22 @@ class Role
     private ?\DateTimeImmutable $createdAt = null;
 
     /**
-     * @var Collection<int, Personnel>
+     * @var Collection<int, PersonnelRole>
      */
-    #[ORM\ManyToMany(targetEntity: Personnel::class, mappedBy: 'roles')]
-    private Collection $personnels;
+    #[ORM\OneToMany(targetEntity: PersonnelRole::class, mappedBy: 'role', orphanRemoval: true)]
+    private Collection $personnelRoles;
+
+    /**
+     * @var Collection<int, Permission>
+     */
+    #[ORM\ManyToMany(targetEntity: Permission::class, inversedBy: 'roles')]
+    #[ORM\JoinTable(name: 'role_permission')]
+    private Collection $permissions;
 
     public function __construct()
     {
-        $this->personnels = new ArrayCollection();
-    }
-
-    public function getId(): ?int
-    {
-        return $this->id;
+        $this->personnelRoles = new ArrayCollection();
+        $this->permissions = new ArrayCollection();
     }
 
     public function getCode(): ?string
@@ -47,7 +52,7 @@ class Role
 
     public function setCode(string $code): static
     {
-        $this->code = $code;
+        $this->code = strtoupper(trim($code));
 
         return $this;
     }
@@ -77,28 +82,54 @@ class Role
     }
 
     /**
-     * @return Collection<int, Personnel>
+     * @return Collection<int, PersonnelRole>
      */
-    public function getPersonnels(): Collection
+    public function getPersonnelRoles(): Collection
     {
-        return $this->personnels;
+        return $this->personnelRoles;
     }
 
-    public function addPersonnel(Personnel $personnel): static
+    public function addPersonnelRole(PersonnelRole $personnelRole): static
     {
-        if (!$this->personnels->contains($personnel)) {
-            $this->personnels->add($personnel);
-            $personnel->addAssignedRole($this);
+        if (!$this->personnelRoles->contains($personnelRole)) {
+            $this->personnelRoles->add($personnelRole);
+            $personnelRole->setRole($this);
         }
 
         return $this;
     }
 
-    public function removePersonnel(Personnel $personnel): static
+    public function removePersonnelRole(PersonnelRole $personnelRole): static
     {
-        if ($this->personnels->removeElement($personnel)) {
-            $personnel->removeAssignedRole($this);
+        if ($this->personnelRoles->removeElement($personnelRole)) {
+            if ($personnelRole->getRole() === $this) {
+                $personnelRole->setRole(null);
+            }
         }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Permission>
+     */
+    public function getPermissions(): Collection
+    {
+        return $this->permissions;
+    }
+
+    public function addPermission(Permission $permission): static
+    {
+        if (!$this->permissions->contains($permission)) {
+            $this->permissions->add($permission);
+        }
+
+        return $this;
+    }
+
+    public function removePermission(Permission $permission): static
+    {
+        $this->permissions->removeElement($permission);
 
         return $this;
     }

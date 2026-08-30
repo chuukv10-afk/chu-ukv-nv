@@ -4,6 +4,7 @@ namespace App\Command;
 
 use App\Entity\Personnel;
 use App\Repository\PersonnelRepository;
+use App\Service\Role\RoleProvisioner;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -23,6 +24,7 @@ class CreatePersonnelCommand extends Command
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly PersonnelRepository $personnelRepository,
+        private readonly RoleProvisioner $roleProvisioner,
     ) {
         parent::__construct();
     }
@@ -72,9 +74,15 @@ class CreatePersonnelCommand extends Command
         ));
 
         $this->entityManager->persist($personnel);
+        $this->roleProvisioner->assignDefaultPersonnelRole($personnel);
         $this->entityManager->flush();
 
-        $io->success(sprintf('Personnel créé (téléphone: %s, matricule: %s).', $telephone, $matricule));
+        $io->success(sprintf(
+            'Personnel créé (id: %s, téléphone: %s, matricule: %s).',
+            $personnel->getId()?->toRfc4122(),
+            $telephone,
+            $matricule
+        ));
 
         return Command::SUCCESS;
     }

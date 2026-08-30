@@ -2,17 +2,19 @@
 
 namespace App\Entity;
 
+use App\Entity\Contract\BlameableInterface;
+use App\Entity\Trait\BlameableTrait;
+use App\Entity\Trait\UuidV7PrimaryKeyTrait;
 use App\Repository\PatientRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: PatientRepository::class)]
-class Patient
+#[ORM\HasLifecycleCallbacks]
+class Patient implements BlameableInterface
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column]
-    private ?int $id = null;
+    use BlameableTrait;
+    use UuidV7PrimaryKeyTrait;
 
     #[ORM\Column(length: 50)]
     private ?string $nom = null;
@@ -47,19 +49,14 @@ class Patient
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $groupeSanguin = null;
 
-    #[ORM\Column]
-    private ?\DateTimeImmutable $createdAt = null;
-
     #[ORM\Column(length: 50, nullable: true)]
     private ?string $personneAprevenir = null;
 
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $contactAPrevenir = null;
 
-    public function getId(): ?int
-    {
-        return $this->id;
-    }
+    #[ORM\OneToOne(mappedBy: 'patient', cascade: ['persist', 'remove'])]
+    private ?Dpi $dpi = null;
 
     public function getNom(): ?string
     {
@@ -193,18 +190,6 @@ class Patient
         return $this;
     }
 
-    public function getCreatedAt(): ?\DateTimeImmutable
-    {
-        return $this->createdAt;
-    }
-
-    public function setCreatedAt(\DateTimeImmutable $createdAt): static
-    {
-        $this->createdAt = $createdAt;
-
-        return $this;
-    }
-
     public function getPersonneAprevenir(): ?string
     {
         return $this->personneAprevenir;
@@ -225,6 +210,21 @@ class Patient
     public function setContactAPrevenir(?string $contactAPrevenir): static
     {
         $this->contactAPrevenir = $contactAPrevenir;
+
+        return $this;
+    }
+
+    public function getDpi(): ?Dpi
+    {
+        return $this->dpi;
+    }
+
+    public function setDpi(Dpi $dpi): static
+    {
+        if ($this->dpi !== $dpi) {
+            $this->dpi = $dpi;
+            $dpi->setPatient($this);
+        }
 
         return $this;
     }

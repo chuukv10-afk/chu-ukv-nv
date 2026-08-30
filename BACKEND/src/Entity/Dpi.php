@@ -2,14 +2,18 @@
 
 namespace App\Entity;
 
+use App\Entity\Contract\BlameableInterface;
+use App\Entity\Trait\BlameableTrait;
 use App\Repository\DpiRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: DpiRepository::class)]
-class Dpi
+class Dpi implements BlameableInterface
 {
+    use BlameableTrait;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -18,11 +22,12 @@ class Dpi
     #[ORM\Column(length: 50)]
     private ?string $numDossier = null;
 
-    #[ORM\Column]
-    private ?\DateTimeImmutable $createdAt = null;
-
     #[ORM\Column(length: 20)]
     private ?string $statut = null;
+
+    #[ORM\OneToOne(inversedBy: 'dpi')]
+    #[ORM\JoinColumn(nullable: false, unique: true, onDelete: 'CASCADE')]
+    private ?Patient $patient = null;
 
     /**
      * @var Collection<int, Antecedent>
@@ -59,18 +64,6 @@ class Dpi
         return $this;
     }
 
-    public function getCreatedAt(): ?\DateTimeImmutable
-    {
-        return $this->createdAt;
-    }
-
-    public function setCreatedAt(\DateTimeImmutable $createdAt): static
-    {
-        $this->createdAt = $createdAt;
-
-        return $this;
-    }
-
     public function getStatut(): ?string
     {
         return $this->statut;
@@ -79,6 +72,18 @@ class Dpi
     public function setStatut(string $statut): static
     {
         $this->statut = $statut;
+
+        return $this;
+    }
+
+    public function getPatient(): ?Patient
+    {
+        return $this->patient;
+    }
+
+    public function setPatient(?Patient $patient): static
+    {
+        $this->patient = $patient;
 
         return $this;
     }

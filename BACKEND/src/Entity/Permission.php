@@ -2,18 +2,26 @@
 
 namespace App\Entity;
 
+use App\Entity\Trait\UuidV7PrimaryKeyTrait;
 use App\Repository\PermissionRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: PermissionRepository::class)]
+#[ORM\HasLifecycleCallbacks]
 class Permission
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column]
-    private ?int $id = null;
+    use UuidV7PrimaryKeyTrait;
 
-    #[ORM\Column(length: 25)]
+    public const MODULE_PATIENT = 'PATIENT';
+    public const MODULE_CLINIQUE = 'CLINIQUE';
+    public const MODULE_FACTURATION = 'FACTURATION';
+    public const MODULE_ORGANISATION = 'ORGANISATION';
+    public const MODULE_REFERENTIEL = 'REFERENTIEL';
+    public const MODULE_ADMIN = 'ADMIN';
+
+    #[ORM\Column(length: 25, unique: true)]
     private ?string $code = null;
 
     #[ORM\Column(length: 255, nullable: true)]
@@ -22,15 +30,53 @@ class Permission
     #[ORM\Column(length: 300, nullable: true)]
     private ?string $description = null;
 
+    /**
+     * Regroupe la permission par domaine fonctionnel (QUOI), pas le périmètre géographique.
+     */
     #[ORM\Column(length: 30)]
-    private ?string $perimetre = null;
+    private ?string $module = null;
 
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
-    public function getId(): ?int
+    /**
+     * @var Collection<int, Role>
+     */
+    #[ORM\ManyToMany(targetEntity: Role::class, mappedBy: 'permissions')]
+    private Collection $roles;
+
+    public function __construct()
     {
-        return $this->id;
+        $this->roles = new ArrayCollection();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getModules(): array
+    {
+        return [
+            self::MODULE_PATIENT,
+            self::MODULE_CLINIQUE,
+            self::MODULE_FACTURATION,
+            self::MODULE_ORGANISATION,
+            self::MODULE_REFERENTIEL,
+            self::MODULE_ADMIN,
+        ];
+    }
+
+    public static function normalizeModule(string $module): string
+    {
+        return strtoupper(trim($module));
+    }
+
+    public static function isValidModule(?string $module): bool
+    {
+        if (null === $module || '' === trim($module)) {
+            return false;
+        }
+
+        return in_array(self::normalizeModule($module), self::getModules(), true);
     }
 
     public function getCode(): ?string
@@ -40,7 +86,7 @@ class Permission
 
     public function setCode(string $code): static
     {
-        $this->code = $code;
+        $this->code = strtolower(trim($code));
 
         return $this;
     }
@@ -69,14 +115,24 @@ class Permission
         return $this;
     }
 
-    public function getPerimetre(): ?string
+    public function getModule(): ?string
     {
-        return $this->perimetre;
+        return $this->module;
     }
 
-    public function setPerimetre(string $perimetre): static
+    public function setModule(string $module): static
     {
-        $this->perimetre = $perimetre;
+        $normalizedModule = self::normalizeModule($module);
+
+        if (!self::isValidModule($normalizedModule)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Module de permission invalide "%s". Valeurs autorisées : %s.',
+                $module,
+                implode(', ', self::getModules())
+            ));
+        }
+
+        $this->module = $normalizedModule;
 
         return $this;
     }
@@ -89,6 +145,33 @@ class Permission
     public function setCreatedAt(\DateTimeImmutable $createdAt): static
     {
         $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Role>
+     */
+    public function getRoles(): Collection
+    {
+        return $this->roles;
+    }
+
+    public function addRole(Role $role): static
+    {
+        if (!$this->roles->contains($role)) {
+            $this->roles->add($role);
+            $role->addPermission($this);
+        }
+
+        return $this;
+    }
+
+    public function removeRole(Role $role): static
+    {
+        if ($this->roles->removeElement($role)) {
+            $role->removePermission($this);
+        }
 
         return $this;
     }

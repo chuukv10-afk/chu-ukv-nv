@@ -15,8 +15,8 @@ class UserChecker implements UserCheckerInterface
             return;
         }
 
-        if (!$user->isActive()) {
-            throw new CustomUserMessageAccountStatusException('Ce compte personnel est inactif.');
+        if (!$user->canAuthenticate()) {
+            throw new CustomUserMessageAccountStatusException($user->getAuthenticationDeniedMessage());
         }
     }
 

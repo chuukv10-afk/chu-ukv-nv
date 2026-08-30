@@ -22,7 +22,7 @@ final class AuthController extends AbstractController
 
         return $this->json([
             'data' => [
-                'id' => $personnel->getId(),
+                'id' => $personnel->getId()?->toRfc4122(),
                 'matricule' => $personnel->getMatricule(),
                 'nom' => $personnel->getNom(),
                 'postNom' => $personnel->getPostNom(),
@@ -31,6 +31,7 @@ final class AuthController extends AbstractController
                 'type' => $personnel->getType(),
                 'status' => $personnel->getStatus(),
                 'roles' => $personnel->getRoles(),
+                'roleAssignments' => $personnel->getRoleAssignmentSummary(),
                 'service' => $personnel->getService()?->getLibelle(),
                 'grade' => $personnel->getGrade()?->getLibelle(),
             ],

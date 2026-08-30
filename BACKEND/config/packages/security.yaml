@@ -1,4 +1,6 @@
 security:
+    expose_security_errors: account_status
+
     password_hashers:
         Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
 
