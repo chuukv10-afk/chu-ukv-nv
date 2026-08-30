@@ -5,15 +5,18 @@ namespace App\Controller\Api\Referentiel;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+#[Route('/api/v1/referentiel/grades')]
+#[IsGranted('ROLE_PERSONNEL')]
 final class GradesController extends AbstractController
 {
-    #[Route('/api/referentiel/grades', name: 'app_api_referentiel_grades')]
+    #[Route('', name: 'api_referentiel_grades_index', methods: ['GET'])]
     public function index(): JsonResponse
     {
         return $this->json([
-            'message' => 'Welcome to your new controller!',
-            'path' => 'src/Controller/Api/Referentiel/GradesController.php',
+            'data' => [],
+            'message' => 'Module grades — à implémenter.',
         ]);
     }
 }

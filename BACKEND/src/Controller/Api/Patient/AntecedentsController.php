@@ -1,22 +1,22 @@
 <?php
 
-namespace App\Controller\Api\Clinique;
+namespace App\Controller\Api\Patient;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-#[Route('/api/v1/clinique/diagnostics')]
+#[Route('/api/v1/patients/antecedents')]
 #[IsGranted('ROLE_PERSONNEL')]
-final class DiagnosticsController extends AbstractController
+final class AntecedentsController extends AbstractController
 {
-    #[Route('', name: 'api_clinique_diagnostics_index', methods: ['GET'])]
+    #[Route('', name: 'api_patients_antecedents_index', methods: ['GET'])]
     public function index(): JsonResponse
     {
         return $this->json([
             'data' => [],
-            'message' => 'Module diagnostics — à implémenter.',
+            'message' => 'Module antécédents — à implémenter.',
         ]);
     }
 }

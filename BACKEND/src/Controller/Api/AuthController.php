@@ -7,9 +7,11 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-#[Route('/api')]
-class AuthController extends AbstractController
+#[Route('/api/v1')]
+#[IsGranted('ROLE_PERSONNEL')]
+final class AuthController extends AbstractController
 {
     #[Route('/me', name: 'api_me', methods: ['GET'])]
     public function me(#[CurrentUser] ?Personnel $personnel): JsonResponse
@@ -19,17 +21,19 @@ class AuthController extends AbstractController
         }
 
         return $this->json([
-            'id' => $personnel->getId(),
-            'matricule' => $personnel->getMatricule(),
-            'nom' => $personnel->getNom(),
-            'postNom' => $personnel->getPostNom(),
-            'prenom' => $personnel->getPrenom(),
-            'telephone' => $personnel->getTelephone(),
-            'type' => $personnel->getType(),
-            'status' => $personnel->getStatus(),
-            'roles' => $personnel->getRoles(),
-            'service' => $personnel->getService()?->getLibelle(),
-            'grade' => $personnel->getGrade()?->getLibelle(),
+            'data' => [
+                'id' => $personnel->getId(),
+                'matricule' => $personnel->getMatricule(),
+                'nom' => $personnel->getNom(),
+                'postNom' => $personnel->getPostNom(),
+                'prenom' => $personnel->getPrenom(),
+                'telephone' => $personnel->getTelephone(),
+                'type' => $personnel->getType(),
+                'status' => $personnel->getStatus(),
+                'roles' => $personnel->getRoles(),
+                'service' => $personnel->getService()?->getLibelle(),
+                'grade' => $personnel->getGrade()?->getLibelle(),
+            ],
         ]);
     }
 }

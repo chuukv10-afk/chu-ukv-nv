@@ -16,7 +16,7 @@ final class PersonnelController extends AbstractController
     {
         return $this->json([
             'data' => [],
-            'message' => 'Module personnel — à implémenter.',
+            'message' => 'Module personnels — à implémenter.',
         ]);
     }
 }

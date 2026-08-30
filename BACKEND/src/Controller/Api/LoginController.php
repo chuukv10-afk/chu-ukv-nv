@@ -6,11 +6,11 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
-class LoginController extends AbstractController
+final class LoginController extends AbstractController
 {
-    #[Route('/api/login', name: 'api_login', methods: ['POST'])]
+    #[Route('/api/v1/login', name: 'api_login', methods: ['POST'])]
     public function login(): Response
     {
-        throw new \LogicException('Vérifier le format de données envoyées. Veillez fourir le numéro de téléphon et le mot de passe.');
+        throw new \LogicException('Cette route est interceptée par le firewall json_login.');
     }
 }

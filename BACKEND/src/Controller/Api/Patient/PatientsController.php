@@ -5,15 +5,18 @@ namespace App\Controller\Api\Patient;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+#[Route('/api/v1/patients')]
+#[IsGranted('ROLE_PERSONNEL')]
 final class PatientsController extends AbstractController
 {
-    #[Route('/api/patient/patients', name: 'app_api_patient_patients')]
+    #[Route('', name: 'api_patients_index', methods: ['GET'])]
     public function index(): JsonResponse
     {
         return $this->json([
-            'message' => 'Welcome to your new controller!',
-            'path' => 'src/Controller/Api/Patient/PatientsController.php',
+            'data' => [],
+            'message' => 'Module patients — à implémenter.',
         ]);
     }
 }

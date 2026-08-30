@@ -5,15 +5,18 @@ namespace App\Controller\Api\Clinique;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+#[Route('/api/v1/clinique/consultations')]
+#[IsGranted('ROLE_PERSONNEL')]
 final class ConsultationsController extends AbstractController
 {
-    #[Route('/api/patient/consultations', name: 'app_api_patient_consultations')]
+    #[Route('', name: 'api_clinique_consultations_index', methods: ['GET'])]
     public function index(): JsonResponse
     {
         return $this->json([
-            'message' => 'Welcome to your new controller!',
-            'path' => 'src/Controller/Api/Patient/ConsultationsController.php',
+            'data' => [],
+            'message' => 'Module consultations — à implémenter.',
         ]);
     }
 }

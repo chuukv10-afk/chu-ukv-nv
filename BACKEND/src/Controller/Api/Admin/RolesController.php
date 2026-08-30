@@ -5,17 +5,18 @@ namespace App\Controller\Api\Admin;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-#[Route('/api/v1/admin/personnels')]
+#[Route('/api/v1/admin/roles')]
 #[IsGranted('ROLE_PERSONNEL')]
 final class RolesController extends AbstractController
 {
-    #[Route('/api/admin/roles', name: 'app_api_admin_roles')]
+    #[Route('', name: 'api_admin_roles_index', methods: ['GET'])]
     public function index(): JsonResponse
     {
         return $this->json([
-            'message' => 'Welcome to your new controller!',
-            'path' => 'src/Controller/Api/Admin/RolesController.php',
+            'data' => [],
+            'message' => 'Module rôles — à implémenter.',
         ]);
     }
 }
