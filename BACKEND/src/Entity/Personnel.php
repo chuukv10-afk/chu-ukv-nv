@@ -275,7 +275,6 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function assignRole(
         Role $role,
-        string $perimetre = PersonnelRole::PERIMETRE_SERVICE,
         ?Service $service = null,
         ?Departement $departement = null,
     ): PersonnelRole {
@@ -285,12 +284,26 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
             }
         }
 
+        $perimetre = (string) $role->getPerimetre();
+        if ('' === $perimetre) {
+            throw new \InvalidArgumentException(sprintf('Le rôle "%s" n\'a pas de périmètre défini.', $role->getCode()));
+        }
+
+        $resolvedService = match ($perimetre) {
+            PersonnelRole::PERIMETRE_SERVICE => $service ?? $this->service,
+            default => null,
+        };
+        $resolvedDepartement = match ($perimetre) {
+            PersonnelRole::PERIMETRE_DEPARTEMENT => $departement,
+            default => null,
+        };
+
         $assignment = (new PersonnelRole())
             ->setPersonnel($this)
             ->setRole($role)
             ->setPerimetre($perimetre)
-            ->setService($service ?? (PersonnelRole::PERIMETRE_SERVICE === $perimetre ? $this->service : null))
-            ->setDepartement($departement)
+            ->setService($resolvedService)
+            ->setDepartement($resolvedDepartement)
             ->setCreatedAt(new \DateTimeImmutable());
 
         $assignment->validateScope();
@@ -326,11 +339,10 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function addAssignedRole(
         Role $role,
-        string $perimetre = PersonnelRole::PERIMETRE_SERVICE,
         ?Service $service = null,
         ?Departement $departement = null,
     ): PersonnelRole {
-        return $this->assignRole($role, $perimetre, $service, $departement);
+        return $this->assignRole($role, $service, $departement);
     }
 
     public function removeAssignedRole(Role $role): static

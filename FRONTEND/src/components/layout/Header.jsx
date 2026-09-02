@@ -14,14 +14,14 @@ import {
   Stack,
   Typography,
 } from '@mui/joy';
-import { Bell, ChevronDown, LogOut, Menu as MenuIcon, Search, User } from 'lucide-react';
+import { Bell, ChevronDown, ChevronRight, LogOut, Menu as MenuIcon, Search, User } from 'lucide-react';
 import LogoutConfirmModal from '../auth/LogoutConfirmModal.jsx';
 import { LAYOUT } from '../../constants/layout.js';
 import { useAuth } from '../../hooks/useAuth.js';
 import { useLogoutConfirm } from '../../hooks/useLogoutConfirm.js';
 import { usePageMeta } from '../../hooks/usePageMeta.js';
-import { useAppDispatch } from '../../hooks/useAppStore.js';
-import { setSidebarOpen } from '../../store/ui/uiSlice.js';
+import { useAppDispatch, useAppSelector } from '../../hooks/useAppStore.js';
+import { setSidebarOpen, toggleSidebarCollapsed } from '../../store/ui/uiSlice.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../theme/lotruPalette.js';
 import {
   formatRoleAssignment,
@@ -112,6 +112,7 @@ function ProfileMenu({ profile, displayName, personnelLabel, roleAssignments, on
 
 export default function Header() {
   const dispatch = useAppDispatch();
+  const sidebarCollapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
   const { profile } = useAuth();
   const { title, section } = usePageMeta();
   const { logoutOpen, logoutLoading, requestLogout, cancelLogout, confirmLogout } = useLogoutConfirm();
@@ -154,6 +155,18 @@ export default function Header() {
               <MenuIcon size={20} />
             </IconButton>
 
+            {sidebarCollapsed ? (
+              <IconButton
+                variant="soft"
+                color="neutral"
+                title="Déplier le menu"
+                onClick={() => dispatch(toggleSidebarCollapsed())}
+                sx={{ display: { xs: 'none', md: 'inline-flex' }, flexShrink: 0 }}
+              >
+                <ChevronRight size={18} />
+              </IconButton>
+            ) : null}
+
             <Box sx={{ minWidth: 0 }}>
               <Breadcrumbs size="sm" sx={{ '--Breadcrumbs-gap': '6px', mb: 0.25 }}>
                 <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
@@ -184,14 +197,9 @@ export default function Header() {
               <Bell size={20} />
             </IconButton>
 
-            {profile?.type ? (
-              <Chip size="sm" variant="soft" color="primary" sx={{ display: { xs: 'none', lg: 'inline-flex' } }}>
-                {personnelLabel}
-              </Chip>
-            ) : null}
+            
 
-            <Divider orientation="vertical" sx={{ height: 24, display: { xs: 'none', sm: 'block' } }} />
-
+           
             <Dropdown>
               <MenuButton
                 variant="plain"

@@ -18,18 +18,23 @@ final class RoleProvisioner
     ) {
     }
 
-    public function findOrCreate(string $code, string $libelle): Role
+    public function findOrCreate(string $code, string $libelle, string $perimetre): Role
     {
         $normalizedCode = strtoupper(trim($code));
         $role = $this->roleRepository->findOneBy(['code' => $normalizedCode]);
 
         if (null !== $role) {
+            if (null === $role->getPerimetre()) {
+                $role->setPerimetre($perimetre);
+            }
+
             return $role;
         }
 
         $role = (new Role())
             ->setCode($normalizedCode)
             ->setLibelle($libelle)
+            ->setPerimetre($perimetre)
             ->setCreatedAt(new \DateTimeImmutable());
 
         $this->entityManager->persist($role);
@@ -53,7 +58,6 @@ final class RoleProvisioner
     public function assign(
         Personnel $personnel,
         Role $role,
-        string $perimetre,
         ?Service $service = null,
         ?Departement $departement = null,
     ): PersonnelRole {
@@ -65,29 +69,32 @@ final class RoleProvisioner
             }
         }
 
-        return $personnel->assignRole($role, $perimetre, $service, $departement);
+        return $personnel->assignRole($role, $service, $departement);
     }
 
-    public function assignDefaultPersonnelRole(Personnel $personnel): PersonnelRole
+    public function assignDefaultPersonnelRole(Personnel $personnel): ?PersonnelRole
     {
-        $role = $this->findOrCreate(Role::CODE_PERSONNEL, 'Personnel');
+        $role = $this->findOrCreate(
+            Role::CODE_PERSONNEL,
+            'Personnel',
+            PersonnelRole::PERIMETRE_SERVICE,
+        );
 
-        if (null !== $personnel->getService()) {
-            return $this->assign(
-                $personnel,
-                $role,
-                PersonnelRole::PERIMETRE_SERVICE,
-                $personnel->getService(),
-            );
+        if (PersonnelRole::PERIMETRE_SERVICE === $role->getPerimetre() && null === $personnel->getService()) {
+            return null;
         }
 
-        return $this->assign($personnel, $role, PersonnelRole::PERIMETRE_GLOBAL);
+        return $this->assign($personnel, $role, $personnel->getService());
     }
 
     public function assignAdminRole(Personnel $personnel): PersonnelRole
     {
-        $role = $this->findOrCreate(Role::CODE_ADMIN, 'Administrateur');
+        $role = $this->findOrCreate(
+            Role::CODE_ADMIN,
+            'Administrateur',
+            PersonnelRole::PERIMETRE_GLOBAL,
+        );
 
-        return $this->assign($personnel, $role, PersonnelRole::PERIMETRE_GLOBAL);
+        return $this->assign($personnel, $role);
     }
 }

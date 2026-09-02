@@ -23,6 +23,13 @@ class Role
     #[ORM\Column(length: 100)]
     private ?string $libelle = null;
 
+    /**
+     * Périmètre requis lors de l'affectation de ce rôle à un agent.
+     * GLOBAL : aucune cible | DEPARTEMENT : département requis | SERVICE : service requis.
+     */
+    #[ORM\Column(length: 20)]
+    private ?string $perimetre = null;
+
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
@@ -65,6 +72,28 @@ class Role
     public function setLibelle(string $libelle): static
     {
         $this->libelle = $libelle;
+
+        return $this;
+    }
+
+    public function getPerimetre(): ?string
+    {
+        return $this->perimetre;
+    }
+
+    public function setPerimetre(string $perimetre): static
+    {
+        $normalizedPerimetre = PersonnelRole::normalizePerimetre($perimetre);
+
+        if (!PersonnelRole::isValidPerimetre($normalizedPerimetre)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Périmètre invalide "%s". Valeurs autorisées : %s.',
+                $perimetre,
+                implode(', ', PersonnelRole::getPerimetres())
+            ));
+        }
+
+        $this->perimetre = $normalizedPerimetre;
 
         return $this;
     }

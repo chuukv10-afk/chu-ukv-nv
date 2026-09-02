@@ -15,6 +15,12 @@ export const PERMISSIONS = {
   CLINIQUE: {
     EXAMEN_READ: 'clinique.examen.read',
   },
+  ADMIN: {
+    ROLE_READ: 'admin.role.read',
+    ROLE_CREATE: 'admin.role.create',
+    ROLE_UPDATE: 'admin.role.update',
+    ROLE_DELETE: 'admin.role.delete',
+  },
 };
 
 export const ROLES = {

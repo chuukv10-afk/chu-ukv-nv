@@ -17,7 +17,6 @@ import {
   Building2,
   CalendarDays,
   ChevronLeft,
-  ChevronRight,
   ClipboardList,
   DoorOpen,
   FileText,
@@ -44,6 +43,24 @@ import { useLogoutConfirm } from '../../hooks/useLogoutConfirm.js';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { toggleSidebarCollapsed } from '../../store/ui/uiSlice.js';
 import { LOTRU_LAYOUT, LOTRU_PRIMARY } from '../../theme/lotruPalette.js';
+
+const SIDEBAR_SCROLL_SX = {
+  scrollbarWidth: 'thin',
+  scrollbarColor: `${LOTRU_LAYOUT.sidebarSurface} transparent`,
+  '&::-webkit-scrollbar': {
+    width: 4,
+  },
+  '&::-webkit-scrollbar-track': {
+    background: 'transparent',
+  },
+  '&::-webkit-scrollbar-thumb': {
+    backgroundColor: LOTRU_LAYOUT.sidebarSurface,
+    borderRadius: 4,
+  },
+  '&::-webkit-scrollbar-thumb:hover': {
+    backgroundColor: LOTRU_LAYOUT.sidebarTextMuted,
+  },
+};
 
 const NAV_ICONS = {
   dashboard: LayoutDashboard,
@@ -72,7 +89,7 @@ function SidebarHeader({ collapsed }) {
   return (
     <Stack
       alignItems="center"
-      spacing={1}
+      justifyContent="center"
       sx={{
         px: collapsed ? 1 : 2,
         py: 2,
@@ -88,7 +105,13 @@ function SidebarHeader({ collapsed }) {
         spacing={1.25}
         sx={{ width: '100%' }}
       >
-        <Stack direction="row" alignItems="center" spacing={1.25} sx={{ minWidth: 0, flex: 1 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent={collapsed ? 'center' : 'flex-start'}
+          spacing={1.25}
+          sx={{ minWidth: 0, flex: collapsed ? 0 : 1, width: collapsed ? '100%' : 'auto' }}
+        >
           <Box
             component="img"
             src={logo}
@@ -120,23 +143,6 @@ function SidebarHeader({ collapsed }) {
           </Tooltip>
         ) : null}
       </Stack>
-
-      {collapsed ? (
-        <Tooltip title="Déplier le menu" placement="right">
-          <IconButton
-            size="sm"
-            variant="soft"
-            onClick={() => dispatch(toggleSidebarCollapsed())}
-            sx={{
-              bgcolor: LOTRU_LAYOUT.sidebarSurface,
-              color: LOTRU_LAYOUT.sidebarTextMuted,
-              '&:hover': { bgcolor: LOTRU_PRIMARY[600], color: '#fff' },
-            }}
-          >
-            <ChevronRight size={18} />
-          </IconButton>
-        </Tooltip>
-      ) : null}
     </Stack>
   );
 }
@@ -144,15 +150,18 @@ function SidebarHeader({ collapsed }) {
 function NavItem({ item, collapsed, onNavigate }) {
   const Icon = NAV_ICONS[item.icon] ?? ShieldCheck;
 
-  const button = (
+  const button = collapsed ? (
     <ListItemButton
       component={NavLink}
       to={item.to}
       onClick={onNavigate}
       sx={{
-        py: 1,
-        px: collapsed ? 1 : 1.5,
-        justifyContent: collapsed ? 'center' : 'flex-start',
+        width: 44,
+        height: 40,
+        mx: 'auto',
+        p: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
         color: LOTRU_LAYOUT.sidebarTextMuted,
         '&:hover': {
           bgcolor: LOTRU_LAYOUT.sidebarSurface,
@@ -166,10 +175,34 @@ function NavItem({ item, collapsed, onNavigate }) {
         },
       }}
     >
-      <ListItemDecorator sx={{ marginInlineEnd: collapsed ? 0 : undefined }}>
+      <Icon size={18} className="nav-icon" />
+    </ListItemButton>
+  ) : (
+    <ListItemButton
+      component={NavLink}
+      to={item.to}
+      onClick={onNavigate}
+      sx={{
+        py: 1,
+        px: 1.5,
+        justifyContent: 'flex-start',
+        color: LOTRU_LAYOUT.sidebarTextMuted,
+        '&:hover': {
+          bgcolor: LOTRU_LAYOUT.sidebarSurface,
+          color: LOTRU_LAYOUT.sidebarText,
+        },
+        '&.active': {
+          bgcolor: LOTRU_PRIMARY[500],
+          color: '#fff',
+          fontWeight: 600,
+          '& .nav-icon': { color: '#fff' },
+        },
+      }}
+    >
+      <ListItemDecorator>
         <Icon size={18} className="nav-icon" />
       </ListItemDecorator>
-      {!collapsed ? <ListItemContent>{item.label}</ListItemContent> : null}
+      <ListItemContent>{item.label}</ListItemContent>
     </ListItemButton>
   );
 
@@ -189,16 +222,19 @@ function NavItem({ item, collapsed, onNavigate }) {
 }
 
 function LogoutNavItem({ collapsed, onNavigate, onRequestLogout }) {
-  const button = (
+  const button = collapsed ? (
     <ListItemButton
       onClick={() => {
         onNavigate?.();
         onRequestLogout();
       }}
       sx={{
-        py: 1,
-        px: collapsed ? 1 : 1.5,
-        justifyContent: collapsed ? 'center' : 'flex-start',
+        width: 44,
+        height: 40,
+        mx: 'auto',
+        p: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
         color: LOTRU_LAYOUT.sidebarTextMuted,
         '&:hover': {
           bgcolor: LOTRU_LAYOUT.sidebarSurface,
@@ -206,10 +242,29 @@ function LogoutNavItem({ collapsed, onNavigate, onRequestLogout }) {
         },
       }}
     >
-      <ListItemDecorator sx={{ marginInlineEnd: collapsed ? 0 : undefined }}>
+      <LogOut size={18} />
+    </ListItemButton>
+  ) : (
+    <ListItemButton
+      onClick={() => {
+        onNavigate?.();
+        onRequestLogout();
+      }}
+      sx={{
+        py: 1,
+        px: 1.5,
+        justifyContent: 'flex-start',
+        color: LOTRU_LAYOUT.sidebarTextMuted,
+        '&:hover': {
+          bgcolor: LOTRU_LAYOUT.sidebarSurface,
+          color: '#fca5a5',
+        },
+      }}
+    >
+      <ListItemDecorator>
         <LogOut size={18} />
       </ListItemDecorator>
-      {!collapsed ? <ListItemContent>Déconnexion</ListItemContent> : null}
+      <ListItemContent>Déconnexion</ListItemContent>
     </ListItemButton>
   );
 
@@ -261,9 +316,18 @@ function SidebarNav({ onNavigate, collapsed = false }) {
     >
       <SidebarHeader collapsed={collapsed} />
 
-      <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', px: collapsed ? 0.75 : 1.5, py: 2 }}>
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          px: collapsed ? 0 : 1.5,
+          py: 2,
+          ...SIDEBAR_SCROLL_SX,
+        }}
+      >
         {visibleSections.map((section) => (
-          <Box key={section.id} sx={{ mb: collapsed ? 1 : 2 }}>
+          <Box key={section.id} sx={{ mb: collapsed ? 1 : 2, width: '100%' }}>
             {!collapsed ? (
               <Typography
                 level="body-xs"
@@ -280,7 +344,15 @@ function SidebarNav({ onNavigate, collapsed = false }) {
               </Typography>
             ) : null}
 
-            <List size="sm" sx={{ '--ListItem-radius': '12px', '--List-gap': '4px' }}>
+            <List
+              size="sm"
+              sx={{
+                '--ListItem-radius': '12px',
+                '--List-gap': '4px',
+                width: '100%',
+                ...(collapsed ? { alignItems: 'center' } : {}),
+              }}
+            >
               {section.items.map((item) => (
                 <NavItem
                   key={item.to}
@@ -293,7 +365,15 @@ function SidebarNav({ onNavigate, collapsed = false }) {
           </Box>
         ))}
 
-        <List size="sm" sx={{ '--ListItem-radius': '12px', '--List-gap': '4px' }}>
+        <List
+          size="sm"
+          sx={{
+            '--ListItem-radius': '12px',
+            '--List-gap': '4px',
+            width: '100%',
+            ...(collapsed ? { alignItems: 'center' } : {}),
+          }}
+        >
           <LogoutNavItem collapsed={collapsed} onNavigate={onNavigate} onRequestLogout={requestLogout} />
         </List>
       </Box>

@@ -3,6 +3,7 @@
 namespace App\Command;
 
 use App\Entity\Personnel;
+use App\Entity\PersonnelRole;
 use App\Entity\Role;
 use App\Repository\PersonnelRepository;
 use App\Service\Role\RoleProvisioner;
@@ -31,15 +32,16 @@ final class SyncDefaultRolesCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $this->roleProvisioner->findOrCreate(Role::CODE_PERSONNEL, 'Personnel');
-        $this->roleProvisioner->findOrCreate(Role::CODE_ADMIN, 'Administrateur');
+        $this->roleProvisioner->findOrCreate(Role::CODE_PERSONNEL, 'Personnel', PersonnelRole::PERIMETRE_SERVICE);
+        $this->roleProvisioner->findOrCreate(Role::CODE_ADMIN, 'Administrateur', PersonnelRole::PERIMETRE_GLOBAL);
         $this->entityManager->flush();
 
         $assignedCount = 0;
         foreach ($this->personnelRepository->findAll() as $personnel) {
             if (!$this->roleProvisioner->hasRole($personnel, Role::CODE_PERSONNEL)) {
-                $this->roleProvisioner->assignDefaultPersonnelRole($personnel);
-                ++$assignedCount;
+                if (null !== $this->roleProvisioner->assignDefaultPersonnelRole($personnel)) {
+                    ++$assignedCount;
+                }
             }
         }
 

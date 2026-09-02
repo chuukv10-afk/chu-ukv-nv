@@ -12,6 +12,9 @@ import DashboardPage from '../pages/dashboard/DashboardPage.jsx';
 import AccessDeniedPage from '../pages/errors/AccessDeniedPage.jsx';
 import NotFoundPage from '../pages/errors/NotFoundPage.jsx';
 import DepartementsPage from '../features/organisation/departements/DepartementsPage.jsx';
+import RolesPage from '../features/admin/roles/RolesPage.jsx';
+import { PermissionGuard } from '../components/auth/PermissionGuard.jsx';
+import { PERMISSIONS } from '../constants/permissions.js';
 import { fetchMe } from '../features/auth/authService.js';
 
 export default function AppRouter() {
@@ -47,6 +50,14 @@ export default function AppRouter() {
           <Route element={<AppLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
             <Route path={ROUTES.ORGANISATION.DEPARTEMENTS} element={<DepartementsPage />} />
+            <Route
+              path={ROUTES.ADMIN.ROLES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.ADMIN.ROLE_READ}>
+                  <RolesPage />
+                </PermissionGuard>
+              )}
+            />
           </Route>
         </Route>
 

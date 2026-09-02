@@ -137,7 +137,7 @@ export const NAV_SECTIONS = [
       {
         label: 'Rôles',
         to: ROUTES.ADMIN.ROLES,
-        adminOnly: true,
+        permission: PERMISSIONS.ADMIN.ROLE_READ,
         icon: 'shield',
       },
       {

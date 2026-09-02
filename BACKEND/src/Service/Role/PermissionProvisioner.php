@@ -3,8 +3,10 @@
 namespace App\Service\Role;
 
 use App\Entity\Permission;
+use App\Entity\PersonnelRole;
 use App\Entity\Role;
 use App\Repository\PermissionRepository;
+use App\Security\Permission\AdminPermissions;
 use App\Security\Permission\CliniquePermissions;
 use App\Security\Permission\OrganisationPermissions;
 use App\Security\Permission\ReferentielPermissions;
@@ -33,6 +35,7 @@ final class PermissionProvisioner
             OrganisationPermissions::allDefinitions(),
             ReferentielPermissions::allDefinitions(),
             CliniquePermissions::allDefinitions(),
+            AdminPermissions::allDefinitions(),
         );
 
         return $this->syncPermissions($definitions);
@@ -51,8 +54,18 @@ final class PermissionProvisioner
             }
         }
 
-        $adminRole = $this->roleProvisioner->findOrCreate(Role::CODE_ADMIN, 'Administrateur');
-        $personnelRole = $this->roleProvisioner->findOrCreate(Role::CODE_PERSONNEL, 'Personnel');
+        $this->entityManager->flush();
+
+        $adminRole = $this->roleProvisioner->findOrCreate(
+            Role::CODE_ADMIN,
+            'Administrateur',
+            PersonnelRole::PERIMETRE_GLOBAL,
+        );
+        $personnelRole = $this->roleProvisioner->findOrCreate(
+            Role::CODE_PERSONNEL,
+            'Personnel',
+            PersonnelRole::PERIMETRE_SERVICE,
+        );
 
         foreach ($definitions as $definition) {
             $permission = $this->permissionRepository->findOneBy(['code' => $definition['code']]);
