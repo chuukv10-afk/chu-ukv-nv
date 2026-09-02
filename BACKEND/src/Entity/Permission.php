@@ -21,7 +21,7 @@ class Permission
     public const MODULE_REFERENTIEL = 'REFERENTIEL';
     public const MODULE_ADMIN = 'ADMIN';
 
-    #[ORM\Column(length: 25, unique: true)]
+    #[ORM\Column(length: 50, unique: true)]
     private ?string $code = null;
 
     #[ORM\Column(length: 255, nullable: true)]

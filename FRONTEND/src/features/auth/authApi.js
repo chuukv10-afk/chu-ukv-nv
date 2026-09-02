@@ -1,0 +1,67 @@
+import { AUTH_TOKEN_KEY } from '../../constants/apiConfig.js';
+import { auth } from '../../api/endpoints.js';
+import { callApiGet, callApiPost } from '../../api/apiClient.js';
+
+const REMEMBER_TELEPHONE_KEY = 'chu_ukv_remember_telephone';
+
+export async function loginApi({ telephone, password }) {
+  const data = await callApiPost(auth.login, { telephone, password });
+
+  if (!data?.token) {
+    throw new Error('Aucun token reçu du serveur.');
+  }
+
+  localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+
+  return data;
+}
+
+export async function fetchCurrentUserApi() {
+  const response = await callApiGet(auth.me);
+  return response.data ?? response;
+}
+
+export function getRememberedTelephone() {
+  return localStorage.getItem(REMEMBER_TELEPHONE_KEY) || '';
+}
+
+export function setRememberedTelephone(telephone) {
+  localStorage.setItem(REMEMBER_TELEPHONE_KEY, telephone);
+}
+
+export function clearRememberedTelephone() {
+  localStorage.removeItem(REMEMBER_TELEPHONE_KEY);
+}
+
+export function logoutStorage() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+function splitRoles(rawRoles = []) {
+  const roles = [];
+  const permissions = [];
+
+  rawRoles.forEach((role) => {
+    if (role.startsWith('ROLE_')) {
+      roles.push(role);
+      return;
+    }
+
+    if (role.includes('.')) {
+      permissions.push(role);
+    }
+  });
+
+  return { roles, permissions };
+}
+
+export function mapProfileToAuthState(profile, token) {
+  const { roles, permissions } = splitRoles(profile?.roles ?? []);
+
+  return {
+    token,
+    profile,
+    roles,
+    permissions,
+  };
+}
