@@ -42,7 +42,10 @@ export function getPerimetreLabel(perimetre) {
 }
 
 export function formatRoleAssignment(assignment) {
-  const scope = assignment.service || assignment.departement || 'Tout l\'établissement';
+  const scope =
+    assignment.service ||
+    assignment.departement ||
+    'Tout l\'établissement';
 
-  return `${assignment.role} · ${getPerimetreLabel(assignment.perimetre)} · ${scope}`;
+  return `${assignment.role}(${scope})`;
 }
