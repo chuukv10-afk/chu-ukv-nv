@@ -3,6 +3,7 @@
 namespace App\Security;
 
 use App\Entity\Departement;
+use App\Entity\Personnel;
 use App\Entity\Service;
 
 /**
@@ -24,6 +25,15 @@ final class ScopeResolver
             return new ScopeContext(
                 departement: $subject->getDepartement(),
                 service: $subject,
+            );
+        }
+
+        if ($subject instanceof Personnel) {
+            $service = $subject->getService();
+
+            return new ScopeContext(
+                departement: $service?->getDepartement(),
+                service: $service,
             );
         }
 

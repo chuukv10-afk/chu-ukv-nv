@@ -2,15 +2,19 @@
 
 namespace App\Controller\Api\Referentiel;
 
+use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Referentiel\CreateTypeExamenInput;
+use App\DTO\Referentiel\ReferentielListQuery;
 use App\DTO\Referentiel\UpdateTypeExamenInput;
-use App\Entity\TypeExamen;
 use App\Security\Permission\ReferentielPermissions;
+use App\Service\Export\TableExportService;
 use App\Service\Referentiel\TypeExamenService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -19,6 +23,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class TypeExamenController extends AbstractController
 {
     use JsonResponseTrait;
+    use ExportResponseTrait;
 
     public function __construct(
         private readonly TypeExamenService $typeExamenService,
@@ -27,11 +32,34 @@ final class TypeExamenController extends AbstractController
 
     #[Route('', name: 'api_referentiel_types_examen_index', methods: ['GET'])]
     #[IsGranted(ReferentielPermissions::TYPE_EXAMEN_READ)]
-    public function index(): JsonResponse
+    public function index(#[MapQueryString] ReferentielListQuery $query = new ReferentielListQuery()): JsonResponse
     {
-        return $this->apiSuccess(
-            array_map([$this, 'serialize'], $this->typeExamenService->findAll()),
+        $result = $this->typeExamenService->paginate($query);
+
+        return $this->apiPaginatedSuccess(
+            $result->items,
+            $result->page,
+            $result->limit,
+            $result->total,
             'Liste des types d\'examen récupérée avec succès.',
+        );
+    }
+
+    #[Route('/export', name: 'api_referentiel_types_examen_export', methods: ['GET'])]
+    #[IsGranted(ReferentielPermissions::TYPE_EXAMEN_EXPORT)]
+    public function export(
+        Request $request,
+        TableExportService $tableExportService,
+        #[MapQueryString] ReferentielListQuery $query = new ReferentielListQuery(),
+    ): Response {
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            ['N°', 'Code', 'Libellé', 'Nb examens'],
+            $this->typeExamenService->buildExportRows($query),
+            'Liste des types d\'examen',
+            'types_examen',
+            'Aucun type d\'examen trouvé pour les filtres sélectionnés.',
         );
     }
 
@@ -43,7 +71,7 @@ final class TypeExamenController extends AbstractController
         $this->denyAccessUnlessGranted(ReferentielPermissions::TYPE_EXAMEN_READ, $typeExamen);
 
         return $this->apiSuccess(
-            $this->serialize($typeExamen),
+            $this->typeExamenService->serializeSummary($typeExamen),
             'Type d\'examen récupéré avec succès.',
         );
     }
@@ -53,7 +81,7 @@ final class TypeExamenController extends AbstractController
     public function create(#[MapRequestPayload] CreateTypeExamenInput $input): JsonResponse
     {
         return $this->apiSuccess(
-            $this->serialize($this->typeExamenService->create($input)),
+            $this->typeExamenService->serializeSummary($this->typeExamenService->create($input)),
             'Type d\'examen créé avec succès.',
             Response::HTTP_CREATED,
         );
@@ -67,7 +95,7 @@ final class TypeExamenController extends AbstractController
         $this->denyAccessUnlessGranted(ReferentielPermissions::TYPE_EXAMEN_UPDATE, $typeExamen);
 
         return $this->apiSuccess(
-            $this->serialize($this->typeExamenService->update($id, $input)),
+            $this->typeExamenService->serializeSummary($this->typeExamenService->update($id, $input)),
             'Type d\'examen mis à jour avec succès.',
         );
     }
@@ -82,15 +110,5 @@ final class TypeExamenController extends AbstractController
         $this->typeExamenService->delete($id);
 
         return $this->apiSuccess(message: 'Type d\'examen supprimé avec succès.');
-    }
-
-    private function serialize(TypeExamen $typeExamen): array
-    {
-        return [
-            'id' => $typeExamen->getId(),
-            'code' => $typeExamen->getCode(),
-            'libelle' => $typeExamen->getLibelle(),
-            'createdAt' => $typeExamen->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-        ];
     }
 }

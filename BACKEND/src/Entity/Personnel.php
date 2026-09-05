@@ -60,6 +60,9 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 15)]
     private ?string $type = null;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $avatarFilename = null;
+
     #[ORM\ManyToOne(inversedBy: 'personnels')]
     private ?Grade $grade = null;
 
@@ -241,6 +244,18 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    public function getAvatarFilename(): ?string
+    {
+        return $this->avatarFilename;
+    }
+
+    public function setAvatarFilename(?string $avatarFilename): static
+    {
+        $this->avatarFilename = $avatarFilename;
+
+        return $this;
+    }
+
     public function getGrade(): ?Grade
     {
         return $this->grade;
@@ -402,6 +417,7 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
         foreach ($this->roleAssignments as $assignment) {
             $summary[] = [
                 'role' => (string) $assignment->getRole()?->getCode(),
+                'roleLibelle' => $assignment->getRole()?->getLibelle(),
                 'perimetre' => $assignment->getPerimetre(),
                 'service' => $assignment->getService()?->getLibelle(),
                 'departement' => $assignment->getDepartement()?->getLibelle(),
@@ -515,5 +531,37 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
         $this->createdAt = $createdAt;
 
         return $this;
+    }
+
+    public const TYPE_MEDICAL = 'MEDICAL';
+    public const TYPE_PARAMEDICAL = 'PARAMEDICAL';
+    public const TYPE_ADMINISTRATIF = 'ADMINISTRATIF';
+    public const TYPE_TECHNIQUE = 'TECHNIQUE';
+
+    /**
+     * @return list<string>
+     */
+    public static function getTypes(): array
+    {
+        return [
+            self::TYPE_MEDICAL,
+            self::TYPE_PARAMEDICAL,
+            self::TYPE_ADMINISTRATIF,
+            self::TYPE_TECHNIQUE,
+        ];
+    }
+
+    public static function normalizeType(string $type): string
+    {
+        return strtoupper(trim($type));
+    }
+
+    public static function isValidType(?string $type): bool
+    {
+        if (null === $type || '' === trim($type)) {
+            return false;
+        }
+
+        return in_array(self::normalizeType($type), self::getTypes(), true);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Specialite;
+use App\Repository\Trait\CodeLibellePaginateTrait;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -11,33 +12,26 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class SpecialiteRepository extends ServiceEntityRepository
 {
+    use CodeLibellePaginateTrait;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Specialite::class);
     }
 
-    //    /**
-    //     * @return Specialite[] Returns an array of Specialite objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('s')
-    //            ->andWhere('s.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('s.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    /**
+     * @return array{items: list<Specialite>, total: int}
+     */
+    public function paginate(int $page, int $limit, ?string $search = null): array
+    {
+        return $this->paginateByCodeLibelle('s', $page, $limit, $search);
+    }
 
-    //    public function findOneBySomeField($value): ?Specialite
-    //    {
-    //        return $this->createQueryBuilder('s')
-    //            ->andWhere('s.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+    /**
+     * @return list<Specialite>
+     */
+    public function findForExport(?string $search = null): array
+    {
+        return $this->findAllByCodeLibelle('s', $search);
+    }
 }

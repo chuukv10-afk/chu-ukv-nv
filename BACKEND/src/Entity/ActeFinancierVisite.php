@@ -9,6 +9,11 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: ActeFinancierVisiteRepository::class)]
 class ActeFinancierVisite
 {
+    public const STATUT_EN_ATTENTE = 'EN_ATTENTE';
+    public const STATUT_FACTURE = 'FACTURE';
+    public const STATUT_PAYE = 'PAYE';
+    public const STATUT_ANNULE = 'ANNULE';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]

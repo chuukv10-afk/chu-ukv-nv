@@ -39,6 +39,21 @@ abstract class AbstractCodeLibelleCrudService
     /** @param T $entity */
     abstract protected function setCreatedAt(object $entity, \DateTimeImmutable $createdAt): void;
 
+    /**
+     * @param T $entity
+     *
+     * @return array<string, mixed>
+     */
+    public function serializeSummary(object $entity): array
+    {
+        return [
+            'id' => $entity->getId(),
+            'code' => $entity->getCode(),
+            'libelle' => $entity->getLibelle(),
+            'createdAt' => $entity->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+        ];
+    }
+
     public function delete(int $id): void
     {
         $this->eM->remove($this->getById($id));
@@ -93,13 +108,14 @@ abstract class AbstractCodeLibelleCrudService
             throw new ValidationFailedException($input, $errors);
         }
 
-        if ($this->repository()->findOneBy(['code' => $input->code])) {
+        $normalizedCode = strtoupper(trim($input->code));
+        if ($this->repository()->findOneBy(['code' => $normalizedCode])) {
             throw new ConflictException($this->duplicateCodeMessage());
         }
 
         $entity = $this->instantiate();
-        $this->setCode($entity, $input->code);
-        $this->setLibelle($entity, $input->libelle);
+        $this->setCode($entity, $normalizedCode);
+        $this->setLibelle($entity, trim($input->libelle));
         $this->setCreatedAt($entity, new \DateTimeImmutable());
 
         $this->eM->persist($entity);

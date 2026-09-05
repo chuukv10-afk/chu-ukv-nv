@@ -3,7 +3,9 @@
 namespace App\Service\Organisation;
 
 use App\DTO\Organisation\CreateServiceInput;
+use App\DTO\Organisation\ServiceListQuery;
 use App\DTO\Organisation\UpdateServiceInput;
+use App\DTO\Common\PaginatedResult;
 use App\Entity\Service;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
@@ -25,7 +27,13 @@ final class ServiceService
 
     public function delete(int $id): void
     {
-        $this->eM->remove($this->getById($id));
+        $service = $this->getById($id);
+
+        if (!$service->getPersonnels()->isEmpty()) {
+            throw new ConflictException('Ce service est encore affecté à du personnel et ne peut pas être supprimé.');
+        }
+
+        $this->eM->remove($service);
         $this->eM->flush();
     }
 
@@ -63,7 +71,82 @@ final class ServiceService
      */
     public function findAll(): array
     {
-        return $this->serviceRepository->findAll();
+        return $this->serviceRepository->findBy([], ['libelle' => 'ASC']);
+    }
+
+    public function paginate(ServiceListQuery $query): PaginatedResult
+    {
+        $errors = $this->validator->validate($query);
+        if (count($errors) > 0) {
+            throw new ValidationFailedException($query, $errors);
+        }
+
+        $result = $this->serviceRepository->paginate(
+            $query->page,
+            $query->limit,
+            $query->search,
+            $query->departementId,
+        );
+
+        return new PaginatedResult(
+            array_map([$this, 'serializeSummary'], $result['items']),
+            $query->page,
+            $query->limit,
+            $result['total'],
+        );
+    }
+
+    /**
+     * @return list<list<string|null>>
+     */
+    public function buildExportRows(ServiceListQuery $query): array
+    {
+        $errors = $this->validator->validate($query);
+        if (count($errors) > 0) {
+            throw new ValidationFailedException($query, $errors);
+        }
+
+        $items = $this->serviceRepository->findForExport($query->search, $query->departementId);
+
+        return array_map(
+            fn (Service $service): array => $this->buildExportRow($service),
+            $items,
+        );
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    public function buildExportRow(Service $service): array
+    {
+        return [
+            $service->getCode(),
+            $service->getLibelle(),
+            $service->getDepartement()?->getLibelle(),
+            (string) $service->getPersonnels()->count(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function serializeSummary(Service $service): array
+    {
+        $departement = $service->getDepartement();
+
+        return [
+            'id' => $service->getId(),
+            'code' => $service->getCode(),
+            'libelle' => $service->getLibelle(),
+            'departementId' => $departement?->getId(),
+            'departement' => null !== $departement ? [
+                'id' => $departement->getId(),
+                'code' => $departement->getCode(),
+                'libelle' => $departement->getLibelle(),
+            ] : null,
+            'personnelCount' => $service->getPersonnels()->count(),
+            'createdAt' => $service->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+        ];
     }
 
     public function create(CreateServiceInput $input): Service
@@ -80,8 +163,8 @@ final class ServiceService
         $departement = $this->departementService->getById($input->departementId);
 
         $service = (new Service())
-            ->setCode($input->code)
-            ->setLibelle($input->libelle)
+            ->setCode(strtoupper(trim($input->code)))
+            ->setLibelle(trim($input->libelle))
             ->setDepartement($departement)
             ->setCreatedAt(new \DateTimeImmutable());
 

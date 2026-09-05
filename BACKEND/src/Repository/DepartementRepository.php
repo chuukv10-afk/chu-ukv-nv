@@ -16,28 +16,69 @@ class DepartementRepository extends ServiceEntityRepository
         parent::__construct($registry, Departement::class);
     }
 
-    //    /**
-    //     * @return Departement[] Returns an array of Departement objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('d')
-    //            ->andWhere('d.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('d.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    /**
+     * @return array{items: list<Departement>, total: int}
+     */
+    public function paginate(int $page, int $limit, ?string $search = null, ?string $type = null): array
+    {
+        $qb = $this->createQueryBuilder('d')
+            ->leftJoin('d.services', 's')
+            ->addSelect('s')
+            ->orderBy('d.libelle', 'ASC')
+            ->distinct();
 
-    //    public function findOneBySomeField($value): ?Departement
-    //    {
-    //        return $this->createQueryBuilder('d')
-    //            ->andWhere('d.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(d.code) LIKE :search OR LOWER(d.libelle) LIKE :search')
+                ->setParameter('search', '%' . strtolower($normalizedSearch) . '%');
+        }
+
+        if (null !== $type && '' !== trim($type)) {
+            $qb
+                ->andWhere('d.type = :type')
+                ->setParameter('type', strtoupper(trim($type)));
+        }
+
+        $countQb = clone $qb;
+        $total = (int) $countQb
+            ->select('COUNT(DISTINCT d.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $items = $qb
+            ->setFirstResult(max(0, ($page - 1) * $limit))
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * @return list<Departement>
+     */
+    public function findForExport(?string $search = null, ?string $type = null): array
+    {
+        $qb = $this->createQueryBuilder('d')
+            ->leftJoin('d.services', 's')
+            ->addSelect('s')
+            ->orderBy('d.libelle', 'ASC')
+            ->distinct();
+
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(d.code) LIKE :search OR LOWER(d.libelle) LIKE :search')
+                ->setParameter('search', '%' . strtolower($normalizedSearch) . '%');
+        }
+
+        if (null !== $type && '' !== trim($type)) {
+            $qb
+                ->andWhere('d.type = :type')
+                ->setParameter('type', strtoupper(trim($type)));
+        }
+
+        return $qb->getQuery()->getResult();
+    }
 }

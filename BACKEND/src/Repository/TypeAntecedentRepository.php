@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\TypeAntecedent;
+use App\Repository\Trait\CodeLibellePaginateTrait;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -11,33 +12,29 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class TypeAntecedentRepository extends ServiceEntityRepository
 {
+    use CodeLibellePaginateTrait;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, TypeAntecedent::class);
     }
 
-    //    /**
-    //     * @return TypeAntecedent[] Returns an array of TypeAntecedent objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('t')
-    //            ->andWhere('t.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('t.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    /**
+     * @return array{items: list<TypeAntecedent>, total: int}
+     */
+    public function paginate(int $page, int $limit, ?string $search = null): array
+    {
+        return $this->paginateByCodeLibelle('t', $page, $limit, $search);
+    }
 
-    //    public function findOneBySomeField($value): ?TypeAntecedent
-    //    {
-    //        return $this->createQueryBuilder('t')
-    //            ->andWhere('t.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+    public function countAntecedents(int $typeAntecedentId): int
+    {
+        return (int) $this->getEntityManager()->createQueryBuilder()
+            ->select('COUNT(a.id)')
+            ->from('App\Entity\Antecedent', 'a')
+            ->where('a.type = :typeId')
+            ->setParameter('typeId', $typeAntecedentId)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

@@ -35,6 +35,37 @@ final class PermissionChecker
         return false;
     }
 
+    public function resolveAccessScope(Personnel $personnel, string $permissionCode): PersonnelAccessScope
+    {
+        $permissionCode = strtolower(trim($permissionCode));
+        $unrestricted = false;
+        $serviceIds = [];
+        $departementIds = [];
+
+        foreach ($personnel->getRoleAssignments() as $assignment) {
+            $role = $assignment->getRole();
+            if (null === $role || !$this->roleHasPermission($role, $permissionCode)) {
+                continue;
+            }
+
+            match ($assignment->getPerimetre()) {
+                PersonnelRole::PERIMETRE_GLOBAL => $unrestricted = true,
+                PersonnelRole::PERIMETRE_SERVICE => $this->collectServiceScopeId($assignment, $serviceIds),
+                PersonnelRole::PERIMETRE_DEPARTEMENT => $this->collectDepartementScopeId($assignment, $departementIds),
+                default => null,
+            };
+        }
+
+        if ($unrestricted) {
+            return new PersonnelAccessScope(unrestricted: true);
+        }
+
+        return new PersonnelAccessScope(
+            serviceIds: array_values(array_unique($serviceIds)),
+            departementIds: array_values(array_unique($departementIds)),
+        );
+    }
+
     private function roleHasPermission(Role $role, string $permissionCode): bool
     {
         foreach ($role->getPermissions() as $permission) {
@@ -74,5 +105,27 @@ final class PermissionChecker
         }
 
         return false;
+    }
+
+    /**
+     * @param list<int> $serviceIds
+     */
+    private function collectServiceScopeId(PersonnelRole $assignment, array &$serviceIds): void
+    {
+        $serviceId = $assignment->getService()?->getId();
+        if (null !== $serviceId) {
+            $serviceIds[] = $serviceId;
+        }
+    }
+
+    /**
+     * @param list<int> $departementIds
+     */
+    private function collectDepartementScopeId(PersonnelRole $assignment, array &$departementIds): void
+    {
+        $departementId = $assignment->getDepartement()?->getId();
+        if (null !== $departementId) {
+            $departementIds[] = $departementId;
+        }
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Grade;
+use App\Repository\Trait\CodeLibellePaginateTrait;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -11,33 +12,19 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class GradeRepository extends ServiceEntityRepository
 {
+    use CodeLibellePaginateTrait;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Grade::class);
     }
 
-    //    /**
-    //     * @return Grade[] Returns an array of Grade objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('g')
-    //            ->andWhere('g.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('g.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
-
-    //    public function findOneBySomeField($value): ?Grade
-    //    {
-    //        return $this->createQueryBuilder('g')
-    //            ->andWhere('g.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+    /**
+     * @return array{items: list<Grade>, total: int}
+     */
+    public function paginate(int $page, int $limit, ?string $search = null): array
+    {
+        return $this->paginateByCodeLibelle('g', $page, $limit, $search);
+    }
 }
+

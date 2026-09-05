@@ -9,12 +9,19 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: ActeFinancierRepository::class)]
 class ActeFinancier
 {
+    public const CODE_CONSULTATION = 'CONSULTATION';
+
+    public const STATUT_ACTIF = 'ACTIF';
+    public const STATUT_INACTIF = 'INACTIF';
+
+    public const UNITE_FC = 'FC';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(length: 8)]
+    #[ORM\Column(length: 20)]
     private ?string $code = null;
 
     #[ORM\Column(length: 50)]

@@ -4,13 +4,14 @@ namespace App\Controller\Api\Referentiel;
 
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Referentiel\CreateGradeInput;
+use App\DTO\Referentiel\ReferentielListQuery;
 use App\DTO\Referentiel\UpdateGradeInput;
-use App\Entity\Grade;
 use App\Security\Permission\ReferentielPermissions;
 use App\Service\Referentiel\GradeService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -27,10 +28,15 @@ final class GradesController extends AbstractController
 
     #[Route('', name: 'api_referentiel_grades_index', methods: ['GET'])]
     #[IsGranted(ReferentielPermissions::GRADE_READ)]
-    public function index(): JsonResponse
+    public function index(#[MapQueryString] ReferentielListQuery $query = new ReferentielListQuery()): JsonResponse
     {
-        return $this->apiSuccess(
-            array_map([$this, 'serialize'], $this->gradeService->findAll()),
+        $result = $this->gradeService->paginate($query);
+
+        return $this->apiPaginatedSuccess(
+            $result->items,
+            $result->page,
+            $result->limit,
+            $result->total,
             'Liste des grades récupérée avec succès.',
         );
     }
@@ -43,7 +49,7 @@ final class GradesController extends AbstractController
         $this->denyAccessUnlessGranted(ReferentielPermissions::GRADE_READ, $grade);
 
         return $this->apiSuccess(
-            $this->serialize($grade),
+            $this->gradeService->serializeSummary($grade),
             'Grade récupéré avec succès.',
         );
     }
@@ -53,7 +59,7 @@ final class GradesController extends AbstractController
     public function create(#[MapRequestPayload] CreateGradeInput $input): JsonResponse
     {
         return $this->apiSuccess(
-            $this->serialize($this->gradeService->create($input)),
+            $this->gradeService->serializeSummary($this->gradeService->create($input)),
             'Grade créé avec succès.',
             Response::HTTP_CREATED,
         );
@@ -67,7 +73,7 @@ final class GradesController extends AbstractController
         $this->denyAccessUnlessGranted(ReferentielPermissions::GRADE_UPDATE, $grade);
 
         return $this->apiSuccess(
-            $this->serialize($this->gradeService->update($id, $input)),
+            $this->gradeService->serializeSummary($this->gradeService->update($id, $input)),
             'Grade mis à jour avec succès.',
         );
     }
@@ -82,15 +88,5 @@ final class GradesController extends AbstractController
         $this->gradeService->delete($id);
 
         return $this->apiSuccess(message: 'Grade supprimé avec succès.');
-    }
-
-    private function serialize(Grade $grade): array
-    {
-        return [
-            'id' => $grade->getId(),
-            'code' => $grade->getCode(),
-            'libelle' => $grade->getLibelle(),
-            'createdAt' => $grade->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-        ];
     }
 }

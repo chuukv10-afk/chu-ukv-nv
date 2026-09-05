@@ -16,6 +16,13 @@ class Patient implements BlameableInterface
     use BlameableTrait;
     use UuidV7PrimaryKeyTrait;
 
+    public const STATUS_ACTIF = 'ACTIF';
+    public const STATUS_INACTIF = 'INACTIF';
+    public const STATUS_DECEDE = 'DECEDE';
+
+    public const SEXE_MASCULIN = 'M';
+    public const SEXE_FEMININ = 'F';
+
     #[ORM\Column(length: 50)]
     private ?string $nom = null;
 
@@ -227,5 +234,66 @@ class Patient implements BlameableInterface
         }
 
         return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getStatuses(): array
+    {
+        return [
+            self::STATUS_ACTIF,
+            self::STATUS_INACTIF,
+            self::STATUS_DECEDE,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getSexes(): array
+    {
+        return [
+            self::SEXE_MASCULIN,
+            self::SEXE_FEMININ,
+        ];
+    }
+
+    public static function normalizeStatus(string $status): string
+    {
+        return strtoupper(trim($status));
+    }
+
+    public static function isValidStatus(?string $status): bool
+    {
+        if (null === $status || '' === trim($status)) {
+            return false;
+        }
+
+        return in_array(self::normalizeStatus($status), self::getStatuses(), true);
+    }
+
+    public static function isValidSexe(?string $sexe): bool
+    {
+        if (null === $sexe || '' === trim($sexe)) {
+            return false;
+        }
+
+        return in_array(strtoupper(trim($sexe)), self::getSexes(), true);
+    }
+
+    public function isDeceased(): bool
+    {
+        return self::STATUS_DECEDE === self::normalizeStatus((string) $this->status);
+    }
+
+    public function isClinicallyWritable(): bool
+    {
+        return self::STATUS_ACTIF === self::normalizeStatus((string) $this->status);
+    }
+
+    public function getFullName(): string
+    {
+        return trim(sprintf('%s %s %s', $this->nom ?? '', $this->postNom ?? '', $this->prenom ?? ''));
     }
 }

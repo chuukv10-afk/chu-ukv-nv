@@ -18,6 +18,10 @@ final class CreateChambreInput
         #[Assert\NotBlank(message: 'Le type de la chambre est obligatoire.')]
         #[Assert\Length(max: 8, maxMessage: 'Le type ne peut pas dépasser {{ limit }} caractères.')]
         public string $type = '',
+
+        #[Assert\NotNull(message: 'Le bloc est obligatoire.')]
+        #[Assert\Positive(message: 'Le bloc est obligatoire.')]
+        public ?int $blocId = null,
     ) {
     }
 }

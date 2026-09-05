@@ -24,6 +24,10 @@ class Lit
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
+    #[ORM\ManyToOne(inversedBy: 'lits')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?Chambre $chambre = null;
+
     /**
      * @var Collection<int, Visite>
      */
@@ -76,6 +80,18 @@ class Lit
         return $this;
     }
 
+    public function getChambre(): ?Chambre
+    {
+        return $this->chambre;
+    }
+
+    public function setChambre(?Chambre $chambre): static
+    {
+        $this->chambre = $chambre;
+
+        return $this;
+    }
+
     /**
      * @return Collection<int, Visite>
      */
@@ -97,7 +113,6 @@ class Lit
     public function removeVisite(Visite $visite): static
     {
         if ($this->visites->removeElement($visite)) {
-            // set the owning side to null (unless already changed)
             if ($visite->getLit() === $this) {
                 $visite->setLit(null);
             }

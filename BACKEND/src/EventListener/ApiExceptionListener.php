@@ -2,9 +2,11 @@
 
 namespace App\EventListener;
 
+use App\Service\Security\PermissionLabelResolver;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -14,6 +16,11 @@ use Symfony\Component\Validator\Exception\ValidationFailedException;
 #[AsEventListener(event: KernelEvents::EXCEPTION, priority: 0)]
 final class ApiExceptionListener
 {
+    public function __construct(
+        private readonly PermissionLabelResolver $permissionLabelResolver,
+    ) {
+    }
+
     public function onKernelException(ExceptionEvent $event): void
     {
         if (!str_starts_with($event->getRequest()->getPathInfo(), '/api')) {
@@ -33,11 +40,10 @@ final class ApiExceptionListener
             return;
         }
 
-        if ($throwable instanceof AccessDeniedException) {
-            $event->setResponse($this->errorResponse(
-                'Accès refusé. Vous n\'avez pas la permission requise.',
-                JsonResponse::HTTP_FORBIDDEN,
-            ));
+        $accessDeniedException = $this->resolveAccessDeniedException($throwable);
+        if (null !== $accessDeniedException) {
+            $requiredPermissions = $accessDeniedException->getAttributes();
+            $event->setResponse($this->accessDeniedResponse($requiredPermissions));
 
             return;
         }
@@ -53,11 +59,11 @@ final class ApiExceptionListener
 
         if ($throwable instanceof HttpExceptionInterface) {
             $message = $throwable->getMessage();
-            if ('' === trim($message)) {
+            if ('' === trim($message) || $this->isGenericAccessDeniedMessage($message)) {
                 $message = match ($throwable->getStatusCode()) {
                     JsonResponse::HTTP_NOT_FOUND => 'Ressource introuvable.',
-                    JsonResponse::HTTP_FORBIDDEN => 'Accès refusé.',
-                    JsonResponse::HTTP_UNAUTHORIZED => 'Authentification requise.',
+                    JsonResponse::HTTP_FORBIDDEN => $this->permissionLabelResolver->buildMessage([]),
+                    JsonResponse::HTTP_UNAUTHORIZED => 'Authentification requise. Veuillez vous connecter.',
                     JsonResponse::HTTP_CONFLICT => 'Conflit avec une ressource existante.',
                     default => 'Une erreur est survenue.',
                 };
@@ -69,6 +75,51 @@ final class ApiExceptionListener
                 headers: $throwable->getHeaders(),
             ));
         }
+    }
+
+    /**
+     * @param list<string> $requiredPermissions
+     */
+    private function accessDeniedResponse(array $requiredPermissions): JsonResponse
+    {
+        return new JsonResponse([
+            'success' => false,
+            'message' => $this->permissionLabelResolver->buildMessage($requiredPermissions),
+            'requiredPermissions' => array_values($requiredPermissions),
+        ], JsonResponse::HTTP_FORBIDDEN);
+    }
+
+    private function resolveAccessDeniedException(\Throwable $throwable): ?AccessDeniedException
+    {
+        if ($throwable instanceof AccessDeniedException) {
+            return $throwable;
+        }
+
+        $current = $throwable;
+        while (null !== $current) {
+            if ($current instanceof AccessDeniedException) {
+                return $current;
+            }
+
+            $current = $current->getPrevious();
+        }
+
+        if ($throwable instanceof AccessDeniedHttpException) {
+            return $this->resolveAccessDeniedException($throwable->getPrevious() ?? $throwable);
+        }
+
+        return null;
+    }
+
+    private function isGenericAccessDeniedMessage(string $message): bool
+    {
+        return in_array(trim($message), [
+            'Access Denied.',
+            'Access Denied',
+            'Forbidden',
+            'Accès refusé.',
+            'Accès refusé',
+        ], true);
     }
 
     /**

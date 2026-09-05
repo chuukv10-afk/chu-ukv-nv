@@ -3,6 +3,7 @@
 namespace App\Controller\Api\Admin;
 
 use App\Controller\Api\Trait\JsonResponseTrait;
+use App\DTO\Admin\AssignRolePermissionsInput;
 use App\DTO\Admin\CreateRoleInput;
 use App\DTO\Admin\UpdateRoleInput;
 use App\Entity\PersonnelRole;
@@ -34,6 +35,34 @@ final class RolesController extends AbstractController
         return $this->apiSuccess(
             array_map([$this, 'serialize'], $this->roleService->findAll()),
             'Liste des rôles récupérée avec succès.',
+        );
+    }
+
+    #[Route('/{id}/permissions', name: 'api_admin_roles_permissions_show', methods: ['GET'])]
+    #[IsGranted(AdminPermissions::ROLE_PERMISSION_READ)]
+    public function permissions(string $id): JsonResponse
+    {
+        $role = $this->roleService->getById($id);
+        $this->denyAccessUnlessGranted(AdminPermissions::ROLE_PERMISSION_READ, $role);
+
+        return $this->apiSuccess(
+            $this->roleService->getPermissionsMatrix($id),
+            'Permissions du rôle récupérées avec succès.',
+        );
+    }
+
+    #[Route('/{id}/permissions', name: 'api_admin_roles_permissions_sync', methods: ['PUT'])]
+    #[IsGranted(AdminPermissions::ROLE_PERMISSION_ASSIGN)]
+    public function syncPermissions(string $id, #[MapRequestPayload] AssignRolePermissionsInput $input): JsonResponse
+    {
+        $role = $this->roleService->getById($id);
+        $this->denyAccessUnlessGranted(AdminPermissions::ROLE_PERMISSION_ASSIGN, $role);
+
+        $this->roleService->syncPermissions($id, $input);
+
+        return $this->apiSuccess(
+            $this->roleService->getPermissionsMatrix($id),
+            'Permissions du rôle mises à jour avec succès.',
         );
     }
 

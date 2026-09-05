@@ -18,16 +18,23 @@ final class ReferentielPermissions
     public const SPECIALITE_CREATE = 'referentiel.specialite.create';
     public const SPECIALITE_UPDATE = 'referentiel.specialite.update';
     public const SPECIALITE_DELETE = 'referentiel.specialite.delete';
+    public const SPECIALITE_EXPORT = 'referentiel.specialite.export';
 
     public const TYPE_EXAMEN_READ = 'referentiel.type_examen.read';
     public const TYPE_EXAMEN_CREATE = 'referentiel.type_examen.create';
     public const TYPE_EXAMEN_UPDATE = 'referentiel.type_examen.update';
     public const TYPE_EXAMEN_DELETE = 'referentiel.type_examen.delete';
+    public const TYPE_EXAMEN_EXPORT = 'referentiel.type_examen.export';
 
     public const TYPE_ANTECEDENT_READ = 'referentiel.type_antecedent.read';
     public const TYPE_ANTECEDENT_CREATE = 'referentiel.type_antecedent.create';
     public const TYPE_ANTECEDENT_UPDATE = 'referentiel.type_antecedent.update';
     public const TYPE_ANTECEDENT_DELETE = 'referentiel.type_antecedent.delete';
+
+    public const SIGNE_VITAL_READ = 'referentiel.signe_vital.read';
+    public const SIGNE_VITAL_CREATE = 'referentiel.signe_vital.create';
+    public const SIGNE_VITAL_UPDATE = 'referentiel.signe_vital.update';
+    public const SIGNE_VITAL_DELETE = 'referentiel.signe_vital.delete';
 
     /**
      * @return list<array{code: string, libelle: string, module: string}>
@@ -37,9 +44,29 @@ final class ReferentielPermissions
         return array_merge(
             self::crud('grade', 'grade', 'les grades'),
             self::crud('specialite', 'spécialité', 'les spécialités'),
+            self::export(self::SPECIALITE_EXPORT, 'les spécialités'),
             self::crud('type_examen', 'type d\'examen', 'les types d\'examen'),
+            self::export(self::TYPE_EXAMEN_EXPORT, 'les types d\'examen'),
             self::crud('type_antecedent', 'type d\'antécédent', 'les types d\'antécédent'),
+            self::crud('signe_vital', 'signe vital', 'les signes vitaux'),
         );
+    }
+
+    /**
+     * @return list<array{code: string, libelle: string, module: string}>
+     */
+    /**
+     * @return list<array{code: string, libelle: string, module: string}>
+     */
+    private static function export(string $code, string $pluralLabel): array
+    {
+        return [
+            [
+                'code' => $code,
+                'libelle' => 'Exporter ' . $pluralLabel . ' (PDF / Excel)',
+                'module' => Permission::MODULE_REFERENTIEL,
+            ],
+        ];
     }
 
     /**

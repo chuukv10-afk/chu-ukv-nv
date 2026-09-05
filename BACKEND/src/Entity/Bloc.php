@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\BlocRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: BlocRepository::class)]
@@ -22,8 +24,16 @@ class Bloc
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
-    #[ORM\Column(length: 8)]
-    private ?string $chambre = null;
+    /**
+     * @var Collection<int, Chambre>
+     */
+    #[ORM\OneToMany(targetEntity: Chambre::class, mappedBy: 'bloc')]
+    private Collection $chambres;
+
+    public function __construct()
+    {
+        $this->chambres = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -66,14 +76,31 @@ class Bloc
         return $this;
     }
 
-    public function getChambre(): ?string
+    /**
+     * @return Collection<int, Chambre>
+     */
+    public function getChambres(): Collection
     {
-        return $this->chambre;
+        return $this->chambres;
     }
 
-    public function setChambre(string $chambre): static
+    public function addChambre(Chambre $chambre): static
     {
-        $this->chambre = $chambre;
+        if (!$this->chambres->contains($chambre)) {
+            $this->chambres->add($chambre);
+            $chambre->setBloc($this);
+        }
+
+        return $this;
+    }
+
+    public function removeChambre(Chambre $chambre): static
+    {
+        if ($this->chambres->removeElement($chambre)) {
+            if ($chambre->getBloc() === $this) {
+                $chambre->setBloc(null);
+            }
+        }
 
         return $this;
     }

@@ -2,15 +2,19 @@
 
 namespace App\Controller\Api\Organisation;
 
+use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Organisation\CreateBlocInput;
+use App\DTO\Organisation\OrganisationListQuery;
 use App\DTO\Organisation\UpdateBlocInput;
-use App\Entity\Bloc;
 use App\Security\Permission\OrganisationPermissions;
+use App\Service\Export\TableExportService;
 use App\Service\Organisation\BlocService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -19,6 +23,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class BlocsController extends AbstractController
 {
     use JsonResponseTrait;
+    use ExportResponseTrait;
 
     public function __construct(
         private readonly BlocService $blocService,
@@ -27,11 +32,34 @@ final class BlocsController extends AbstractController
 
     #[Route('', name: 'api_organisation_blocs_index', methods: ['GET'])]
     #[IsGranted(OrganisationPermissions::BLOC_READ)]
-    public function index(): JsonResponse
+    public function index(#[MapQueryString] OrganisationListQuery $query = new OrganisationListQuery()): JsonResponse
     {
-        return $this->apiSuccess(
-            array_map([$this, 'serialize'], $this->blocService->findAll()),
+        $result = $this->blocService->paginate($query);
+
+        return $this->apiPaginatedSuccess(
+            $result->items,
+            $result->page,
+            $result->limit,
+            $result->total,
             'Liste des blocs récupérée avec succès.',
+        );
+    }
+
+    #[Route('/export', name: 'api_organisation_blocs_export', methods: ['GET'])]
+    #[IsGranted(OrganisationPermissions::BLOC_EXPORT)]
+    public function export(
+        Request $request,
+        TableExportService $tableExportService,
+        #[MapQueryString] OrganisationListQuery $query = new OrganisationListQuery(),
+    ): Response {
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            ['N°', 'Code', 'Libellé', 'Nb chambres'],
+            $this->blocService->buildExportRows($query),
+            'Liste des blocs',
+            'blocs',
+            'Aucun bloc trouvé pour les filtres sélectionnés.',
         );
     }
 
@@ -43,7 +71,7 @@ final class BlocsController extends AbstractController
         $this->denyAccessUnlessGranted(OrganisationPermissions::BLOC_READ, $bloc);
 
         return $this->apiSuccess(
-            $this->serialize($bloc),
+            $this->blocService->serializeSummary($bloc),
             'Bloc récupéré avec succès.',
         );
     }
@@ -53,7 +81,7 @@ final class BlocsController extends AbstractController
     public function create(#[MapRequestPayload] CreateBlocInput $input): JsonResponse
     {
         return $this->apiSuccess(
-            $this->serialize($this->blocService->create($input)),
+            $this->blocService->serializeSummary($this->blocService->create($input)),
             'Bloc créé avec succès.',
             Response::HTTP_CREATED,
         );
@@ -67,7 +95,7 @@ final class BlocsController extends AbstractController
         $this->denyAccessUnlessGranted(OrganisationPermissions::BLOC_UPDATE, $bloc);
 
         return $this->apiSuccess(
-            $this->serialize($this->blocService->update($id, $input)),
+            $this->blocService->serializeSummary($this->blocService->update($id, $input)),
             'Bloc mis à jour avec succès.',
         );
     }
@@ -82,16 +110,5 @@ final class BlocsController extends AbstractController
         $this->blocService->delete($id);
 
         return $this->apiSuccess(message: 'Bloc supprimé avec succès.');
-    }
-
-    private function serialize(Bloc $bloc): array
-    {
-        return [
-            'id' => $bloc->getId(),
-            'code' => $bloc->getCode(),
-            'libelle' => $bloc->getLibelle(),
-            'chambre' => $bloc->getChambre(),
-            'createdAt' => $bloc->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-        ];
     }
 }

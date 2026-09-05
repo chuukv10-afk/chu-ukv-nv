@@ -9,6 +9,7 @@ use App\Repository\PermissionRepository;
 use App\Security\Permission\AdminPermissions;
 use App\Security\Permission\CliniquePermissions;
 use App\Security\Permission\OrganisationPermissions;
+use App\Security\Permission\PatientPermissions;
 use App\Security\Permission\ReferentielPermissions;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -35,6 +36,7 @@ final class PermissionProvisioner
             OrganisationPermissions::allDefinitions(),
             ReferentielPermissions::allDefinitions(),
             CliniquePermissions::allDefinitions(),
+            PatientPermissions::allDefinitions(),
             AdminPermissions::allDefinitions(),
         );
 
@@ -64,7 +66,7 @@ final class PermissionProvisioner
         $personnelRole = $this->roleProvisioner->findOrCreate(
             Role::CODE_PERSONNEL,
             'Personnel',
-            PersonnelRole::PERIMETRE_SERVICE,
+            PersonnelRole::PERIMETRE_GLOBAL,
         );
 
         foreach ($definitions as $definition) {

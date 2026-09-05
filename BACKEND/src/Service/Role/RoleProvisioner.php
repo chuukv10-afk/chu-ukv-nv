@@ -77,14 +77,10 @@ final class RoleProvisioner
         $role = $this->findOrCreate(
             Role::CODE_PERSONNEL,
             'Personnel',
-            PersonnelRole::PERIMETRE_SERVICE,
+            PersonnelRole::PERIMETRE_GLOBAL,
         );
 
-        if (PersonnelRole::PERIMETRE_SERVICE === $role->getPerimetre() && null === $personnel->getService()) {
-            return null;
-        }
-
-        return $this->assign($personnel, $role, $personnel->getService());
+        return $this->assign($personnel, $role);
     }
 
     public function assignAdminRole(Personnel $personnel): PersonnelRole

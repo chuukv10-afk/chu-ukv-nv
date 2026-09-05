@@ -16,28 +16,43 @@ class PermissionRepository extends ServiceEntityRepository
         parent::__construct($registry, Permission::class);
     }
 
-    //    /**
-    //     * @return Permission[] Returns an array of Permission objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('p')
-    //            ->andWhere('p.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('p.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    /**
+     * @return array{items: list<Permission>, total: int}
+     */
+    public function paginate(int $page, int $limit, ?string $module = null, ?string $search = null): array
+    {
+        $qb = $this->createQueryBuilder('p')
+            ->orderBy('p.module', 'ASC')
+            ->addOrderBy('p.code', 'ASC');
 
-    //    public function findOneBySomeField($value): ?Permission
-    //    {
-    //        return $this->createQueryBuilder('p')
-    //            ->andWhere('p.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+        if (null !== $module && '' !== trim($module)) {
+            $qb
+                ->andWhere('p.module = :module')
+                ->setParameter('module', Permission::normalizeModule($module));
+        }
+
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(p.code) LIKE :search OR LOWER(p.libelle) LIKE :search')
+                ->setParameter('search', '%' . strtolower($normalizedSearch) . '%');
+        }
+
+        $countQb = clone $qb;
+        $total = (int) $countQb
+            ->select('COUNT(p.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $items = $qb
+            ->setFirstResult(max(0, ($page - 1) * $limit))
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return [
+            'items' => $items,
+            'total' => $total,
+        ];
+    }
 }

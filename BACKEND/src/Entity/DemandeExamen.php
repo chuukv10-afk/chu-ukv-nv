@@ -10,6 +10,15 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: DemandeExamenRepository::class)]
 class DemandeExamen
 {
+    public const STATUT_DEMANDE = 'DEMANDE';
+    public const STATUT_EN_COURS = 'EN_COURS';
+    public const STATUT_RESULTAT_DISPONIBLE = 'RESULTAT_DISPONIBLE';
+    public const STATUT_VALIDE = 'VALIDE';
+    public const STATUT_ANNULEE = 'ANNULEE';
+    public const STATUT_REFUSEE = 'REFUSEE';
+
+    public const RESULTAT_MAX_LENGTH = 1500;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -21,7 +30,7 @@ class DemandeExamen
     #[ORM\Column(length: 20)]
     private ?string $statut = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
+    #[ORM\Column(length: 1500, nullable: true)]
     private ?string $resultat = null;
 
     #[ORM\Column(length: 255, nullable: true)]
@@ -33,6 +42,14 @@ class DemandeExamen
     #[ORM\ManyToOne(inversedBy: 'demandeExamens')]
     #[ORM\JoinColumn(nullable: false)]
     private ?Examen $examen = null;
+
+    #[ORM\ManyToOne(inversedBy: 'demandeExamens')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?Consultation $consultation = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Personnel $prescripteur = null;
 
     /**
      * @var Collection<int, Diagnostic>
@@ -122,6 +139,30 @@ class DemandeExamen
         return $this;
     }
 
+    public function getConsultation(): ?Consultation
+    {
+        return $this->consultation;
+    }
+
+    public function setConsultation(?Consultation $consultation): static
+    {
+        $this->consultation = $consultation;
+
+        return $this;
+    }
+
+    public function getPrescripteur(): ?Personnel
+    {
+        return $this->prescripteur;
+    }
+
+    public function setPrescripteur(?Personnel $prescripteur): static
+    {
+        $this->prescripteur = $prescripteur;
+
+        return $this;
+    }
+
     /**
      * @return Collection<int, Diagnostic>
      */
@@ -143,12 +184,57 @@ class DemandeExamen
     public function removeDiagnostic(Diagnostic $diagnostic): static
     {
         if ($this->diagnostics->removeElement($diagnostic)) {
-            // set the owning side to null (unless already changed)
             if ($diagnostic->getDemandeExamen() === $this) {
                 $diagnostic->setDemandeExamen(null);
             }
         }
 
         return $this;
+    }
+
+    /** @return list<string> */
+    public static function getStatuts(): array
+    {
+        return [
+            self::STATUT_DEMANDE,
+            self::STATUT_EN_COURS,
+            self::STATUT_RESULTAT_DISPONIBLE,
+            self::STATUT_VALIDE,
+            self::STATUT_ANNULEE,
+            self::STATUT_REFUSEE,
+        ];
+    }
+
+    public static function normalizeStatut(?string $statut): string
+    {
+        return strtoupper(trim((string) $statut));
+    }
+
+    public static function isValidStatut(?string $statut): bool
+    {
+        return in_array(self::normalizeStatut($statut), self::getStatuts(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getAllowedTransitions(string $fromStatut): array
+    {
+        return match (self::normalizeStatut($fromStatut)) {
+            self::STATUT_DEMANDE => [self::STATUT_EN_COURS, self::STATUT_ANNULEE],
+            self::STATUT_EN_COURS => [self::STATUT_RESULTAT_DISPONIBLE, self::STATUT_ANNULEE, self::STATUT_REFUSEE],
+            self::STATUT_RESULTAT_DISPONIBLE => [self::STATUT_VALIDE],
+            default => [],
+        };
+    }
+
+    public static function canTransition(string $fromStatut, string $toStatut): bool
+    {
+        return in_array(self::normalizeStatut($toStatut), self::getAllowedTransitions($fromStatut), true);
+    }
+
+    public static function canCancel(string $statut): bool
+    {
+        return in_array(self::normalizeStatut($statut), [self::STATUT_DEMANDE, self::STATUT_EN_COURS], true);
     }
 }

@@ -77,6 +77,12 @@ export const NAV_SECTIONS = [
         permission: PERMISSIONS.REFERENTIEL.TYPE_ANTECEDENT_READ,
         icon: 'file',
       },
+      {
+        label: 'Signes vitaux',
+        to: ROUTES.REFERENTIEL.SIGNES_VITAUX,
+        permission: PERMISSIONS.REFERENTIEL.SIGNE_VITAL_READ,
+        icon: 'activity',
+      },
     ],
   },
   {
@@ -91,14 +97,29 @@ export const NAV_SECTIONS = [
         icon: 'microscope',
       },
       {
+        label: 'Demandes d\'examens',
+        to: ROUTES.CLINIQUE.DEMANDES_EXAMEN,
+        permission: PERMISSIONS.CLINIQUE.DEMANDE_EXAMEN_READ,
+        module: 'CLINIQUE',
+        icon: 'flask',
+      },
+      {
+        label: 'Maladies (CIM-10)',
+        to: ROUTES.CLINIQUE.MALADIES,
+        permission: PERMISSIONS.CLINIQUE.MALADIE_READ,
+        icon: 'heartPulse',
+      },
+      {
         label: 'Visites',
         to: ROUTES.CLINIQUE.VISITES,
+        permission: PERMISSIONS.CLINIQUE.VISITE_READ,
         module: 'CLINIQUE',
         icon: 'calendar',
       },
       {
         label: 'Consultations',
         to: ROUTES.CLINIQUE.CONSULTATIONS,
+        permission: PERMISSIONS.CLINIQUE.CONSULTATION_READ,
         module: 'CLINIQUE',
         icon: 'clipboard',
       },
@@ -112,26 +133,20 @@ export const NAV_SECTIONS = [
       {
         label: 'Liste des patients',
         to: ROUTES.PATIENT.LIST,
+        permission: PERMISSIONS.PATIENT.PATIENT_READ,
         module: 'PATIENT',
         icon: 'users',
-      },
-      {
-        label: 'Dossier patient (DPI)',
-        to: ROUTES.PATIENT.DPI,
-        module: 'PATIENT',
-        icon: 'folder',
       },
     ],
   },
   {
     id: 'admin',
     title: 'Administration',
-    adminOnly: true,
     items: [
       {
         label: 'Personnel',
         to: ROUTES.ADMIN.PERSONNEL,
-        adminOnly: true,
+        permission: PERMISSIONS.ADMIN.PERSONNEL_READ,
         icon: 'userCog',
       },
       {
@@ -143,8 +158,14 @@ export const NAV_SECTIONS = [
       {
         label: 'Permissions',
         to: ROUTES.ADMIN.PERMISSIONS,
-        adminOnly: true,
+        permission: PERMISSIONS.ADMIN.PERMISSION_READ,
         icon: 'key',
+      },
+      {
+        label: 'Affectations permissions',
+        to: ROUTES.ADMIN.ROLE_PERMISSIONS,
+        permission: PERMISSIONS.ADMIN.ROLE_PERMISSION_READ,
+        icon: 'link',
       },
     ],
   },

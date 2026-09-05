@@ -16,28 +16,25 @@ class DpiRepository extends ServiceEntityRepository
         parent::__construct($registry, Dpi::class);
     }
 
-    //    /**
-    //     * @return Dpi[] Returns an array of Dpi objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('d')
-    //            ->andWhere('d.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('d.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    public function getNextSequenceForYear(int $year): int
+    {
+        $prefix = sprintf('DPI-%d-', $year);
+        $maxNumDossier = $this->createQueryBuilder('d')
+            ->select('MAX(d.numDossier)')
+            ->where('d.numDossier LIKE :prefix')
+            ->setParameter('prefix', $prefix . '%')
+            ->getQuery()
+            ->getSingleScalarResult();
 
-    //    public function findOneBySomeField($value): ?Dpi
-    //    {
-    //        return $this->createQueryBuilder('d')
-    //            ->andWhere('d.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+        if (!is_string($maxNumDossier) || !str_starts_with($maxNumDossier, $prefix)) {
+            return 1;
+        }
+
+        $sequencePart = substr($maxNumDossier, strlen($prefix));
+        if (!ctype_digit($sequencePart)) {
+            return 1;
+        }
+
+        return ((int) $sequencePart) + 1;
+    }
 }

@@ -41,11 +41,20 @@ export function getPerimetreLabel(perimetre) {
   return PERIMETRE_LABELS[perimetre] || perimetre || 'Non défini';
 }
 
-export function formatRoleAssignment(assignment) {
+export function getRoleAssignmentParts(assignment, { preferCode = false } = {}) {
+  const roleLabel = preferCode
+    ? (assignment.roleCode || assignment.role || assignment.roleLibelle)
+    : (assignment.roleLibelle || assignment.role || assignment.roleCode);
   const scope =
     assignment.service ||
     assignment.departement ||
-    'Tout l\'établissement';
+    'Global';
 
-  return `${assignment.role}(${scope})`;
+  return { roleLabel, scope };
+}
+
+export function formatRoleAssignment(assignment) {
+  const { roleLabel, scope } = getRoleAssignmentParts(assignment);
+
+  return `${roleLabel} : ${scope}`;
 }

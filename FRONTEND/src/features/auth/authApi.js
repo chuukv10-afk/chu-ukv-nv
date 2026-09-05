@@ -56,12 +56,15 @@ function splitRoles(rawRoles = []) {
 }
 
 export function mapProfileToAuthState(profile, token) {
-  const { roles, permissions } = splitRoles(profile?.roles ?? []);
+  const fromRoles = splitRoles(profile?.roles ?? []);
+  const explicit = Array.isArray(profile?.permissions) ? profile.permissions : [];
+  const permissions = [...new Set([...fromRoles.permissions, ...explicit])]
+    .map((permission) => String(permission).toLowerCase());
 
   return {
     token,
     profile,
-    roles,
+    roles: fromRoles.roles,
     permissions,
   };
 }

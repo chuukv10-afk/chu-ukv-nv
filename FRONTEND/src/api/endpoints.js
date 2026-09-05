@@ -16,21 +16,26 @@ export const referentiel = {
   specialites: '/api/v1/referentiel/specialites',
   typesExamen: '/api/v1/referentiel/types-examen',
   typesAntecedent: '/api/v1/referentiel/types-antecedent',
+  signesVitaux: '/api/v1/referentiel/signes-vitaux',
 };
 
 export const clinique = {
   examens: '/api/v1/clinique/examens',
+  maladies: '/api/v1/clinique/maladies',
   visites: '/api/v1/clinique/visites',
   consultations: '/api/v1/clinique/consultations',
+  diagnostics: '/api/v1/clinique/diagnostics',
+  demandesExamen: '/api/v1/clinique/demandes-examen',
 };
 
 export const patient = {
   list: '/api/v1/patients',
-  dpi: '/api/v1/patients/dpi',
 };
 
 export const admin = {
-  personnel: '/api/v1/admin/personnel',
+  personnel: '/api/v1/admin/personnels',
+  personnels: '/api/v1/admin/personnels',
   roles: '/api/v1/admin/roles',
   permissions: '/api/v1/admin/permissions',
+  rolePermissions: '/api/v1/admin/role-permissions',
 };

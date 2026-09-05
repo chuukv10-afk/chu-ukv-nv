@@ -2,15 +2,19 @@
 
 namespace App\Controller\Api\Referentiel;
 
+use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Referentiel\CreateSpecialiteInput;
+use App\DTO\Referentiel\ReferentielListQuery;
 use App\DTO\Referentiel\UpdateSpecialiteInput;
-use App\Entity\Specialite;
 use App\Security\Permission\ReferentielPermissions;
+use App\Service\Export\TableExportService;
 use App\Service\Referentiel\SpecialiteService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -19,6 +23,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class SpecialitesController extends AbstractController
 {
     use JsonResponseTrait;
+    use ExportResponseTrait;
 
     public function __construct(
         private readonly SpecialiteService $specialiteService,
@@ -27,11 +32,34 @@ final class SpecialitesController extends AbstractController
 
     #[Route('', name: 'api_referentiel_specialites_index', methods: ['GET'])]
     #[IsGranted(ReferentielPermissions::SPECIALITE_READ)]
-    public function index(): JsonResponse
+    public function index(#[MapQueryString] ReferentielListQuery $query = new ReferentielListQuery()): JsonResponse
     {
-        return $this->apiSuccess(
-            array_map([$this, 'serialize'], $this->specialiteService->findAll()),
+        $result = $this->specialiteService->paginate($query);
+
+        return $this->apiPaginatedSuccess(
+            $result->items,
+            $result->page,
+            $result->limit,
+            $result->total,
             'Liste des spécialités récupérée avec succès.',
+        );
+    }
+
+    #[Route('/export', name: 'api_referentiel_specialites_export', methods: ['GET'])]
+    #[IsGranted(ReferentielPermissions::SPECIALITE_EXPORT)]
+    public function export(
+        Request $request,
+        TableExportService $tableExportService,
+        #[MapQueryString] ReferentielListQuery $query = new ReferentielListQuery(),
+    ): Response {
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            ['N°', 'Code', 'Libellé', 'Nb personnel'],
+            $this->specialiteService->buildExportRows($query),
+            'Liste des spécialités',
+            'specialites',
+            'Aucune spécialité trouvée pour les filtres sélectionnés.',
         );
     }
 
@@ -43,7 +71,7 @@ final class SpecialitesController extends AbstractController
         $this->denyAccessUnlessGranted(ReferentielPermissions::SPECIALITE_READ, $specialite);
 
         return $this->apiSuccess(
-            $this->serialize($specialite),
+            $this->specialiteService->serializeSummary($specialite),
             'Spécialité récupérée avec succès.',
         );
     }
@@ -53,7 +81,7 @@ final class SpecialitesController extends AbstractController
     public function create(#[MapRequestPayload] CreateSpecialiteInput $input): JsonResponse
     {
         return $this->apiSuccess(
-            $this->serialize($this->specialiteService->create($input)),
+            $this->specialiteService->serializeSummary($this->specialiteService->create($input)),
             'Spécialité créée avec succès.',
             Response::HTTP_CREATED,
         );
@@ -67,7 +95,7 @@ final class SpecialitesController extends AbstractController
         $this->denyAccessUnlessGranted(ReferentielPermissions::SPECIALITE_UPDATE, $specialite);
 
         return $this->apiSuccess(
-            $this->serialize($this->specialiteService->update($id, $input)),
+            $this->specialiteService->serializeSummary($this->specialiteService->update($id, $input)),
             'Spécialité mise à jour avec succès.',
         );
     }
@@ -82,15 +110,5 @@ final class SpecialitesController extends AbstractController
         $this->specialiteService->delete($id);
 
         return $this->apiSuccess(message: 'Spécialité supprimée avec succès.');
-    }
-
-    private function serialize(Specialite $specialite): array
-    {
-        return [
-            'id' => $specialite->getId(),
-            'code' => $specialite->getCode(),
-            'libelle' => $specialite->getLibelle(),
-            'createdAt' => $specialite->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-        ];
     }
 }

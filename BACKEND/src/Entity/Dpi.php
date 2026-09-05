@@ -14,6 +14,10 @@ class Dpi implements BlameableInterface
 {
     use BlameableTrait;
 
+    public const STATUT_OUVERT = 'OUVERT';
+    public const STATUT_ARCHIVE = 'ARCHIVE';
+    public const STATUT_FERME = 'FERME';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -146,5 +150,36 @@ class Dpi implements BlameableInterface
         }
 
         return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getStatuts(): array
+    {
+        return [
+            self::STATUT_OUVERT,
+            self::STATUT_ARCHIVE,
+            self::STATUT_FERME,
+        ];
+    }
+
+    public static function normalizeStatut(string $statut): string
+    {
+        return strtoupper(trim($statut));
+    }
+
+    public static function isValidStatut(?string $statut): bool
+    {
+        if (null === $statut || '' === trim($statut)) {
+            return false;
+        }
+
+        return in_array(self::normalizeStatut($statut), self::getStatuts(), true);
+    }
+
+    public function isWritable(): bool
+    {
+        return self::STATUT_OUVERT === self::normalizeStatut((string) $this->statut);
     }
 }

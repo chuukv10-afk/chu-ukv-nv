@@ -10,13 +10,16 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: VisiteRepository::class)]
 class Visite
 {
+    public const STATUT_PLANIFIEE = 'PLANIFIEE';
+    public const STATUT_EN_COURS = 'EN_COURS';
+    public const STATUT_HOSPITALISE = 'HOSPITALISE';
+    public const STATUT_TERMINEE = 'TERMINEE';
+    public const STATUT_ANNULEE = 'ANNULEE';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
-
-    #[ORM\Column(length: 20)]
-    private ?string $typeVisite = null;
 
     #[ORM\Column(length: 20)]
     private ?string $statut = null;
@@ -29,6 +32,9 @@ class Visite
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $sortedPrevuAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $hospitalizedAt = null;
 
     #[ORM\ManyToOne(inversedBy: 'visites')]
     #[ORM\JoinColumn(nullable: false)]
@@ -53,27 +59,115 @@ class Visite
     #[ORM\OneToMany(targetEntity: ActeFinancierVisite::class, mappedBy: 'visite')]
     private Collection $acteFinancierVisites;
 
+    #[ORM\OneToOne(mappedBy: 'visite', cascade: ['persist', 'remove'])]
+    private ?Triage $triage = null;
+
+    /**
+     * @var Collection<int, VisiteMesure>
+     */
+    #[ORM\OneToMany(targetEntity: VisiteMesure::class, mappedBy: 'visite', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $mesures;
+
     public function __construct()
     {
         $this->consultations = new ArrayCollection();
         $this->acteFinancierVisites = new ArrayCollection();
+        $this->mesures = new ArrayCollection();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getStatuts(): array
+    {
+        return [
+            self::STATUT_PLANIFIEE,
+            self::STATUT_EN_COURS,
+            self::STATUT_HOSPITALISE,
+            self::STATUT_TERMINEE,
+            self::STATUT_ANNULEE,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getActiveStatuts(): array
+    {
+        return [
+            self::STATUT_PLANIFIEE,
+            self::STATUT_EN_COURS,
+            self::STATUT_HOSPITALISE,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getCreatableStatuts(): array
+    {
+        return [
+            self::STATUT_PLANIFIEE,
+            self::STATUT_EN_COURS,
+        ];
+    }
+
+    public static function normalizeStatut(string $statut): string
+    {
+        return strtoupper(trim($statut));
+    }
+
+    public static function isValidStatut(?string $statut): bool
+    {
+        if (null === $statut || '' === trim($statut)) {
+            return false;
+        }
+
+        return in_array(self::normalizeStatut($statut), self::getStatuts(), true);
+    }
+
+    public static function isActiveStatut(?string $statut): bool
+    {
+        if (null === $statut || '' === trim($statut)) {
+            return false;
+        }
+
+        return in_array(self::normalizeStatut($statut), self::getActiveStatuts(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function getAllowedTransitions(string $fromStatut): array
+    {
+        return match (self::normalizeStatut($fromStatut)) {
+            self::STATUT_PLANIFIEE => [self::STATUT_EN_COURS, self::STATUT_ANNULEE],
+            self::STATUT_EN_COURS => [self::STATUT_HOSPITALISE, self::STATUT_TERMINEE, self::STATUT_ANNULEE],
+            self::STATUT_HOSPITALISE => [self::STATUT_TERMINEE, self::STATUT_ANNULEE],
+            default => [],
+        };
+    }
+
+    public static function canTransition(string $fromStatut, string $toStatut): bool
+    {
+        $from = self::normalizeStatut($fromStatut);
+        $to = self::normalizeStatut($toStatut);
+
+        if ($from === $to) {
+            return true;
+        }
+
+        return in_array($to, self::getAllowedTransitions($from), true);
+    }
+
+    public function isActive(): bool
+    {
+        return self::isActiveStatut($this->statut);
     }
 
     public function getId(): ?int
     {
         return $this->id;
-    }
-
-    public function getTypeVisite(): ?string
-    {
-        return $this->typeVisite;
-    }
-
-    public function setTypeVisite(string $typeVisite): static
-    {
-        $this->typeVisite = $typeVisite;
-
-        return $this;
     }
 
     public function getStatut(): ?string
@@ -124,6 +218,28 @@ class Visite
         return $this;
     }
 
+    public function getHospitalizedAt(): ?\DateTimeImmutable
+    {
+        return $this->hospitalizedAt;
+    }
+
+    public function setHospitalizedAt(?\DateTimeImmutable $hospitalizedAt): static
+    {
+        $this->hospitalizedAt = $hospitalizedAt;
+
+        return $this;
+    }
+
+    public function isCurrentHospitalization(): bool
+    {
+        return self::STATUT_HOSPITALISE === $this->statut;
+    }
+
+    public function isHospitalization(): bool
+    {
+        return $this->isCurrentHospitalization() || null !== $this->hospitalizedAt;
+    }
+
     public function getDpi(): ?Dpi
     {
         return $this->dpi;
@@ -157,7 +273,6 @@ class Visite
     public function removeConsultation(Consultation $consultation): static
     {
         if ($this->consultations->removeElement($consultation)) {
-            // set the owning side to null (unless already changed)
             if ($consultation->getVisite() === $this) {
                 $consultation->setVisite(null);
             }
@@ -211,10 +326,42 @@ class Visite
     public function removeActeFinancierVisite(ActeFinancierVisite $acteFinancierVisite): static
     {
         if ($this->acteFinancierVisites->removeElement($acteFinancierVisite)) {
-            // set the owning side to null (unless already changed)
             if ($acteFinancierVisite->getVisite() === $this) {
                 $acteFinancierVisite->setVisite(null);
             }
+        }
+
+        return $this;
+    }
+
+    public function getTriage(): ?Triage
+    {
+        return $this->triage;
+    }
+
+    public function setTriage(Triage $triage): static
+    {
+        if ($this->triage !== $triage) {
+            $this->triage = $triage;
+            $triage->setVisite($this);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, VisiteMesure>
+     */
+    public function getMesures(): Collection
+    {
+        return $this->mesures;
+    }
+
+    public function addMesure(VisiteMesure $mesure): static
+    {
+        if (!$this->mesures->contains($mesure)) {
+            $this->mesures->add($mesure);
+            $mesure->setVisite($this);
         }
 
         return $this;

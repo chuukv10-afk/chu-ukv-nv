@@ -2,15 +2,20 @@
 
 namespace App\Controller\Api\Organisation;
 
+use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Organisation\CreateDepartementInput;
+use App\DTO\Organisation\DepartementListQuery;
 use App\DTO\Organisation\UpdateDepartementInput;
 use App\Entity\Departement;
 use App\Security\Permission\OrganisationPermissions;
+use App\Service\Export\TableExportService;
 use App\Service\Organisation\DepartementService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -19,6 +24,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class DepartementsController extends AbstractController
 {
     use JsonResponseTrait;
+    use ExportResponseTrait;
 
     public function __construct(
         private readonly DepartementService $departementService,
@@ -27,11 +33,34 @@ final class DepartementsController extends AbstractController
 
     #[Route('', name: 'api_organisation_departements_index', methods: ['GET'])]
     #[IsGranted(OrganisationPermissions::DEPARTEMENT_READ)]
-    public function index(): JsonResponse
+    public function index(#[MapQueryString] DepartementListQuery $query = new DepartementListQuery()): JsonResponse
     {
-        return $this->apiSuccess(
-            array_map([$this, 'serialize'], $this->departementService->findAll()),
+        $result = $this->departementService->paginate($query);
+
+        return $this->apiPaginatedSuccess(
+            $result->items,
+            $result->page,
+            $result->limit,
+            $result->total,
             'Liste des départements récupérée avec succès.',
+        );
+    }
+
+    #[Route('/export', name: 'api_organisation_departements_export', methods: ['GET'])]
+    #[IsGranted(OrganisationPermissions::DEPARTEMENT_EXPORT)]
+    public function export(
+        Request $request,
+        TableExportService $tableExportService,
+        #[MapQueryString] DepartementListQuery $query = new DepartementListQuery(),
+    ): Response {
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            ['N°', 'Code', 'Libellé', 'Type', 'Nb services'],
+            $this->departementService->buildExportRows($query),
+            'Liste des départements',
+            'departements',
+            'Aucun département trouvé pour les filtres sélectionnés.',
         );
     }
 
@@ -86,12 +115,6 @@ final class DepartementsController extends AbstractController
 
     private function serialize(Departement $departement): array
     {
-        return [
-            'id' => $departement->getId(),
-            'code' => $departement->getCode(),
-            'libelle' => $departement->getLibelle(),
-            'type' => $departement->getType(),
-            'createdAt' => $departement->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-        ];
+        return $this->departementService->serializeSummary($departement);
     }
 }

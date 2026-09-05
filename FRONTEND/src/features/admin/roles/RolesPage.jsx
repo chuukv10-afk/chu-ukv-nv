@@ -11,13 +11,14 @@ import {
   Table,
   Typography,
 } from '@mui/joy';
-import { Pencil, Plus, Search, Shield, Trash2, Users } from 'lucide-react';
+import { KeyRound, Pencil, Plus, Search, Shield, Trash2, Users } from 'lucide-react';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import RoleDeleteModal from './components/RoleDeleteModal.jsx';
 import RoleFormModal from './components/RoleFormModal.jsx';
+import RolePermissionsModal from './components/RolePermissionsModal.jsx';
 import { EMPTY_ROLE_FORM, ROLE_PERIMETRE_LABELS } from './roleConstants.js';
 import {
   createRoleApi,
@@ -58,7 +59,8 @@ export default function RolesPage() {
   const canCreate = hasPermission(PERMISSIONS.ADMIN.ROLE_CREATE);
   const canUpdate = hasPermission(PERMISSIONS.ADMIN.ROLE_UPDATE);
   const canDelete = hasPermission(PERMISSIONS.ADMIN.ROLE_DELETE);
-  const showActions = canUpdate || canDelete;
+  const canAssignPermissions = hasPermission(PERMISSIONS.ADMIN.ROLE_PERMISSION_ASSIGN);
+  const showActions = canUpdate || canDelete || canAssignPermissions;
 
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +78,9 @@ export default function RolesPage() {
   const [deletingRole, setDeletingRole] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissionsRole, setPermissionsRole] = useState(null);
 
   const loadRoles = useCallback(async () => {
     setLoading(true);
@@ -169,6 +174,20 @@ export default function RolesPage() {
     if (!deleteLoading) {
       setDeleteOpen(false);
     }
+  };
+
+  const openPermissions = (role) => {
+    setPermissionsRole(role);
+    setPermissionsOpen(true);
+  };
+
+  const closePermissions = () => {
+    setPermissionsOpen(false);
+  };
+
+  const handlePermissionsSaved = async () => {
+    showSuccess('Permissions du rôle mises à jour avec succès.');
+    await loadRoles();
   };
 
   const handleDelete = async () => {
@@ -378,6 +397,17 @@ export default function RolesPage() {
                         {showActions && (
                           <td className="roles-col-actions">
                             <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                              {canAssignPermissions ? (
+                                <IconButton
+                                  size="sm"
+                                  variant="plain"
+                                  color="primary"
+                                  onClick={() => openPermissions(role)}
+                                  title="Gérer les permissions"
+                                >
+                                  <KeyRound size={16} />
+                                </IconButton>
+                              ) : null}
                               {canUpdate ? (
                                 <IconButton
                                   size="sm"
@@ -430,6 +460,13 @@ export default function RolesPage() {
         error={deleteError}
         onClose={closeDelete}
         onConfirm={handleDelete}
+      />
+
+      <RolePermissionsModal
+        open={permissionsOpen}
+        role={permissionsRole}
+        onClose={closePermissions}
+        onSaved={handlePermissionsSaved}
       />
     </Stack>
   );

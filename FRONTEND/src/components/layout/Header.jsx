@@ -1,5 +1,4 @@
 import {
-  Avatar,
   Box,
   Breadcrumbs,
   Chip,
@@ -16,6 +15,7 @@ import {
 } from '@mui/joy';
 import { Bell, ChevronDown, ChevronRight, LogOut, Menu as MenuIcon, Search, User } from 'lucide-react';
 import LogoutConfirmModal from '../auth/LogoutConfirmModal.jsx';
+import AuthAvatar from '../ui/AuthAvatar.jsx';
 import { LAYOUT } from '../../constants/layout.js';
 import { useAuth } from '../../hooks/useAuth.js';
 import { useLogoutConfirm } from '../../hooks/useLogoutConfirm.js';
@@ -24,11 +24,11 @@ import { useAppDispatch, useAppSelector } from '../../hooks/useAppStore.js';
 import { setSidebarOpen, toggleSidebarCollapsed } from '../../store/ui/uiSlice.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../theme/lotruPalette.js';
 import {
-  formatRoleAssignment,
   getDisplayName,
   getInitials,
   getPersonnelTypeLabel,
 } from '../../utils/profile.js';
+import RoleAssignmentLabel from '../common/RoleAssignmentLabel.jsx';
 
 function ProfileMenu({ profile, displayName, personnelLabel, roleAssignments, onLogout }) {
   const metaLine = [profile?.matricule, profile?.grade || 'Personnel'].filter(Boolean).join(' · ');
@@ -83,9 +83,11 @@ function ProfileMenu({ profile, displayName, personnelLabel, roleAssignments, on
               disabled
               sx={{ py: 0.75, alignItems: 'flex-start' }}
             >
-              <Typography level="body-xs" sx={{ color: 'neutral.600', whiteSpace: 'normal' }}>
-                {formatRoleAssignment(assignment)}
-              </Typography>
+              <RoleAssignmentLabel
+                assignment={assignment}
+                level="body-xs"
+                sx={{ color: 'neutral.600', whiteSpace: 'normal' }}
+              />
             </MenuItem>
           ))}
         </>
@@ -213,13 +215,13 @@ export default function Header() {
                 }}
               >
                 <Stack direction="row" alignItems="center" spacing={1}>
-                  <Avatar
+                  <AuthAvatar
+                    src={profile?.avatarUrl}
+                    fallback={getInitials(profile)}
                     size="sm"
                     variant="soft"
                     sx={{ bgcolor: LOTRU_PRIMARY[100], color: LOTRU_PRIMARY[700], fontWeight: 600 }}
-                  >
-                    {getInitials(profile)}
-                  </Avatar>
+                  />
                   <Box sx={{ display: { xs: 'none', md: 'block' }, textAlign: 'left', minWidth: 0 }}>
                     <Typography level="title-sm" sx={{ fontWeight: 600, lineHeight: 1.2 }} noWrap>
                       {displayName}

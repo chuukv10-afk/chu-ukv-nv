@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\TypeExamenRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: TypeExamenRepository::class)]
@@ -21,6 +23,17 @@ class TypeExamen
 
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
+
+    /**
+     * @var Collection<int, Examen>
+     */
+    #[ORM\OneToMany(targetEntity: Examen::class, mappedBy: 'typeExamen')]
+    private Collection $examens;
+
+    public function __construct()
+    {
+        $this->examens = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -61,5 +74,13 @@ class TypeExamen
         $this->createdAt = $createdAt;
 
         return $this;
+    }
+
+    /**
+     * @return Collection<int, Examen>
+     */
+    public function getExamens(): Collection
+    {
+        return $this->examens;
     }
 }

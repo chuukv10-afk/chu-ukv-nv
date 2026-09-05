@@ -2,15 +2,19 @@
 
 namespace App\Controller\Api\Clinique;
 
+use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Clinique\CreateExamenInput;
+use App\DTO\Clinique\ExamenListQuery;
 use App\DTO\Clinique\UpdateExamenInput;
-use App\Entity\Examen;
 use App\Security\Permission\CliniquePermissions;
 use App\Service\Clinique\ExamenService;
+use App\Service\Export\TableExportService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -19,6 +23,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class ExamensController extends AbstractController
 {
     use JsonResponseTrait;
+    use ExportResponseTrait;
 
     public function __construct(
         private readonly ExamenService $examenService,
@@ -27,11 +32,34 @@ final class ExamensController extends AbstractController
 
     #[Route('', name: 'api_clinique_examens_index', methods: ['GET'])]
     #[IsGranted(CliniquePermissions::EXAMEN_READ)]
-    public function index(): JsonResponse
+    public function index(#[MapQueryString] ExamenListQuery $query = new ExamenListQuery()): JsonResponse
     {
-        return $this->apiSuccess(
-            array_map([$this, 'serialize'], $this->examenService->findAll()),
+        $result = $this->examenService->paginate($query);
+
+        return $this->apiPaginatedSuccess(
+            $result->items,
+            $result->page,
+            $result->limit,
+            $result->total,
             'Liste des examens récupérée avec succès.',
+        );
+    }
+
+    #[Route('/export', name: 'api_clinique_examens_export', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::EXAMEN_EXPORT)]
+    public function export(
+        Request $request,
+        TableExportService $tableExportService,
+        #[MapQueryString] ExamenListQuery $query = new ExamenListQuery(),
+    ): Response {
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            ['N°', 'Code', 'Libellé', 'Type d\'examen', 'Nb demandes'],
+            $this->examenService->buildExportRows($query),
+            'Liste des examens',
+            'examens',
+            'Aucun examen trouvé pour les filtres sélectionnés.',
         );
     }
 
@@ -43,7 +71,7 @@ final class ExamensController extends AbstractController
         $this->denyAccessUnlessGranted(CliniquePermissions::EXAMEN_READ, $examen);
 
         return $this->apiSuccess(
-            $this->serialize($examen),
+            $this->examenService->serializeSummary($examen),
             'Examen récupéré avec succès.',
         );
     }
@@ -53,7 +81,7 @@ final class ExamensController extends AbstractController
     public function create(#[MapRequestPayload] CreateExamenInput $input): JsonResponse
     {
         return $this->apiSuccess(
-            $this->serialize($this->examenService->create($input)),
+            $this->examenService->serializeSummary($this->examenService->create($input)),
             'Examen créé avec succès.',
             Response::HTTP_CREATED,
         );
@@ -67,7 +95,7 @@ final class ExamensController extends AbstractController
         $this->denyAccessUnlessGranted(CliniquePermissions::EXAMEN_UPDATE, $examen);
 
         return $this->apiSuccess(
-            $this->serialize($this->examenService->update($id, $input)),
+            $this->examenService->serializeSummary($this->examenService->update($id, $input)),
             'Examen mis à jour avec succès.',
         );
     }
@@ -82,15 +110,5 @@ final class ExamensController extends AbstractController
         $this->examenService->delete($id);
 
         return $this->apiSuccess(message: 'Examen supprimé avec succès.');
-    }
-
-    private function serialize(Examen $examen): array
-    {
-        return [
-            'id' => $examen->getId(),
-            'code' => $examen->getCode(),
-            'libelle' => $examen->getLibelle(),
-            'createdAt' => $examen->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-        ];
     }
 }

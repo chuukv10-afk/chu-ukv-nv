@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\Permission;
 use App\Entity\Role;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -16,28 +17,45 @@ class RoleRepository extends ServiceEntityRepository
         parent::__construct($registry, Role::class);
     }
 
-    //    /**
-    //     * @return Role[] Returns an array of Role objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('r')
-    //            ->andWhere('r.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('r.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    /**
+     * @return array{items: list<Role>, total: int}
+     */
+    public function paginateAssignments(int $page, int $limit, ?string $search = null, ?string $module = null): array
+    {
+        $qb = $this->createQueryBuilder('r')
+            ->leftJoin('r.permissions', 'p')
+            ->addSelect('p')
+            ->orderBy('r.code', 'ASC')
+            ->distinct();
 
-    //    public function findOneBySomeField($value): ?Role
-    //    {
-    //        return $this->createQueryBuilder('r')
-    //            ->andWhere('r.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(r.code) LIKE :search OR LOWER(r.libelle) LIKE :search')
+                ->setParameter('search', '%' . strtolower($normalizedSearch) . '%');
+        }
+
+        if (null !== $module && '' !== trim($module)) {
+            $qb
+                ->andWhere('p.module = :module')
+                ->setParameter('module', Permission::normalizeModule($module));
+        }
+
+        $countQb = clone $qb;
+        $total = (int) $countQb
+            ->select('COUNT(DISTINCT r.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $items = $qb
+            ->setFirstResult(max(0, ($page - 1) * $limit))
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return [
+            'items' => $items,
+            'total' => $total,
+        ];
+    }
 }

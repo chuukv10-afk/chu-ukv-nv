@@ -32,7 +32,7 @@ final class SyncDefaultRolesCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $this->roleProvisioner->findOrCreate(Role::CODE_PERSONNEL, 'Personnel', PersonnelRole::PERIMETRE_SERVICE);
+        $this->roleProvisioner->findOrCreate(Role::CODE_PERSONNEL, 'Personnel', PersonnelRole::PERIMETRE_GLOBAL);
         $this->roleProvisioner->findOrCreate(Role::CODE_ADMIN, 'Administrateur', PersonnelRole::PERIMETRE_GLOBAL);
         $this->entityManager->flush();
 

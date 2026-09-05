@@ -16,28 +16,57 @@ class BlocRepository extends ServiceEntityRepository
         parent::__construct($registry, Bloc::class);
     }
 
-    //    /**
-    //     * @return Bloc[] Returns an array of Bloc objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('b')
-    //            ->andWhere('b.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('b.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    /**
+     * @return array{items: list<Bloc>, total: int}
+     */
+    public function paginate(int $page, int $limit, ?string $search = null): array
+    {
+        $qb = $this->createQueryBuilder('b')
+            ->leftJoin('b.chambres', 'c')
+            ->addSelect('c')
+            ->orderBy('b.libelle', 'ASC')
+            ->distinct();
 
-    //    public function findOneBySomeField($value): ?Bloc
-    //    {
-    //        return $this->createQueryBuilder('b')
-    //            ->andWhere('b.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(b.code) LIKE :search OR LOWER(b.libelle) LIKE :search')
+                ->setParameter('search', '%' . strtolower($normalizedSearch) . '%');
+        }
+
+        $countQb = clone $qb;
+        $total = (int) $countQb
+            ->select('COUNT(DISTINCT b.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $items = $qb
+            ->setFirstResult(max(0, ($page - 1) * $limit))
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * @return list<Bloc>
+     */
+    public function findForExport(?string $search = null): array
+    {
+        $qb = $this->createQueryBuilder('b')
+            ->leftJoin('b.chambres', 'c')
+            ->addSelect('c')
+            ->orderBy('b.libelle', 'ASC')
+            ->distinct();
+
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(b.code) LIKE :search OR LOWER(b.libelle) LIKE :search')
+                ->setParameter('search', '%' . strtolower($normalizedSearch) . '%');
+        }
+
+        return $qb->getQuery()->getResult();
+    }
 }

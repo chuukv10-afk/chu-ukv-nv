@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/joy';
 import {
+  Activity,
   Award,
   BedDouble,
   Boxes,
@@ -22,8 +23,10 @@ import {
   FileText,
   FlaskConical,
   FolderOpen,
+  HeartPulse,
   KeyRound,
   LayoutDashboard,
+  Link2,
   LogOut,
   Microscope,
   Network,
@@ -74,6 +77,8 @@ const NAV_ICONS = {
   flask: FlaskConical,
   file: FileText,
   microscope: Microscope,
+  heartPulse: HeartPulse,
+  activity: Activity,
   calendar: CalendarDays,
   clipboard: ClipboardList,
   users: Users,
@@ -81,6 +86,7 @@ const NAV_ICONS = {
   userCog: UserCog,
   shield: Shield,
   key: KeyRound,
+  link: Link2,
 };
 
 function SidebarHeader({ collapsed }) {
@@ -124,7 +130,6 @@ function SidebarHeader({ collapsed }) {
             </Typography>
           ) : null}
         </Stack>
-
         {!collapsed ? (
           <Tooltip title="Réduire le menu" placement="right">
             <IconButton
@@ -284,14 +289,10 @@ function LogoutNavItem({ collapsed, onNavigate, onRequestLogout }) {
 }
 
 function SidebarNav({ onNavigate, collapsed = false }) {
-  const { canSeeNavItem, isAdmin } = usePermissions();
+  const { canSeeNavItem } = usePermissions();
   const { logoutOpen, logoutLoading, requestLogout, cancelLogout, confirmLogout } = useLogoutConfirm();
 
   const visibleSections = NAV_SECTIONS.map((section) => {
-    if (section.adminOnly && !isAdmin) {
-      return null;
-    }
-
     if (section.module && !canSeeNavItem({ module: section.module })) {
       return null;
     }

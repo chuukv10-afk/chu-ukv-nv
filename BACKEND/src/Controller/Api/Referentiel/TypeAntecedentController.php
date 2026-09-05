@@ -4,13 +4,14 @@ namespace App\Controller\Api\Referentiel;
 
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Referentiel\CreateTypeAntecedentInput;
+use App\DTO\Referentiel\ReferentielListQuery;
 use App\DTO\Referentiel\UpdateTypeAntecedentInput;
-use App\Entity\TypeAntecedent;
 use App\Security\Permission\ReferentielPermissions;
 use App\Service\Referentiel\TypeAntecedentService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -27,10 +28,15 @@ final class TypeAntecedentController extends AbstractController
 
     #[Route('', name: 'api_referentiel_types_antecedent_index', methods: ['GET'])]
     #[IsGranted(ReferentielPermissions::TYPE_ANTECEDENT_READ)]
-    public function index(): JsonResponse
+    public function index(#[MapQueryString] ReferentielListQuery $query = new ReferentielListQuery()): JsonResponse
     {
-        return $this->apiSuccess(
-            array_map([$this, 'serialize'], $this->typeAntecedentService->findAll()),
+        $result = $this->typeAntecedentService->paginate($query);
+
+        return $this->apiPaginatedSuccess(
+            $result->items,
+            $result->page,
+            $result->limit,
+            $result->total,
             'Liste des types d\'antécédent récupérée avec succès.',
         );
     }
@@ -43,7 +49,7 @@ final class TypeAntecedentController extends AbstractController
         $this->denyAccessUnlessGranted(ReferentielPermissions::TYPE_ANTECEDENT_READ, $typeAntecedent);
 
         return $this->apiSuccess(
-            $this->serialize($typeAntecedent),
+            $this->typeAntecedentService->serializeSummary($typeAntecedent),
             'Type d\'antécédent récupéré avec succès.',
         );
     }
@@ -53,7 +59,7 @@ final class TypeAntecedentController extends AbstractController
     public function create(#[MapRequestPayload] CreateTypeAntecedentInput $input): JsonResponse
     {
         return $this->apiSuccess(
-            $this->serialize($this->typeAntecedentService->create($input)),
+            $this->typeAntecedentService->serializeSummary($this->typeAntecedentService->create($input)),
             'Type d\'antécédent créé avec succès.',
             Response::HTTP_CREATED,
         );
@@ -67,7 +73,7 @@ final class TypeAntecedentController extends AbstractController
         $this->denyAccessUnlessGranted(ReferentielPermissions::TYPE_ANTECEDENT_UPDATE, $typeAntecedent);
 
         return $this->apiSuccess(
-            $this->serialize($this->typeAntecedentService->update($id, $input)),
+            $this->typeAntecedentService->serializeSummary($this->typeAntecedentService->update($id, $input)),
             'Type d\'antécédent mis à jour avec succès.',
         );
     }
@@ -82,15 +88,5 @@ final class TypeAntecedentController extends AbstractController
         $this->typeAntecedentService->delete($id);
 
         return $this->apiSuccess(message: 'Type d\'antécédent supprimé avec succès.');
-    }
-
-    private function serialize(TypeAntecedent $typeAntecedent): array
-    {
-        return [
-            'id' => $typeAntecedent->getId(),
-            'code' => $typeAntecedent->getCode(),
-            'libelle' => $typeAntecedent->getLibelle(),
-            'createdAt' => $typeAntecedent->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-        ];
     }
 }

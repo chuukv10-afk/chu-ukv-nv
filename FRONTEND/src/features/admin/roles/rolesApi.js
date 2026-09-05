@@ -34,3 +34,13 @@ export async function updateRoleApi(id, payload) {
 export async function deleteRoleApi(id) {
   return callApiDelete(`${admin.roles}/${id}`);
 }
+
+export async function fetchRolePermissionsApi(id) {
+  const response = await callApiGet(`${admin.roles}/${id}/permissions`);
+  return unwrapData(response);
+}
+
+export async function syncRolePermissionsApi(id, permissionIds) {
+  const response = await callApiPut(`${admin.roles}/${id}/permissions`, { permissionIds });
+  return unwrapData(response);
+}

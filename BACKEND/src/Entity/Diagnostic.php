@@ -8,6 +8,16 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: DiagnosticRepository::class)]
 class Diagnostic
 {
+    public const TYPE_PROVISOIRE = 'PROVISOIRE';
+    public const TYPE_DEFINITIF = 'DEFINITIF';
+    public const TYPE_DIFFERENTIEL = 'DIFFERENTIEL';
+
+    public const CERTITUDE_SUSPECTE = 'SUSPECTE';
+    public const CERTITUDE_PROBABLE = 'PROBABLE';
+    public const CERTITUDE_CONFIRMEE = 'CONFIRMEE';
+
+    public const STADE_NON_RENSEIGNE = 'NON_RENSEIGNE';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -138,5 +148,62 @@ class Diagnostic
         $this->maladie = $maladie;
 
         return $this;
+    }
+
+    /** @return list<string> */
+    public static function getTypes(): array
+    {
+        return [
+            self::TYPE_PROVISOIRE,
+            self::TYPE_DEFINITIF,
+            self::TYPE_DIFFERENTIEL,
+        ];
+    }
+
+    /** @return list<string> */
+    public static function getCertitudes(): array
+    {
+        return [
+            self::CERTITUDE_SUSPECTE,
+            self::CERTITUDE_PROBABLE,
+            self::CERTITUDE_CONFIRMEE,
+        ];
+    }
+
+    public static function isValidType(?string $type): bool
+    {
+        return null === $type || in_array($type, self::getTypes(), true);
+    }
+
+    public static function isValidCertitude(?string $certitude): bool
+    {
+        return null !== $certitude && in_array($certitude, self::getCertitudes(), true);
+    }
+
+    public static function normalizeType(?string $type): ?string
+    {
+        if (null === $type || '' === trim($type)) {
+            return self::TYPE_PROVISOIRE;
+        }
+
+        return strtoupper(trim($type));
+    }
+
+    public static function normalizeCertitude(?string $certitude): string
+    {
+        if (null === $certitude || '' === trim($certitude)) {
+            return self::CERTITUDE_SUSPECTE;
+        }
+
+        return strtoupper(trim($certitude));
+    }
+
+    public static function normalizeStadeEvolution(?string $stadeEvolution): string
+    {
+        if (null === $stadeEvolution || '' === trim($stadeEvolution)) {
+            return self::STADE_NON_RENSEIGNE;
+        }
+
+        return strtoupper(trim($stadeEvolution));
     }
 }

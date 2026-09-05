@@ -7,8 +7,9 @@ namespace App\Service\Organisation;
 
 
 use App\DTO\Organisation\CreateDepartementInput;
-
+use App\DTO\Organisation\DepartementListQuery;
 use App\DTO\Organisation\UpdateDepartementInput;
+use App\DTO\Common\PaginatedResult;
 
 use App\Entity\Departement;
 
@@ -45,15 +46,15 @@ final class DepartementService
 
 
     public function delete(int $id): void
-
     {
-
         $departement = $this->getById($id);
 
+        if (!$departement->getServices()->isEmpty()) {
+            throw new ConflictException('Ce département contient encore des services et ne peut pas être supprimé.');
+        }
+
         $this->eM->remove($departement);
-
         $this->eM->flush();
-
     }
 
 
@@ -73,12 +74,17 @@ final class DepartementService
 
 
         $departement = $this->getById($id);
+        $normalizedCode = strtoupper(trim($input->code));
+
+        $existing = $this->departementRepository->findOneBy(['code' => $normalizedCode]);
+        if (null !== $existing && $existing->getId() !== $departement->getId()) {
+            throw new ConflictException('Ce code département existe déjà.');
+        }
 
         $departement
-
-            ->setLibelle($input->libelle)
-
-            ->setType($input->type);
+            ->setCode($normalizedCode)
+            ->setLibelle(trim($input->libelle))
+            ->setType(strtoupper(trim($input->type)));
 
 
 
@@ -139,11 +145,76 @@ final class DepartementService
      */
 
     public function findAll(): array
-
     {
+        return $this->departementRepository->findBy([], ['libelle' => 'ASC']);
+    }
 
-        return $this->departementRepository->findAll();
+    public function paginate(DepartementListQuery $query): PaginatedResult
+    {
+        $errors = $this->validator->validate($query);
+        if (count($errors) > 0) {
+            throw new ValidationFailedException($query, $errors);
+        }
 
+        $result = $this->departementRepository->paginate(
+            $query->page,
+            $query->limit,
+            $query->search,
+            $query->type,
+        );
+
+        return new PaginatedResult(
+            array_map([$this, 'serializeSummary'], $result['items']),
+            $query->page,
+            $query->limit,
+            $result['total'],
+        );
+    }
+
+    /**
+     * @return list<list<string|null>>
+     */
+    public function buildExportRows(DepartementListQuery $query): array
+    {
+        $errors = $this->validator->validate($query);
+        if (count($errors) > 0) {
+            throw new ValidationFailedException($query, $errors);
+        }
+
+        $items = $this->departementRepository->findForExport($query->search, $query->type);
+
+        return array_map(
+            fn (Departement $departement): array => $this->buildExportRow($departement),
+            $items,
+        );
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    public function buildExportRow(Departement $departement): array
+    {
+        return [
+            $departement->getCode(),
+            $departement->getLibelle(),
+            $departement->getType(),
+            (string) $departement->getServices()->count(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function serializeSummary(Departement $departement): array
+    {
+        return [
+            'id' => $departement->getId(),
+            'code' => $departement->getCode(),
+            'libelle' => $departement->getLibelle(),
+            'type' => $departement->getType(),
+            'servicesCount' => $departement->getServices()->count(),
+            'createdAt' => $departement->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+        ];
     }
 
 
@@ -201,13 +272,9 @@ final class DepartementService
 
 
         $departement = (new Departement())
-
-            ->setCode($input->code)
-
-            ->setLibelle($input->libelle)
-
-            ->setType($input->type)
-
+            ->setCode(strtoupper(trim($input->code)))
+            ->setLibelle(trim($input->libelle))
+            ->setType(strtoupper(trim($input->type)))
             ->setCreatedAt(new \DateTimeImmutable());
 
 

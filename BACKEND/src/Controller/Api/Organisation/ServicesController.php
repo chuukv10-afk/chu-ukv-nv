@@ -2,15 +2,20 @@
 
 namespace App\Controller\Api\Organisation;
 
+use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Organisation\CreateServiceInput;
+use App\DTO\Organisation\ServiceListQuery;
 use App\DTO\Organisation\UpdateServiceInput;
 use App\Entity\Service;
 use App\Security\Permission\OrganisationPermissions;
+use App\Service\Export\TableExportService;
 use App\Service\Organisation\ServiceService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -19,6 +24,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class ServicesController extends AbstractController
 {
     use JsonResponseTrait;
+    use ExportResponseTrait;
 
     public function __construct(
         private readonly ServiceService $serviceService,
@@ -27,11 +33,34 @@ final class ServicesController extends AbstractController
 
     #[Route('', name: 'api_organisation_services_index', methods: ['GET'])]
     #[IsGranted(OrganisationPermissions::SERVICE_READ)]
-    public function index(): JsonResponse
+    public function index(#[MapQueryString] ServiceListQuery $query = new ServiceListQuery()): JsonResponse
     {
-        return $this->apiSuccess(
-            array_map([$this, 'serialize'], $this->serviceService->findAll()),
+        $result = $this->serviceService->paginate($query);
+
+        return $this->apiPaginatedSuccess(
+            $result->items,
+            $result->page,
+            $result->limit,
+            $result->total,
             'Liste des services récupérée avec succès.',
+        );
+    }
+
+    #[Route('/export', name: 'api_organisation_services_export', methods: ['GET'])]
+    #[IsGranted(OrganisationPermissions::SERVICE_EXPORT)]
+    public function export(
+        Request $request,
+        TableExportService $tableExportService,
+        #[MapQueryString] ServiceListQuery $query = new ServiceListQuery(),
+    ): Response {
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            ['N°', 'Code', 'Libellé', 'Département', 'Nb personnel'],
+            $this->serviceService->buildExportRows($query),
+            'Liste des services',
+            'services',
+            'Aucun service trouvé pour les filtres sélectionnés.',
         );
     }
 
@@ -86,13 +115,6 @@ final class ServicesController extends AbstractController
 
     private function serialize(Service $service): array
     {
-        return [
-            'id' => $service->getId(),
-            'code' => $service->getCode(),
-            'libelle' => $service->getLibelle(),
-            'departementId' => $service->getDepartement()?->getId(),
-            'departement' => $service->getDepartement()?->getLibelle(),
-            'createdAt' => $service->getCreatedAt()?->format(\DateTimeInterface::ATOM),
-        ];
+        return $this->serviceService->serializeSummary($service);
     }
 }

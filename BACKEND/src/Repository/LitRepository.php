@@ -16,28 +16,92 @@ class LitRepository extends ServiceEntityRepository
         parent::__construct($registry, Lit::class);
     }
 
-    //    /**
-    //     * @return Lit[] Returns an array of Lit objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('l')
-    //            ->andWhere('l.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('l.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    /**
+     * @return array{items: list<Lit>, total: int}
+     */
+    public function paginate(int $page, int $limit, ?string $search = null, ?int $chambreId = null): array
+    {
+        $qb = $this->createQueryBuilder('l')
+            ->leftJoin('l.chambre', 'c')
+            ->addSelect('c')
+            ->leftJoin('c.bloc', 'b')
+            ->addSelect('b')
+            ->leftJoin('l.visites', 'v')
+            ->orderBy('l.numeroLit', 'ASC')
+            ->distinct();
 
-    //    public function findOneBySomeField($value): ?Lit
-    //    {
-    //        return $this->createQueryBuilder('l')
-    //            ->andWhere('l.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(l.code) LIKE :search OR LOWER(l.numeroLit) LIKE :search')
+                ->setParameter('search', '%' . strtolower($normalizedSearch) . '%');
+        }
+
+        if (null !== $chambreId) {
+            $qb
+                ->andWhere('c.id = :chambreId')
+                ->setParameter('chambreId', $chambreId);
+        }
+
+        $countQb = clone $qb;
+        $total = (int) $countQb
+            ->select('COUNT(DISTINCT l.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $items = $qb
+            ->setFirstResult(max(0, ($page - 1) * $limit))
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * @return list<Lit>
+     */
+    public function findForExport(?string $search = null, ?int $chambreId = null): array
+    {
+        $qb = $this->createQueryBuilder('l')
+            ->leftJoin('l.chambre', 'c')
+            ->addSelect('c')
+            ->leftJoin('c.bloc', 'b')
+            ->addSelect('b')
+            ->leftJoin('l.visites', 'v')
+            ->orderBy('l.numeroLit', 'ASC')
+            ->distinct();
+
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(l.code) LIKE :search OR LOWER(l.numeroLit) LIKE :search')
+                ->setParameter('search', '%' . strtolower($normalizedSearch) . '%');
+        }
+
+        if (null !== $chambreId) {
+            $qb
+                ->andWhere('c.id = :chambreId')
+                ->setParameter('chambreId', $chambreId);
+        }
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
+     * @return list<Lit>
+     */
+    public function findAllWithChambreAndBloc(): array
+    {
+        return $this->createQueryBuilder('l')
+            ->leftJoin('l.chambre', 'c')
+            ->addSelect('c')
+            ->leftJoin('c.bloc', 'b')
+            ->addSelect('b')
+            ->orderBy('b.libelle', 'ASC')
+            ->addOrderBy('c.libelle', 'ASC')
+            ->addOrderBy('l.numeroLit', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

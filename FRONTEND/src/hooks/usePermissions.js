@@ -12,11 +12,8 @@ export function usePermissions() {
       return true;
     }
 
-    if (isAdmin) {
-      return true;
-    }
-
-    return permissions.includes(code);
+    const needle = String(code).toLowerCase();
+    return permissions.some((permission) => String(permission).toLowerCase() === needle);
   };
 
   const hasAnyPermission = (codes = []) => {
@@ -31,10 +28,6 @@ export function usePermissions() {
     permissions.some((permission) => permission.startsWith(`${modulePrefix}.`) && permission.endsWith('.read'));
 
   const canSeeNavItem = (item) => {
-    if (item.adminOnly && !isAdmin) {
-      return false;
-    }
-
     if (item.module && !canAccessModule(profile?.type, item.module)) {
       return false;
     }

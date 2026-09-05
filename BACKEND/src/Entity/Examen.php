@@ -24,6 +24,10 @@ class Examen
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
+    #[ORM\ManyToOne(inversedBy: 'examens')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?TypeExamen $typeExamen = null;
+
     /**
      * @var Collection<int, DemandeExamen>
      */
@@ -76,6 +80,18 @@ class Examen
         return $this;
     }
 
+    public function getTypeExamen(): ?TypeExamen
+    {
+        return $this->typeExamen;
+    }
+
+    public function setTypeExamen(?TypeExamen $typeExamen): static
+    {
+        $this->typeExamen = $typeExamen;
+
+        return $this;
+    }
+
     /**
      * @return Collection<int, DemandeExamen>
      */
@@ -97,7 +113,6 @@ class Examen
     public function removeDemandeExamen(DemandeExamen $demandeExamen): static
     {
         if ($this->demandeExamens->removeElement($demandeExamen)) {
-            // set the owning side to null (unless already changed)
             if ($demandeExamen->getExamen() === $this) {
                 $demandeExamen->setExamen(null);
             }
