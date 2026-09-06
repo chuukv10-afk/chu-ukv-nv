@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Box, Breadcrumbs, Button, Card, Chip, FormControl, FormLabel, Input, Link, Option, Select, Stack, Tab, TabList, TabPanel, Tabs, Typography,
 } from '@mui/joy';
-import { ArrowLeft, BedDouble, CalendarClock, FlaskConical, FolderOpen, HeartPulse, Pencil, Plus, RotateCcw, UserRound } from 'lucide-react';
+import { ArrowLeft, BedDouble, CalendarClock, ClipboardList, FlaskConical, FolderOpen, HeartPulse, Pencil, Plus, RotateCcw, UserRound } from 'lucide-react';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner.jsx';
 import { ROUTES } from '../../../constants/routes.js';
 import { PERMISSIONS } from '../../../constants/permissions.js';
@@ -43,6 +43,11 @@ import {
 import AntecedentsTab from '../antecedents/AntecedentsTab.jsx';
 import DiagnosticsTab from '../../clinique/diagnostics/DiagnosticsTab.jsx';
 import DemandesExamenTab from '../../clinique/demandes-examen/DemandesExamenTab.jsx';
+import PatientConsultationsTab from './components/PatientConsultationsTab.jsx';
+import {
+  patientDpiTabKeyFromIndex,
+  resolvePatientDpiTabIndex,
+} from './patientDpiTabs.js';
 
 function InfoRow({ label, value }) {
   return (
@@ -63,6 +68,8 @@ function formatDate(value) {
 export default function PatientDpiPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = resolvePatientDpiTabIndex(searchParams.get('tab'));
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
   const canUpdatePatient = hasPermission(PERMISSIONS.PATIENT.PATIENT_UPDATE);
@@ -99,6 +106,7 @@ export default function PatientDpiPage() {
   const [visiteFormLoading, setVisiteFormLoading] = useState(false);
   const [visiteFormError, setVisiteFormError] = useState('');
   const [visiteTransitionLoadingId, setVisiteTransitionLoadingId] = useState(null);
+  const [dischargeLoadingId, setDischargeLoadingId] = useState(null);
 
   const [consultationLoadingId, setConsultationLoadingId] = useState(null);
 
@@ -237,6 +245,24 @@ export default function PatientDpiPage() {
     }
   };
 
+  const handleDischargeHospitalization = async (visite) => {
+    setDischargeLoadingId(visite.id);
+    try {
+      await updateVisiteApi(visite.id, {
+        statut: 'TERMINEE',
+        dischargeHospitalization: true,
+      });
+      showSuccess('Hospitalisation terminée.');
+      await loadVisites();
+      return true;
+    } catch (err) {
+      showError(err.message || 'Impossible de terminer le séjour.');
+      return false;
+    } finally {
+      setDischargeLoadingId(null);
+    }
+  };
+
   const handleOpenConsultation = async (visite, typeConsultation) => {
     setConsultationLoadingId(visite.id);
     try {
@@ -273,6 +299,15 @@ export default function PatientDpiPage() {
       </Box>
     );
   }
+
+  const handleTabChange = (_, value) => {
+    const tabKey = patientDpiTabKeyFromIndex(value);
+    if (tabKey === 'identite') {
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    setSearchParams({ tab: tabKey }, { replace: true });
+  };
 
   const formValues = {
     nom: patient.nom ?? '',
@@ -330,7 +365,7 @@ export default function PatientDpiPage() {
           </Stack>
         </Stack>
 
-        <Tabs defaultValue={0}>
+        <Tabs value={activeTab} onChange={handleTabChange}>
           <TabList>
             <Tab><UserRound size={16} style={{ marginRight: 6 }} />Identité</Tab>
             <Tab><FolderOpen size={16} style={{ marginRight: 6 }} />Dossier (DPI)</Tab>
@@ -338,6 +373,7 @@ export default function PatientDpiPage() {
             <Tab disabled={!canReadDiagnostic}><HeartPulse size={16} style={{ marginRight: 6 }} />Diagnostics</Tab>
             <Tab disabled={!canReadDemandeExamen}><FlaskConical size={16} style={{ marginRight: 6 }} />Examens</Tab>
             <Tab><CalendarClock size={16} style={{ marginRight: 6 }} />Visites</Tab>
+            <Tab disabled={!canReadConsultation}><ClipboardList size={16} style={{ marginRight: 6 }} />Consultations</Tab>
             <Tab disabled={!canReadVisite}><BedDouble size={16} style={{ marginRight: 6 }} />Hospitalisation</Tab>
           </TabList>
 
@@ -493,15 +529,23 @@ export default function PatientDpiPage() {
           </TabPanel>
 
           <TabPanel value={6} sx={{ p: 0, pt: 2 }}>
+            <PatientConsultationsTab patientId={patientId} />
+          </TabPanel>
+
+          <TabPanel value={7} sx={{ p: 0, pt: 2 }}>
             {canReadVisite ? (
               <PatientHospitalisationsTab
                 visites={visites}
                 loading={visitesLoading}
                 error={visitesError}
                 canCreateConsultation={canCreateConsultation}
+                canDischarge={canUpdateVisite}
                 recordWritable={patientWritable}
                 consultationLoadingId={consultationLoadingId}
+                dischargeLoadingId={dischargeLoadingId}
                 onCreateConsultation={handleOpenConsultation}
+                onResumeConsultation={handleOpenConsultation}
+                onDischarge={handleDischargeHospitalization}
               />
             ) : (
               <Typography level="body-sm" color="warning" sx={{ bgcolor: 'warning.50', p: 1.5, borderRadius: 'md' }}>

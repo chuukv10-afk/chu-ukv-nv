@@ -17,6 +17,7 @@ export const referentiel = {
   typesExamen: '/api/v1/referentiel/types-examen',
   typesAntecedent: '/api/v1/referentiel/types-antecedent',
   signesVitaux: '/api/v1/referentiel/signes-vitaux',
+  plaintes: '/api/v1/referentiel/plaintes',
 };
 
 export const clinique = {

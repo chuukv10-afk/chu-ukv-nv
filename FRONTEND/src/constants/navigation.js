@@ -83,6 +83,12 @@ export const NAV_SECTIONS = [
         permission: PERMISSIONS.REFERENTIEL.SIGNE_VITAL_READ,
         icon: 'activity',
       },
+      {
+        label: 'Plaintes',
+        to: ROUTES.REFERENTIEL.PLAINTES,
+        permission: PERMISSIONS.REFERENTIEL.PLAINTE_READ,
+        icon: 'messageSquare',
+      },
     ],
   },
   {
@@ -115,13 +121,6 @@ export const NAV_SECTIONS = [
         permission: PERMISSIONS.CLINIQUE.VISITE_READ,
         module: 'CLINIQUE',
         icon: 'calendar',
-      },
-      {
-        label: 'Consultations',
-        to: ROUTES.CLINIQUE.CONSULTATIONS,
-        permission: PERMISSIONS.CLINIQUE.CONSULTATION_READ,
-        module: 'CLINIQUE',
-        icon: 'clipboard',
       },
     ],
   },

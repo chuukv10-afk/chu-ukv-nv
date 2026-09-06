@@ -6,7 +6,7 @@ import {
   VISITE_STATUT_COLORS,
   VISITE_STATUT_LABELS,
 } from '../visiteConstants.js';
-import { VISITE_CONSULTATION_STATUTS } from '../../consultations/consultationConstants.js';
+import { VISITE_CONSULTATION_STATUTS, visiteHasActiveConsultation } from '../../consultations/consultationConstants.js';
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -48,7 +48,7 @@ export default function PatientVisitesTable({
             <th>Motif</th>
             <th>Statut</th>
             <th>Lit</th>
-            <th>Consult.</th>
+            <th>Nb consultations</th>
             <th style={{ minWidth: 360 }}>Actions</th>
           </tr>
         </thead>
@@ -75,18 +75,31 @@ export default function PatientVisitesTable({
               <td>{visite.consultationCount ?? 0}</td>
               <td style={{ whiteSpace: 'nowrap' }}>
                 <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="nowrap" useFlexGap>
-                  {canConsult && VISITE_CONSULTATION_STATUTS.includes(visite.statut) && (
-                    <Button
-                      size="sm"
-                      variant="soft"
-                      color="primary"
-                      startDecorator={<Stethoscope size={14} />}
-                      loading={consultationLoadingId === visite.id}
-                      onClick={() => onOpenConsultation?.(visite)}
-                    >
-                      Consulter
-                    </Button>
-                  )}
+                  {canConsult && VISITE_CONSULTATION_STATUTS.includes(visite.statut) && !visite.pendingHospitalization ? (
+                    visiteHasActiveConsultation(visite) ? (
+                      <Button
+                        size="sm"
+                        variant="soft"
+                        color="success"
+                        startDecorator={<Stethoscope size={14} />}
+                        loading={consultationLoadingId === visite.id}
+                        onClick={() => onOpenConsultation?.(visite)}
+                      >
+                        {visite.statut === 'HOSPITALISE' ? 'Reprendre le tour' : 'Reprendre'}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="soft"
+                        color="primary"
+                        startDecorator={<Stethoscope size={14} />}
+                        loading={consultationLoadingId === visite.id}
+                        onClick={() => onOpenConsultation?.(visite)}
+                      >
+                        {visite.statut === 'HOSPITALISE' ? 'Tour de salle' : 'Consulter'}
+                      </Button>
+                    )
+                  ) : null}
                   <VisiteTransitionPanel
                     visite={visite}
                     lits={lits}

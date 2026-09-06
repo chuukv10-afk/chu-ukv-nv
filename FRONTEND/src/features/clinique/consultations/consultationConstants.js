@@ -71,6 +71,12 @@ export const CONSULTATION_EDITABLE_STATUTS = ['PLANIFIEE', 'EN_COURS'];
 
 export const VISITE_CONSULTATION_STATUTS = ['EN_COURS', 'HOSPITALISE'];
 
+export const CONSULTATION_ACTIVE_STATUTS = ['PLANIFIEE', 'EN_COURS'];
+
+export function visiteHasActiveConsultation(visite) {
+  return Boolean(visite?.hasActiveConsultation ?? visite?.activeConsultationId);
+}
+
 export const EMPTY_CONSULTATION_FORM = {
   visiteId: '',
   typeConsultation: 'NORMALE',

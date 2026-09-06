@@ -1,6 +1,7 @@
 import { Activity, FileAxis3D, FlaskConical, History, Pill } from 'lucide-react';
 import { ROUTES } from '../../../constants/routes.js';
 import { isWardRoundConsultation } from '../consultations/consultationConstants.js';
+import { getConsultationBackPath } from '../../patient/patients/patientDpiTabs.js';
 
 export const TOUR_DE_SALLE_FICHES = [
   {
@@ -55,7 +56,7 @@ export function getTourDeSalleFiche(slug) {
 }
 
 export function getConsultationWorkspacePath(consultation) {
-  if (!consultation?.id) return ROUTES.CLINIQUE.CONSULTATIONS;
+  if (!consultation?.id) return getConsultationBackPath(consultation);
   if (isWardRoundConsultation(consultation)) {
     return tourDeSalleHubPath(consultation.id);
   }

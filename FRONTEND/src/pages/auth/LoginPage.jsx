@@ -19,7 +19,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import logo from '../../assets/img/logo.jpg';
 import { ROUTES } from '../../constants/routes.js';
 import { loginUser } from '../../features/auth/authService.js';
@@ -27,6 +27,8 @@ import { loginUser } from '../../features/auth/authService.js';
 export default function LoginPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('session') === 'expired';
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -131,6 +133,16 @@ export default function LoginPage() {
               Veillez vous identifier pour continuer
             </Typography>
           </Stack>
+
+          {sessionExpired && !error ? (
+            <Typography
+              color="warning"
+              level="body-xs"
+              sx={{ mb: 2, textAlign: 'center', bgcolor: 'warning.50', p: 1, borderRadius: 'sm' }}
+            >
+              Votre session a expiré. Veuillez vous reconnecter.
+            </Typography>
+          ) : null}
 
           {error ? (
             <Typography

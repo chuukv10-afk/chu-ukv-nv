@@ -49,6 +49,10 @@ export const PERMISSIONS = {
     SIGNE_VITAL_CREATE: 'referentiel.signe_vital.create',
     SIGNE_VITAL_UPDATE: 'referentiel.signe_vital.update',
     SIGNE_VITAL_DELETE: 'referentiel.signe_vital.delete',
+    PLAINTE_READ: 'referentiel.plainte.read',
+    PLAINTE_CREATE: 'referentiel.plainte.create',
+    PLAINTE_UPDATE: 'referentiel.plainte.update',
+    PLAINTE_DELETE: 'referentiel.plainte.delete',
   },
   CLINIQUE: {
     EXAMEN_READ: 'clinique.examen.read',

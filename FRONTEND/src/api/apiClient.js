@@ -1,5 +1,9 @@
 import { API_BASE_URL, AUTH_TOKEN_KEY } from '../constants/apiConfig.js';
 import { normalizeAccessDeniedMessage } from '../utils/permissionLabels.js';
+import {
+  createSessionExpiredError,
+  handleUnauthorizedApiResponse,
+} from '../features/auth/authSession.js';
 
 function getAuthHeaders(body) {
   const headers = {};
@@ -14,6 +18,24 @@ function getAuthHeaders(body) {
   }
 
   return headers;
+}
+
+function buildApiError(response, payload, endpoint) {
+  if (handleUnauthorizedApiResponse(response.status, endpoint)) {
+    throw createSessionExpiredError();
+  }
+
+  const requiredPermissions = Array.isArray(payload?.requiredPermissions) ? payload.requiredPermissions : [];
+  const rawMessage = payload?.message || response.statusText;
+  const message = response.status === 403
+    ? normalizeAccessDeniedMessage(rawMessage, requiredPermissions)
+    : (rawMessage || 'Une erreur est survenue.');
+
+  const error = new Error(message);
+  error.status = response.status;
+  error.payload = payload;
+  error.requiredPermissions = requiredPermissions;
+  return error;
 }
 
 export async function callApi(endpoint, method = 'GET', body = null) {
@@ -36,17 +58,7 @@ export async function callApi(endpoint, method = 'GET', body = null) {
   }
 
   if (!response.ok) {
-    const requiredPermissions = Array.isArray(payload?.requiredPermissions) ? payload.requiredPermissions : [];
-    const rawMessage = payload?.message || response.statusText;
-    const message = response.status === 403
-      ? normalizeAccessDeniedMessage(rawMessage, requiredPermissions)
-      : (rawMessage || 'Une erreur est survenue.');
-
-    const error = new Error(message);
-    error.status = response.status;
-    error.payload = payload;
-    error.requiredPermissions = requiredPermissions;
-    throw error;
+    throw buildApiError(response, payload, endpoint);
   }
 
   return payload;
@@ -66,17 +78,7 @@ export async function downloadFile(endpoint) {
       payload = { message: response.statusText };
     }
 
-    const requiredPermissions = Array.isArray(payload?.requiredPermissions) ? payload.requiredPermissions : [];
-    const rawMessage = payload?.message || response.statusText;
-    const message = response.status === 403
-      ? normalizeAccessDeniedMessage(rawMessage, requiredPermissions)
-      : (rawMessage || 'Une erreur est survenue.');
-
-    const error = new Error(message);
-    error.status = response.status;
-    error.payload = payload;
-    error.requiredPermissions = requiredPermissions;
-    throw error;
+    throw buildApiError(response, payload, endpoint);
   }
 
   const blob = await response.blob();
@@ -108,17 +110,7 @@ export async function openFileInBrowser(endpoint) {
       payload = { message: response.statusText };
     }
 
-    const requiredPermissions = Array.isArray(payload?.requiredPermissions) ? payload.requiredPermissions : [];
-    const rawMessage = payload?.message || response.statusText;
-    const message = response.status === 403
-      ? normalizeAccessDeniedMessage(rawMessage, requiredPermissions)
-      : (rawMessage || 'Une erreur est survenue.');
-
-    const error = new Error(message);
-    error.status = response.status;
-    error.payload = payload;
-    error.requiredPermissions = requiredPermissions;
-    throw error;
+    throw buildApiError(response, payload, endpoint);
   }
 
   const blob = await response.blob();

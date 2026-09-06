@@ -3,7 +3,7 @@ import { Button, Stack } from '@mui/joy';
 import { fetchVisiteHospitalisationMetaApi } from '../visitesApi.js';
 import VisiteHospitalisationModal from './VisiteHospitalisationModal.jsx';
 import VisiteTransitionConfirmModal from './VisiteTransitionConfirmModal.jsx';
-import { VISITE_TRANSITION_LABELS } from '../visiteConstants.js';
+import { VISITE_TRANSITION_LABELS, filterVisiteAllowedTransitions } from '../visiteConstants.js';
 
 const TRANSITION_ORDER = ['EN_COURS', 'HOSPITALISE', 'TERMINEE', 'ANNULEE'];
 
@@ -36,7 +36,9 @@ export default function VisiteTransitionPanel({
   const [hospMetaError, setHospMetaError] = useState('');
   const [confirmStatut, setConfirmStatut] = useState(null);
   const recordWritable = visite?.recordWritable !== false;
-  const transitions = sortTransitions(visite?.allowedTransitions ?? []).filter((statut) => {
+  const transitions = sortTransitions(
+    filterVisiteAllowedTransitions(visite, visite?.allowedTransitions ?? []),
+  ).filter((statut) => {
     if (recordWritable) {
       return true;
     }

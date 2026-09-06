@@ -72,6 +72,20 @@ class ConsultationRepository extends ServiceEntityRepository
         return (int) $qb->getQuery()->getSingleScalarResult();
     }
 
+    public function findActiveByVisite(int $visiteId): ?Consultation
+    {
+        return $this->createQueryBuilder('c')
+            ->andWhere('c.visite = :visiteId')
+            ->andWhere('c.statut IN (:activeStatuts)')
+            ->setParameter('visiteId', $visiteId)
+            ->setParameter('activeStatuts', [Consultation::STATUT_PLANIFIEE, Consultation::STATUT_EN_COURS])
+            ->orderBy('c.consultedAt', 'DESC')
+            ->addOrderBy('c.id', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     public function findPreviousWardRound(int $visiteId, int $currentId, \DateTimeImmutable $consultedAt): ?Consultation
     {
         return $this->createQueryBuilder('c')

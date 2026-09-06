@@ -21,6 +21,7 @@ use App\Entity\Visite;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
 use App\Repository\ActeFinancierRepository;
+use App\Repository\ConsultationRepository;
 use App\Repository\DpiRepository;
 use App\Repository\LitRepository;
 use App\Repository\ServiceRepository;
@@ -46,6 +47,7 @@ final class VisiteService
         private readonly LitRepository $litRepository,
         private readonly SigneVitalRepository $signeVitalRepository,
         private readonly ActeFinancierRepository $acteFinancierRepository,
+        private readonly ConsultationRepository $consultationRepository,
         private readonly ConsultationService $consultationService,
         private readonly ValidatorInterface $validator,
         private readonly PermissionChecker $permissionChecker,
@@ -241,7 +243,7 @@ final class VisiteService
         }
 
         if (null !== $targetStatut && $targetStatut !== $visite->getStatut()) {
-            $this->applyStatutTransition($visite, $targetStatut, $input->litId);
+            $this->applyStatutTransition($visite, $targetStatut, $input->litId, $input->dischargeHospitalization);
         } elseif (Visite::STATUT_HOSPITALISE === $visite->getStatut() && null !== $input->litId) {
             $visite->setLit($this->resolveLitForHospitalisation($input->litId, $visite->getId()));
         }
@@ -280,6 +282,7 @@ final class VisiteService
         $lit = $visite->getLit();
         $chambre = $lit?->getChambre();
         $bloc = $chambre?->getBloc();
+        $activeConsultation = $this->consultationRepository->findActiveByVisite((int) $visite->getId());
 
         return [
             'id' => $visite->getId(),
@@ -290,7 +293,8 @@ final class VisiteService
             'hospitalizedAt' => $visite->getHospitalizedAt()?->format(\DateTimeInterface::ATOM),
             'isHospitalization' => $visite->isHospitalization(),
             'isCurrentHospitalization' => $visite->isCurrentHospitalization(),
-            'allowedTransitions' => Visite::getAllowedTransitions((string) $visite->getStatut()),
+            'allowedTransitions' => $this->resolveAllowedTransitions($visite, $activeConsultation),
+            'canDischargeHospitalization' => Visite::STATUT_HOSPITALISE === $visite->getStatut() && null === $activeConsultation,
             'dpiId' => $dpi?->getId(),
             'numDossier' => $dpi?->getNumDossier(),
             'patientId' => null !== $patient?->getId() ? (string) $patient->getId() : null,
@@ -310,6 +314,9 @@ final class VisiteService
                 'bloc' => null !== $bloc ? $bloc->getLibelle() : null,
             ] : null,
             'consultationCount' => $visite->getConsultations()->count(),
+            'hasActiveConsultation' => null !== $activeConsultation,
+            'activeConsultationId' => $activeConsultation?->getId(),
+            'activeConsultationType' => $activeConsultation?->getTypeConsultation(),
             'acteFinancierCount' => $visite->getActeFinancierVisites()->count(),
             'pendingHospitalization' => $pendingHospitalization ?? $this->isPendingHospitalization($visite),
             'patientStatus' => $patient?->getStatus(),
@@ -489,8 +496,12 @@ final class VisiteService
         }, $lits);
     }
 
-    private function applyStatutTransition(Visite $visite, string $targetStatut, ?int $litId): void
-    {
+    private function applyStatutTransition(
+        Visite $visite,
+        string $targetStatut,
+        ?int $litId,
+        bool $dischargeHospitalization = false,
+    ): void {
         $currentStatut = (string) $visite->getStatut();
         if (!Visite::canTransition($currentStatut, $targetStatut)) {
             throw new ConflictException(sprintf(
@@ -500,15 +511,36 @@ final class VisiteService
             ));
         }
 
+        if (in_array($targetStatut, [Visite::STATUT_TERMINEE, Visite::STATUT_ANNULEE], true)) {
+            $activeConsultation = $this->consultationRepository->findActiveByVisite((int) $visite->getId());
+            if (null !== $activeConsultation) {
+                throw new ConflictException('Une consultation est en cours. Clôturez-la avant de modifier le statut de la visite.');
+            }
+        }
+
+        if (Visite::STATUT_HOSPITALISE === $currentStatut) {
+            if (Visite::STATUT_ANNULEE === $targetStatut) {
+                throw new ConflictException('Impossible d\'annuler une visite hospitalisée. Terminez d\'abord l\'hospitalisation.');
+            }
+
+            if (Visite::STATUT_TERMINEE === $targetStatut && !$dischargeHospitalization) {
+                throw new ConflictException('La fin d\'hospitalisation doit être effectuée depuis le tour de salle ou le menu Hospitalisation.');
+            }
+        }
+
         if (Visite::STATUT_HOSPITALISE === $targetStatut) {
             $visite->setLit($this->resolveLitForHospitalisation($litId ?? $visite->getLit()?->getId(), $visite->getId()));
             if (null === $visite->getHospitalizedAt()) {
                 $visite->setHospitalizedAt(new \DateTimeImmutable());
             }
+            $this->clearPendingHospitalizationFlags($visite);
         }
 
         if (Visite::STATUT_TERMINEE === $targetStatut) {
             $visite->setSortedAt(new \DateTimeImmutable());
+            if (Visite::STATUT_HOSPITALISE === $currentStatut) {
+                $visite->setLit(null);
+            }
         }
 
         if (Visite::STATUT_EN_COURS === $targetStatut && Visite::STATUT_PLANIFIEE === $currentStatut) {
@@ -520,6 +552,34 @@ final class VisiteService
         }
 
         $visite->setStatut($targetStatut);
+    }
+
+    /** @return list<string> */
+    private function resolveAllowedTransitions(Visite $visite, ?Consultation $activeConsultation): array
+    {
+        $transitions = Visite::getAllowedTransitions((string) $visite->getStatut());
+        $hasActiveConsultation = null !== $activeConsultation;
+        $isHospitalized = Visite::STATUT_HOSPITALISE === $visite->getStatut();
+
+        return array_values(array_filter(
+            $transitions,
+            static function (string $statut) use ($hasActiveConsultation, $isHospitalized): bool {
+                if (!in_array($statut, [Visite::STATUT_TERMINEE, Visite::STATUT_ANNULEE], true)) {
+                    return true;
+                }
+
+                return !$hasActiveConsultation && !$isHospitalized;
+            },
+        ));
+    }
+
+    private function clearPendingHospitalizationFlags(Visite $visite): void
+    {
+        foreach ($visite->getConsultations() as $consultation) {
+            if (true === $consultation->getNeedsHospitalization()) {
+                $consultation->setNeedsHospitalization(false);
+            }
+        }
     }
 
     private function resolveLitForHospitalisation(?int $litId, ?int $excludeVisiteId): Lit

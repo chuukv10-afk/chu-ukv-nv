@@ -1,24 +1,5 @@
 export const EVOLUTION_SHEET_VERSION = 1;
 
-export const COMPLAINT_OPTIONS = [
-  'Fièvre',
-  'Douleur',
-  'Nausées / Vomissements',
-  'Dyspnée',
-  'Céphalées',
-  'Vertiges',
-  'Asthénie',
-  'Diarrhée',
-  'Constipation',
-  'Prurit',
-  'Œdèmes',
-  'Saignement',
-  'Confusion',
-  'Insomnie',
-  'Anxiété',
-  'Autre',
-];
-
 export const CLINICAL_EVALUATION_OPTIONS = [
   { value: 'GOOD', label: 'Bonne évolution clinique' },
   { value: 'STABLE', label: 'Statique-clinique' },

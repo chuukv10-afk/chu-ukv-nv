@@ -157,6 +157,7 @@ final class ConsultationService
         $this->assertVisiteAccessible($visite);
         $this->assertRecordWritable($visite);
         $this->assertVisiteAllowsConsultation($visite);
+        $this->assertNoPendingHospitalization($visite);
 
         if ($this->consultationRepository->countActiveByVisite((int) $visite->getId()) > 0) {
             throw new ConflictException('Cette visite possède déjà une consultation active.');
@@ -293,6 +294,9 @@ final class ConsultationService
 
         $needsHospitalization = !$alreadyHospitalized && $input->needsHospitalization;
         $dischargePatient = $alreadyHospitalized && $input->dischargePatient;
+        if ($dischargePatient && Consultation::TYPE_AU_LIT !== $consultation->getTypeConsultation()) {
+            throw new ConflictException('La fin d\'hospitalisation ne peut être préparée que depuis un tour de salle.');
+        }
         $wantsAppointment = !$needsHospitalization && $input->wantsAppointment;
 
         $consultation
@@ -623,6 +627,7 @@ final class ConsultationService
                     $visite->setSortedPrevuAt($consultation->getNextAppointmentAt());
                 }
                 $visite->setSortedAt(new \DateTimeImmutable());
+                $visite->setLit(null);
                 $visite->setStatut(Visite::STATUT_TERMINEE);
             }
 
@@ -840,6 +845,21 @@ final class ConsultationService
         $statut = (string) $visite->getStatut();
         if (!in_array($statut, [Visite::STATUT_EN_COURS, Visite::STATUT_HOSPITALISE], true)) {
             throw new ConflictException('La visite doit être en cours ou hospitalisée pour ouvrir une consultation.');
+        }
+    }
+
+    private function assertNoPendingHospitalization(Visite $visite): void
+    {
+        if (Visite::STATUT_EN_COURS !== $visite->getStatut()) {
+            return;
+        }
+
+        foreach ($visite->getConsultations() as $consultation) {
+            if (true === $consultation->getNeedsHospitalization()) {
+                throw new ConflictException(
+                    'Une hospitalisation est en attente pour cette visite. Affectez un lit avant d\'ouvrir une nouvelle consultation.',
+                );
+            }
         }
     }
 

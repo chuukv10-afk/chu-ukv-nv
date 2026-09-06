@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, Card, Chip, Sheet, Stack, Table, Typography } from '@mui/joy';
-import { BedDouble, Stethoscope } from 'lucide-react';
+import { BedDouble, LogOut, Stethoscope } from 'lucide-react';
 import {
   formatDateTime,
   formatStayDuration,
@@ -8,19 +8,24 @@ import {
   getHospitalisationStart,
   isHospitalisation,
 } from '../hospitalisationsUtils.js';
-import HospitalisationConsultationModal from './HospitalisationConsultationModal.jsx';
+import HospitalisationDischargeModal from './HospitalisationDischargeModal.jsx';
+import { canDischargeHospitalization } from '../visiteConstants.js';
+import { visiteHasActiveConsultation } from '../../consultations/consultationConstants.js';
 
 export default function PatientHospitalisationsTab({
   visites = [],
   loading = false,
   error = '',
   canCreateConsultation = false,
+  canDischarge = false,
   recordWritable = true,
   consultationLoadingId = null,
+  dischargeLoadingId = null,
   onCreateConsultation,
+  onResumeConsultation,
+  onDischarge,
 }) {
-  const [typeModalOpen, setTypeModalOpen] = useState(false);
-  const [typeError, setTypeError] = useState('');
+  const [dischargeOpen, setDischargeOpen] = useState(false);
 
   const hospitalisations = useMemo(
     () => [...visites].filter(isHospitalisation).sort((left, right) => {
@@ -32,14 +37,21 @@ export default function PatientHospitalisationsTab({
   );
 
   const current = hospitalisations.find((item) => item.statut === 'HOSPITALISE' || item.isCurrentHospitalization);
-  const canCreate = Boolean(canCreateConsultation && recordWritable && current);
+  const currentHasActiveConsultation = visiteHasActiveConsultation(current);
+  const canCreateNew = Boolean(canCreateConsultation && recordWritable && current && !currentHasActiveConsultation);
+  const canResume = Boolean(canCreateConsultation && recordWritable && current && currentHasActiveConsultation);
+  const showDischarge = Boolean(canDischarge && recordWritable && current && canDischargeHospitalization(current));
 
-  const handleCreate = async (typeConsultation) => {
+  const handleCreateTour = async () => {
     if (!current) return;
-    setTypeError('');
-    const result = await onCreateConsultation?.(current, typeConsultation);
-    if (result) {
-      setTypeModalOpen(false);
+    await onCreateConsultation?.(current);
+  };
+
+  const handleDischarge = async () => {
+    if (!current) return;
+    const success = await onDischarge?.(current);
+    if (success) {
+      setDischargeOpen(false);
     }
   };
 
@@ -51,17 +63,47 @@ export default function PatientHospitalisationsTab({
             <BedDouble size={18} />
             <Typography level="title-md" sx={{ fontWeight: 700 }}>Hospitalisations</Typography>
           </Stack>
-          {canCreate ? (
+          {canCreateNew ? (
             <Button
               size="sm"
               startDecorator={<Stethoscope size={16} />}
               loading={consultationLoadingId === current.id}
-              onClick={() => { setTypeError(''); setTypeModalOpen(true); }}
+              onClick={handleCreateTour}
             >
-              Nouvelle consultation
+              Nouveau tour de salle
+            </Button>
+          ) : null}
+          {canResume ? (
+            <Button
+              size="sm"
+              variant="soft"
+              color="success"
+              startDecorator={<Stethoscope size={16} />}
+              loading={consultationLoadingId === current.id}
+              onClick={() => onResumeConsultation?.(current)}
+            >
+              Reprendre le tour
+            </Button>
+          ) : null}
+          {showDischarge ? (
+            <Button
+              size="sm"
+              variant="soft"
+              color="primary"
+              startDecorator={<LogOut size={16} />}
+              loading={dischargeLoadingId === current.id}
+              onClick={() => setDischargeOpen(true)}
+            >
+              Terminer le séjour
             </Button>
           ) : null}
         </Stack>
+
+        {currentHasActiveConsultation ? (
+          <Typography level="body-sm" color="warning" sx={{ bgcolor: 'warning.50', p: 1.5, borderRadius: 'md' }}>
+            Une consultation est en cours pour ce séjour. Clôturez-la avant d&apos;en créer une nouvelle ou de terminer l&apos;hospitalisation.
+          </Typography>
+        ) : null}
 
         {current ? (
           <Card variant="soft" color="warning" sx={{ borderRadius: 'md', p: 2 }}>
@@ -107,7 +149,7 @@ export default function PatientHospitalisationsTab({
                   <th>Durée</th>
                   <th>Service</th>
                   <th>Lit</th>
-                  <th>Consult.</th>
+                  <th>Nb consultations</th>
                   <th>Statut</th>
                 </tr>
               </thead>
@@ -143,13 +185,12 @@ export default function PatientHospitalisationsTab({
         )}
       </Stack>
 
-      <HospitalisationConsultationModal
-        open={typeModalOpen}
+      <HospitalisationDischargeModal
+        open={dischargeOpen}
         visite={current}
-        loading={consultationLoadingId === current?.id}
-        error={typeError}
-        onClose={() => setTypeModalOpen(false)}
-        onSubmit={handleCreate}
+        loading={dischargeLoadingId === current?.id}
+        onClose={() => setDischargeOpen(false)}
+        onConfirm={handleDischarge}
       />
     </Card>
   );

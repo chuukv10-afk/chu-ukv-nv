@@ -1,4 +1,5 @@
 import { API_BASE_URL, AUTH_TOKEN_KEY } from '../constants/apiConfig.js';
+import { handleUnauthorizedApiResponse } from '../features/auth/authSession.js';
 
 const avatarBlobCache = new Map();
 
@@ -48,6 +49,7 @@ export async function fetchAuthenticatedAvatarUrl(src) {
   });
 
   if (!response.ok) {
+    handleUnauthorizedApiResponse(response.status, src);
     return null;
   }
 

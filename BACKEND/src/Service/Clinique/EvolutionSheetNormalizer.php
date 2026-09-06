@@ -55,14 +55,10 @@ final class EvolutionSheetNormalizer
         $base['symptoms']['selectedComplaints'] = [];
         if (is_array($complaints)) {
             foreach ($complaints as $complaint) {
-                if (!is_string($complaint)) {
-                    continue;
+                $normalized = $this->normalizeComplaint($complaint);
+                if (null !== $normalized) {
+                    $base['symptoms']['selectedComplaints'][] = $normalized;
                 }
-                $label = trim($complaint);
-                if ('' === $label) {
-                    continue;
-                }
-                $base['symptoms']['selectedComplaints'][] = mb_substr($label, 0, 80);
             }
         }
 
@@ -85,5 +81,39 @@ final class EvolutionSheetNormalizer
         $base['continueCurrentTreatment'] = (bool) ($payload['continueCurrentTreatment'] ?? true);
 
         return $base;
+    }
+
+    /**
+     * @return array{id: int|null, libelle: string}|null
+     */
+    private function normalizeComplaint(mixed $complaint): ?array
+    {
+        if (is_array($complaint)) {
+            $libelle = trim((string) ($complaint['libelle'] ?? ''));
+            if ('' === $libelle) {
+                return null;
+            }
+
+            $id = isset($complaint['id']) ? (int) $complaint['id'] : null;
+
+            return [
+                'id' => null !== $id && $id > 0 ? $id : null,
+                'libelle' => mb_substr($libelle, 0, 100),
+            ];
+        }
+
+        if (is_string($complaint)) {
+            $libelle = trim($complaint);
+            if ('' === $libelle) {
+                return null;
+            }
+
+            return [
+                'id' => null,
+                'libelle' => mb_substr($libelle, 0, 100),
+            ];
+        }
+
+        return null;
     }
 }

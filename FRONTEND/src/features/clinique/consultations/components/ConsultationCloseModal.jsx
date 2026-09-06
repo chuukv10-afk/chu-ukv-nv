@@ -25,7 +25,21 @@ const EMPTY_CLOSE_FORM = {
   hospitalizationObservation: '',
 };
 
-export function buildCloseConsultationPayload(form, { alreadyHospitalized = false } = {}) {
+export function buildCloseConsultationPayload(form, {
+  alreadyHospitalized = false,
+  admittedFollowUp = false,
+} = {}) {
+  if (admittedFollowUp) {
+    return {
+      needsHospitalization: false,
+      dischargePatient: false,
+      wantsAppointment: false,
+      nextAppointmentAt: null,
+      hospitalizationPatientOpinion: null,
+      hospitalizationObservation: null,
+    };
+  }
+
   if (alreadyHospitalized) {
     const dischargePatient = form.staysHospitalized === 'no';
     const wantsAppointment = dischargePatient && form.wantsAppointment === 'yes';
@@ -73,7 +87,14 @@ export function buildCloseConsultationPayload(form, { alreadyHospitalized = fals
   };
 }
 
-export function validateCloseForm(form, { alreadyHospitalized = false } = {}) {
+export function validateCloseForm(form, {
+  alreadyHospitalized = false,
+  admittedFollowUp = false,
+} = {}) {
+  if (admittedFollowUp) {
+    return '';
+  }
+
   if (alreadyHospitalized) {
     if (!form.staysHospitalized) {
       return 'Indiquez si le malade reste hospitalisé.';
@@ -119,6 +140,7 @@ export default function ConsultationCloseModal({
   loading = false,
   error = '',
   alreadyHospitalized = false,
+  admittedFollowUp = false,
   isBedside = false,
   onClose,
   onSubmit,
@@ -157,18 +179,20 @@ export default function ConsultationCloseModal({
   };
 
   const handleSubmit = () => {
-    const validationError = validateCloseForm(form, { alreadyHospitalized });
+    const validationError = validateCloseForm(form, { alreadyHospitalized, admittedFollowUp });
     if (validationError) {
       setLocalError(validationError);
       return;
     }
     setLocalError('');
-    onSubmit(buildCloseConsultationPayload(form, { alreadyHospitalized }));
+    onSubmit(buildCloseConsultationPayload(form, { alreadyHospitalized, admittedFollowUp }));
   };
 
   const displayError = localError || error;
   const title = isBedside ? 'Clôturer le tour de salle' : 'Clôturer la consultation';
-  const subtitle = alreadyHospitalized
+  const subtitle = admittedFollowUp
+    ? 'Le malade est déjà hospitalisé. La consultation sera clôturée sans modifier le séjour.'
+    : alreadyHospitalized
     ? 'Le malade est déjà hospitalisé. Indiquez s’il reste au lit ou s’il peut sortir.'
     : 'Renseignez l’orientation du malade avant la clôture de la consultation.';
 
@@ -187,7 +211,11 @@ export default function ConsultationCloseModal({
             </Typography>
           </Stack>
 
-          {alreadyHospitalized ? (
+          {admittedFollowUp ? (
+            <Chip size="sm" variant="soft" color="warning">
+              Patient hospitalisé — aucune nouvelle demande d&apos;admission n&apos;est nécessaire.
+            </Chip>
+          ) : alreadyHospitalized ? (
             <>
               <Chip size="sm" variant="soft" color="warning">
                 Patient déjà hospitalisé — ce n’est plus une admission.

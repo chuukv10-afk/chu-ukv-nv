@@ -82,9 +82,62 @@ final class PermissionProvisioner
             }
         }
 
+        $this->grantNewPermissionsToMatchingRoles($definitions);
+
         $this->entityManager->flush();
 
         return $createdCount;
+    }
+
+    /**
+     * Accorde une nouvelle permission aux rôles métier qui ont déjà
+     * une permission du même module et de la même action (ex. signe_vital.read → plainte.read).
+     *
+     * @param list<array{code: string, libelle: string, module: string}> $definitions
+     */
+    private function grantNewPermissionsToMatchingRoles(array $definitions): void
+    {
+        $roles = $this->entityManager->getRepository(Role::class)->findAll();
+
+        foreach ($roles as $role) {
+            if (in_array($role->getCode(), [Role::CODE_ADMIN, Role::CODE_PERSONNEL], true)) {
+                continue;
+            }
+
+            $ownedCodes = [];
+            foreach ($role->getPermissions() as $owned) {
+                $ownedCodes[] = (string) $owned->getCode();
+            }
+
+            foreach ($definitions as $definition) {
+                $code = $definition['code'];
+                $action = substr($code, (int) strrpos($code, '.') + 1);
+                $hasSameActionInModule = false;
+
+                foreach ($ownedCodes as $ownedCode) {
+                    if (!str_starts_with($ownedCode, 'referentiel.') && Permission::MODULE_REFERENTIEL === $definition['module']) {
+                        continue;
+                    }
+
+                    if ($definition['module'] === Permission::MODULE_REFERENTIEL
+                        && str_starts_with($ownedCode, 'referentiel.')
+                        && str_ends_with($ownedCode, '.' . $action)
+                    ) {
+                        $hasSameActionInModule = true;
+                        break;
+                    }
+                }
+
+                if (!$hasSameActionInModule) {
+                    continue;
+                }
+
+                $permission = $this->permissionRepository->findOneBy(['code' => $code]);
+                if (null !== $permission) {
+                    $role->addPermission($permission);
+                }
+            }
+        }
     }
 
     /**

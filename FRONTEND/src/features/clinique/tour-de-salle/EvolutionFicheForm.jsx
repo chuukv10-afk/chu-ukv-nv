@@ -29,9 +29,9 @@ import StayDiagnosticsCard from '../diagnostics/StayDiagnosticsCard.jsx';
 import DiagnosticsTab from '../diagnostics/DiagnosticsTab.jsx';
 import {
   CLINICAL_EVALUATION_OPTIONS,
-  COMPLAINT_OPTIONS,
   DIAGNOSIS_EVOLUTION_MODES,
 } from './evolutionSheetConstants.js';
+import ComplaintsSection from '../plaintes/ComplaintsSection.jsx';
 import {
   buildEvolutionForm,
   formatStayDuration,
@@ -92,6 +92,8 @@ export default function EvolutionFicheForm({ consultation, onSaved }) {
         next.evolutionSheet.symptoms = { ...next.evolutionSheet.symptoms, freeText: value };
       } else if (path === 'symptoms.selectedComplaints') {
         next.evolutionSheet.symptoms = { ...next.evolutionSheet.symptoms, selectedComplaints: value };
+      } else if (path === 'symptoms') {
+        next.evolutionSheet.symptoms = value;
       } else if (path === 'clinicalEvaluation.type') {
         next.evolutionSheet.clinicalEvaluation = { ...next.evolutionSheet.clinicalEvaluation, type: value };
       } else if (path === 'clinicalEvaluation.worseningDetails') {
@@ -103,18 +105,6 @@ export default function EvolutionFicheForm({ consultation, onSaved }) {
       }
       return next;
     });
-  };
-
-  const toggleComplaint = (complaint) => {
-    if (readOnly) return;
-    const selected = form.evolutionSheet.symptoms.selectedComplaints || [];
-    const next = selected.includes(complaint)
-      ? selected.filter((item) => item !== complaint)
-      : [...selected, complaint];
-    updateSheet('symptoms.selectedComplaints', next);
-    if (next.length > 0) {
-      updateSheet('symptoms.mode', 'COMPLAINTS');
-    }
   };
 
   const handleSave = async () => {
@@ -192,47 +182,12 @@ export default function EvolutionFicheForm({ consultation, onSaved }) {
         )}
       </Card>
 
-      <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2 }}>
-        <Typography level="title-sm" sx={{ fontWeight: 700, mb: 1 }}>Plaintes du jour</Typography>
-        <RadioGroup
-          value={form.evolutionSheet.symptoms.mode}
-          onChange={(event) => updateSheet('symptoms.mode', event.target.value)}
-        >
-          <Radio value="NONE" label="Pas de plaintes" disabled={readOnly} />
-          <Radio value="COMPLAINTS" label="Plaintes" disabled={readOnly} />
-        </RadioGroup>
-        {form.evolutionSheet.symptoms.mode === 'COMPLAINTS' ? (
-          <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-              {COMPLAINT_OPTIONS.map((complaint) => {
-                const selected = form.evolutionSheet.symptoms.selectedComplaints.includes(complaint);
-                return (
-                  <Chip
-                    key={complaint}
-                    size="sm"
-                    variant={selected ? 'solid' : 'soft'}
-                    color={selected ? 'primary' : 'neutral'}
-                    onClick={() => toggleComplaint(complaint)}
-                    sx={{ cursor: readOnly ? 'default' : 'pointer' }}
-                  >
-                    {complaint}
-                  </Chip>
-                );
-              })}
-            </Stack>
-            <FormControl>
-              <FormLabel>Précisions</FormLabel>
-              <Textarea
-                minRows={2}
-                value={form.evolutionSheet.symptoms.freeText}
-                onChange={(event) => updateSheet('symptoms.freeText', event.target.value)}
-                readOnly={readOnly}
-                placeholder="Décrire les plaintes…"
-              />
-            </FormControl>
-          </Stack>
-        ) : null}
-      </Card>
+      <ComplaintsSection
+        symptoms={form.evolutionSheet.symptoms}
+        onChange={(symptoms) => updateSheet('symptoms', symptoms)}
+        readOnly={readOnly}
+        title="Plaintes du jour"
+      />
 
       <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2 }}>
         <FormControl>

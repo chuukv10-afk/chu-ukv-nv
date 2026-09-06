@@ -14,6 +14,7 @@ import {
 } from '../consultations/consultationConstants.js';
 import { closeConsultationApi, fetchConsultationApi } from '../consultations/consultationsApi.js';
 import ConsultationCloseModal from '../consultations/components/ConsultationCloseModal.jsx';
+import { getConsultationBackPath } from '../../patient/patients/patientDpiTabs.js';
 import { TOUR_DE_SALLE_FICHES, tourDeSalleFichePath } from './tourDeSalleConstants.js';
 
 function formatTourDate(value) {
@@ -67,7 +68,7 @@ export default function TourDeSalleHubPage() {
     return (
       <Box sx={{ p: 3 }}>
         <Typography level="body-md" color="danger">{error || 'Tour de salle introuvable.'}</Typography>
-        <Button sx={{ mt: 2 }} startDecorator={<ArrowLeft size={16} />} onClick={() => navigate(ROUTES.CLINIQUE.CONSULTATIONS)}>
+        <Button sx={{ mt: 2 }} startDecorator={<ArrowLeft size={16} />} onClick={() => navigate(ROUTES.PATIENT.LIST)}>
           Retour
         </Button>
       </Box>
@@ -89,6 +90,7 @@ export default function TourDeSalleHubPage() {
     || getRecordLockReason(consultation),
   );
   const showClose = !consultation.isClosed && canClose && !locked;
+  const backPath = getConsultationBackPath(consultation);
 
   const handleCloseTour = async (payload) => {
     setCloseLoading(true);
@@ -205,7 +207,7 @@ export default function TourDeSalleHubPage() {
           color="neutral"
           size="sm"
           startDecorator={<ArrowLeft size={14} />}
-          onClick={() => navigate(ROUTES.CLINIQUE.CONSULTATIONS)}
+          onClick={() => navigate(backPath)}
         >
           Retour
         </Button>

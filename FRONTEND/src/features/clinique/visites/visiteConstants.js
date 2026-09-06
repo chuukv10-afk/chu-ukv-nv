@@ -67,3 +67,24 @@ export const VISITE_TRANSITION_LABELS = {
   TERMINEE: 'Clôturer',
   ANNULEE: 'Annuler',
 };
+
+export function filterVisiteAllowedTransitions(visite, transitions = visite?.allowedTransitions ?? []) {
+  const hasActiveConsultation = Boolean(
+    visite?.hasActiveConsultation ?? visite?.activeConsultationId,
+  );
+  const isHospitalized = visite?.statut === 'HOSPITALISE';
+
+  return transitions.filter((statut) => {
+    if (statut !== 'TERMINEE' && statut !== 'ANNULEE') {
+      return true;
+    }
+    return !hasActiveConsultation && !isHospitalized;
+  });
+}
+
+export function canDischargeHospitalization(visite) {
+  return Boolean(
+    visite?.canDischargeHospitalization
+    ?? (visite?.statut === 'HOSPITALISE' && !visite?.hasActiveConsultation && !visite?.activeConsultationId),
+  );
+}

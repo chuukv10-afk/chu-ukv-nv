@@ -36,6 +36,11 @@ final class ReferentielPermissions
     public const SIGNE_VITAL_UPDATE = 'referentiel.signe_vital.update';
     public const SIGNE_VITAL_DELETE = 'referentiel.signe_vital.delete';
 
+    public const PLAINTE_READ = 'referentiel.plainte.read';
+    public const PLAINTE_CREATE = 'referentiel.plainte.create';
+    public const PLAINTE_UPDATE = 'referentiel.plainte.update';
+    public const PLAINTE_DELETE = 'referentiel.plainte.delete';
+
     /**
      * @return list<array{code: string, libelle: string, module: string}>
      */
@@ -49,6 +54,7 @@ final class ReferentielPermissions
             self::export(self::TYPE_EXAMEN_EXPORT, 'les types d\'examen'),
             self::crud('type_antecedent', 'type d\'antécédent', 'les types d\'antécédent'),
             self::crud('signe_vital', 'signe vital', 'les signes vitaux'),
+            self::crud('plainte', 'plainte', 'les plaintes'),
         );
     }
 

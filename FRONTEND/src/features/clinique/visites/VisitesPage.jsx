@@ -34,7 +34,7 @@ import {
   fetchVisitesApi,
   updateVisiteApi,
 } from './visitesApi.js';
-import { VISITE_CONSULTATION_STATUTS } from '../consultations/consultationConstants.js';
+import { VISITE_CONSULTATION_STATUTS, visiteHasActiveConsultation } from '../consultations/consultationConstants.js';
 import { openConsultationForVisite } from '../consultations/openConsultationForVisite.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_VISITE_PAGE_SIZE, total: 0, totalPages: 0 };
@@ -337,14 +337,15 @@ export default function VisitesPage() {
                     <th>Statut</th>
                     <th>Entrée</th>
                     <th>Lit</th>
+                    <th>Nb consultations</th>
                     {showActions ? <th style={{ minWidth: 320 }}>Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={showActions ? 6 : 5}><Typography level="body-sm" sx={{ py: 3, textAlign: 'center' }}>Chargement…</Typography></td></tr>
+                    <tr><td colSpan={showActions ? 7 : 6}><Typography level="body-sm" sx={{ py: 3, textAlign: 'center' }}>Chargement…</Typography></td></tr>
                   ) : items.length === 0 ? (
-                    <tr><td colSpan={showActions ? 6 : 5}><Typography level="body-sm" sx={{ py: 3, textAlign: 'center', color: 'neutral.500' }}>Aucune visite trouvée.</Typography></td></tr>
+                    <tr><td colSpan={showActions ? 7 : 6}><Typography level="body-sm" sx={{ py: 3, textAlign: 'center', color: 'neutral.500' }}>Aucune visite trouvée.</Typography></td></tr>
                   ) : items.map((item) => (
                     <tr key={item.id}>
                       <td>
@@ -366,20 +367,34 @@ export default function VisitesPage() {
                       </td>
                       <td>{formatDateTime(item.enterAt)}</td>
                       <td>{item.lit ? `${item.lit.code} (${item.lit.bloc ?? item.lit.chambre ?? ''})` : '—'}</td>
+                      <td>{item.consultationCount ?? 0}</td>
                       {showActions ? (
                         <td style={{ whiteSpace: 'nowrap' }}>
                           <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="nowrap" useFlexGap>
-                            {canConsult && VISITE_CONSULTATION_STATUTS.includes(item.statut) ? (
-                              <Button
-                                size="sm"
-                                variant="soft"
-                                color="primary"
-                                startDecorator={<Stethoscope size={14} />}
-                                loading={consultationLoadingId === item.id}
-                                onClick={() => handleOpenConsultation(item)}
-                              >
-                                Consulter
-                              </Button>
+                            {canConsult && VISITE_CONSULTATION_STATUTS.includes(item.statut) && !item.pendingHospitalization ? (
+                              visiteHasActiveConsultation(item) ? (
+                                <Button
+                                  size="sm"
+                                  variant="soft"
+                                  color="success"
+                                  startDecorator={<Stethoscope size={14} />}
+                                  loading={consultationLoadingId === item.id}
+                                  onClick={() => handleOpenConsultation(item)}
+                                >
+                                  {item.statut === 'HOSPITALISE' ? 'Reprendre le tour' : 'Reprendre'}
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="soft"
+                                  color="primary"
+                                  startDecorator={<Stethoscope size={14} />}
+                                  loading={consultationLoadingId === item.id}
+                                  onClick={() => handleOpenConsultation(item)}
+                                >
+                                  {item.statut === 'HOSPITALISE' ? 'Tour de salle' : 'Consulter'}
+                                </Button>
+                              )
                             ) : null}
                             <VisiteTransitionPanel
                               visite={item}

@@ -17,6 +17,8 @@ final class UpdateVisiteInput
         public ?int $litId = null,
 
         public ?string $sortedPrevuAt = null,
+
+        public bool $dischargeHospitalization = false,
     ) {
     }
 
@@ -35,9 +37,26 @@ final class UpdateVisiteInput
                 ->addViolation();
         }
 
-        if (null === $this->serviceId && (null === $this->statut || '' === trim((string) $this->statut)) && null === $this->litId && (null === $this->sortedPrevuAt || '' === trim((string) $this->sortedPrevuAt))) {
+        if (
+            null === $this->serviceId
+            && (null === $this->statut || '' === trim((string) $this->statut))
+            && null === $this->litId
+            && (null === $this->sortedPrevuAt || '' === trim((string) $this->sortedPrevuAt))
+            && !$this->dischargeHospitalization
+        ) {
             $context->buildViolation('Aucune modification fournie.')
                 ->addViolation();
+        }
+
+        if ($this->dischargeHospitalization) {
+            $targetStatut = null !== $this->statut && '' !== trim((string) $this->statut)
+                ? Visite::normalizeStatut($this->statut)
+                : null;
+            if (Visite::STATUT_TERMINEE !== $targetStatut) {
+                $context->buildViolation('La fin d\'hospitalisation doit cibler le statut TERMINEE.')
+                    ->atPath('dischargeHospitalization')
+                    ->addViolation();
+            }
         }
     }
 }

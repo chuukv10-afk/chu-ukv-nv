@@ -19,6 +19,7 @@ export const ROUTES = {
     TYPES_EXAMEN: '/referentiel/types-examen',
     TYPES_ANTECEDENT: '/referentiel/types-antecedent',
     SIGNES_VITAUX: '/referentiel/signes-vitaux',
+    PLAINTES: '/referentiel/plaintes',
   },
 
   CLINIQUE: {

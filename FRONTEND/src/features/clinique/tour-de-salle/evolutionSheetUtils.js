@@ -1,4 +1,5 @@
 import { createEmptyPhysicalExam, normalizePhysicalExam } from '../consultations/utils/physicalExamSchema.js';
+import { normalizeSymptoms } from '../plaintes/complaintUtils.js';
 import { EMPTY_EVOLUTION_SHEET } from './evolutionSheetConstants.js';
 
 export function buildEvolutionForm(consultation) {
@@ -12,13 +13,7 @@ export function buildEvolutionForm(consultation) {
     evolutionSheet: {
       ...EMPTY_EVOLUTION_SHEET,
       ...sheet,
-      symptoms: {
-        ...EMPTY_EVOLUTION_SHEET.symptoms,
-        ...(sheet.symptoms ?? {}),
-        selectedComplaints: Array.isArray(sheet.symptoms?.selectedComplaints)
-          ? sheet.symptoms.selectedComplaints
-          : [],
-      },
+      symptoms: normalizeSymptoms(sheet.symptoms ?? EMPTY_EVOLUTION_SHEET.symptoms),
       clinicalEvaluation: {
         ...EMPTY_EVOLUTION_SHEET.clinicalEvaluation,
         ...(sheet.clinicalEvaluation ?? {}),

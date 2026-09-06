@@ -30,7 +30,7 @@ import SpecialitesPage from '../features/referentiel/specialites/SpecialitesPage
 import TypesExamenPage from '../features/referentiel/types-examen/TypesExamenPage.jsx';
 import TypesAntecedentPage from '../features/referentiel/types-antecedent/TypesAntecedentPage.jsx';
 import SignesVitauxPage from '../features/referentiel/signes-vitaux/SignesVitauxPage.jsx';
-import ConsultationsPage from '../features/clinique/consultations/ConsultationsPage.jsx';
+import PlaintesPage from '../features/referentiel/plaintes/PlaintesPage.jsx';
 import ConsultationDetailPage from '../features/clinique/consultations/ConsultationDetailPage.jsx';
 import TourDeSalleHubPage from '../features/clinique/tour-de-salle/TourDeSalleHubPage.jsx';
 import TourDeSalleFichePage from '../features/clinique/tour-de-salle/TourDeSalleFichePage.jsx';
@@ -145,11 +145,7 @@ export default function AppRouter() {
             />
             <Route
               path={ROUTES.CLINIQUE.CONSULTATIONS}
-              element={(
-                <PermissionGuard permission={PERMISSIONS.CLINIQUE.CONSULTATION_READ}>
-                  <ConsultationsPage />
-                </PermissionGuard>
-              )}
+              element={<Navigate to={ROUTES.PATIENT.LIST} replace />}
             />
             <Route
               path={ROUTES.CLINIQUE.TOUR_DE_SALLE_FICHE}
@@ -228,6 +224,14 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.REFERENTIEL.SIGNE_VITAL_READ}>
                   <SignesVitauxPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.REFERENTIEL.PLAINTES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.REFERENTIEL.PLAINTE_READ}>
+                  <PlaintesPage />
                 </PermissionGuard>
               )}
             />

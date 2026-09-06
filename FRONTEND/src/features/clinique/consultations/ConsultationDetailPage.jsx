@@ -20,6 +20,7 @@ import {
   ClipboardList,
   FlaskConical,
   HeartPulse,
+  MessageSquare,
   Pill,
   Printer,
   Save,
@@ -60,9 +61,11 @@ import AntecedentsTab from '../../patient/antecedents/AntecedentsTab.jsx';
 import DiagnosticsTab from '../diagnostics/DiagnosticsTab.jsx';
 import StayDiagnosticsCard from '../diagnostics/StayDiagnosticsCard.jsx';
 import DemandesExamenTab from '../demandes-examen/DemandesExamenTab.jsx';
+import ConsultationPlaintesTab from '../plaintes/ConsultationPlaintesTab.jsx';
 import VisiteHospitalisationModal from '../visites/components/VisiteHospitalisationModal.jsx';
 import { fetchVisiteHospitalisationMetaApi, updateVisiteApi } from '../visites/visitesApi.js';
 import { printPhysicalExamSection } from './utils/consultationPrintUtils.js';
+import { buildPatientDpiPath, getConsultationBackPath } from '../../patient/patients/patientDpiTabs.js';
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -119,6 +122,8 @@ export default function ConsultationDetailPage() {
   const isBedside = isBedsideConsultation(consultation);
   const isWardRound = isWardRoundConsultation(consultation);
   const kindLabel = getConsultationKindLabel(consultation);
+  const wardRoundClose = alreadyHospitalized && isWardRound;
+  const admittedFollowUp = alreadyHospitalized && !isWardRound;
   const pendingHospitalization = Boolean(
     consultation?.isClosed
     && consultation?.closeDisposition?.needsHospitalization
@@ -259,20 +264,27 @@ export default function ConsultationDetailPage() {
         <Button
           sx={{ mt: 2 }}
           startDecorator={<ArrowLeft size={16} />}
-          onClick={() => navigate(ROUTES.CLINIQUE.CONSULTATIONS)}
+          onClick={() => navigate(ROUTES.PATIENT.LIST)}
         >
-          Retour aux consultations
+          Retour à la liste
         </Button>
       </Box>
     );
   }
+
+  const backPath = getConsultationBackPath(consultation);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={3}>
         <Stack spacing={1}>
           <Breadcrumbs>
-            <Link component={RouterLink} to={ROUTES.CLINIQUE.CONSULTATIONS}>Consultations</Link>
+            <Link component={RouterLink} to={ROUTES.PATIENT.LIST}>Patients</Link>
+            {consultation.patientId ? (
+              <Link component={RouterLink} to={buildPatientDpiPath(consultation.patientId, 'consultations')}>
+                {consultation.patientName ?? consultation.numDossier ?? 'Dossier'}
+              </Link>
+            ) : null}
             <Typography>{kindLabel}</Typography>
           </Breadcrumbs>
 
@@ -349,7 +361,7 @@ export default function ConsultationDetailPage() {
                 variant="outlined"
                 color="neutral"
                 startDecorator={<ArrowLeft size={16} />}
-                onClick={() => navigate(ROUTES.CLINIQUE.CONSULTATIONS)}
+                onClick={() => navigate(backPath)}
               >
                 Retour
               </Button>
@@ -400,6 +412,9 @@ export default function ConsultationDetailPage() {
         <Tabs value={tabIndex} onChange={(_, value) => setTabIndex(value ?? 0)}>
           <TabList sx={{ flexWrap: 'wrap' }}>
             <Tab><Stethoscope size={16} style={{ marginRight: 6 }} />{isWardRound ? 'Évolution' : 'Examen clinique'}</Tab>
+            {!isWardRound ? (
+              <Tab><MessageSquare size={16} style={{ marginRight: 6 }} />Plaintes</Tab>
+            ) : null}
             <Tab><Activity size={16} style={{ marginRight: 6 }} />Constantes</Tab>
             <Tab><UserRound size={16} style={{ marginRight: 6 }} />Antécédents</Tab>
             <Tab><HeartPulse size={16} style={{ marginRight: 6 }} />{isBedside ? 'Diagnostics du séjour' : 'Diagnostics'}</Tab>
@@ -432,13 +447,26 @@ export default function ConsultationDetailPage() {
                 <StayDiagnosticsCard
                   key={stayDiagnosticsTick}
                   consultationId={consultation.id}
-                  onOpenDiagnostics={() => setTabIndex(3)}
+                  onOpenDiagnostics={() => setTabIndex(isWardRound ? 3 : 4)}
                 />
               ) : null}
             />
           </TabPanel>
 
-          <TabPanel value={1} sx={{ p: 0, pt: 2 }}>
+          {!isWardRound ? (
+            <TabPanel value={1} sx={{ p: 0, pt: 2 }}>
+              <ConsultationPlaintesTab
+                consultation={consultation}
+                readOnly={readOnly}
+                onSaved={(updated) => {
+                  setConsultation(updated);
+                  setClinicalForm(buildClinicalForm(updated));
+                }}
+              />
+            </TabPanel>
+          ) : null}
+
+          <TabPanel value={isWardRound ? 1 : 2} sx={{ p: 0, pt: 2 }}>
             <ConsultationVitalsTab
               consultationId={consultation.id}
               readOnly={readOnly}
@@ -446,7 +474,7 @@ export default function ConsultationDetailPage() {
             />
           </TabPanel>
 
-          <TabPanel value={2} sx={{ p: 0, pt: 2 }}>
+          <TabPanel value={isWardRound ? 2 : 3} sx={{ p: 0, pt: 2 }}>
             <AntecedentsTab
               consultationId={consultation.id}
               patientId={consultation.patientId}
@@ -456,7 +484,7 @@ export default function ConsultationDetailPage() {
             />
           </TabPanel>
 
-          <TabPanel value={3} sx={{ p: 0, pt: 2 }}>
+          <TabPanel value={isWardRound ? 3 : 4} sx={{ p: 0, pt: 2 }}>
             {canReadDiagnostic ? (
               <DiagnosticsTab
                 consultationId={consultation.id}
@@ -472,11 +500,11 @@ export default function ConsultationDetailPage() {
             )}
           </TabPanel>
 
-          <TabPanel value={4} sx={{ p: 0, pt: 2 }}>
+          <TabPanel value={isWardRound ? 4 : 5} sx={{ p: 0, pt: 2 }}>
             <ConsultationPlaceholderTab title="Prescriptions — Module à venir" />
           </TabPanel>
 
-          <TabPanel value={5} sx={{ p: 0, pt: 2 }}>
+          <TabPanel value={isWardRound ? 5 : 6} sx={{ p: 0, pt: 2 }}>
             {canReadDemandeExamen ? (
               <DemandesExamenTab
                 consultationId={consultation.id}
@@ -493,11 +521,11 @@ export default function ConsultationDetailPage() {
             )}
           </TabPanel>
 
-          <TabPanel value={6} sx={{ p: 0, pt: 2 }}>
+          <TabPanel value={isWardRound ? 6 : 7} sx={{ p: 0, pt: 2 }}>
             <ConsultationPlaceholderTab title="Actes — Module à venir" />
           </TabPanel>
 
-          <TabPanel value={7} sx={{ p: 0, pt: 2 }}>
+          <TabPanel value={isWardRound ? 7 : 8} sx={{ p: 0, pt: 2 }}>
             <ConsultationPlaceholderTab title="Nursing — Module à venir" />
           </TabPanel>
         </Tabs>
@@ -507,8 +535,9 @@ export default function ConsultationDetailPage() {
         open={closeOpen}
         loading={closeLoading}
         error={closeError}
-        alreadyHospitalized={alreadyHospitalized}
-        isBedside={isBedside}
+        alreadyHospitalized={wardRoundClose}
+        admittedFollowUp={admittedFollowUp}
+        isBedside={isWardRound}
         onClose={() => setCloseOpen(false)}
         onSubmit={handleClose}
       />
