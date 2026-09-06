@@ -5,6 +5,9 @@ import {
   callApiPost,
   callApiPut,
 } from '../../../api/apiClient.js';
+import { enqueueMutation } from '../../../offline/outbox.js';
+import { decrementLocalStock } from '../../../offline/stockLocal.js';
+import { isServerReachable } from '../../../offline/connectivity.js';
 import { buildQueryString, paginatedResult, unwrapData } from '../shared/pharmacieApi.js';
 
 export async function fetchVentesApi(params = {}) {
@@ -39,6 +42,32 @@ export async function annulerVenteApi(id, motif = '') {
 
 export async function deleteVenteApi(id) {
   return callApiDelete(`${pharmacie.ventes}/${id}`);
+}
+
+export async function completeVenteOfflineApi(payload) {
+  await decrementLocalStock(payload.lignes || []);
+  return enqueueMutation({
+    action: 'pharmacie.vente.complete',
+    module: 'pharmacie',
+    endpoint: pharmacie.ventes,
+    method: 'POST',
+    payload,
+    optimistic: {
+      numero: 'OFF-VENTE',
+      statut: 'VALIDEE',
+      clientType: payload.clientType,
+      clientNom: payload.clientNom,
+      patientId: payload.patientId,
+      visiteId: payload.visiteId,
+      modePaiement: payload.modePaiement,
+      lignes: payload.lignes || [],
+      montantTotal: '0',
+    },
+  });
+}
+
+export function canUseOfflineCaisse() {
+  return !isServerReachable();
 }
 
 export async function fetchVisitesHospitaliseesApi(search = '', serviceId) {

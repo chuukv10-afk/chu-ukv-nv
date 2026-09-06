@@ -20,7 +20,7 @@ export function useLogoutConfirm() {
   const confirmLogout = async () => {
     try {
       setLoading(true);
-      logoutUser(dispatch);
+      await logoutUser(dispatch);
       navigate(ROUTES.LOGIN, { replace: true });
     } finally {
       setLoading(false);

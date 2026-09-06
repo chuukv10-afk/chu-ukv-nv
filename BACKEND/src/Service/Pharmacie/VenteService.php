@@ -76,6 +76,13 @@ final class VenteService
         return $vente;
     }
 
+    public function createAndValider(UpsertVenteInput $input): Vente
+    {
+        $vente = $this->create($input);
+
+        return $this->valider((int) $vente->getId());
+    }
+
     public function update(int $id, UpsertVenteInput $input): Vente
     {
         $this->assertValid($input);

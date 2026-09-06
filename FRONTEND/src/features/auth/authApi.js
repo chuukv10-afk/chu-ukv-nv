@@ -1,6 +1,7 @@
 import { AUTH_TOKEN_KEY } from '../../constants/apiConfig.js';
 import { auth } from '../../api/endpoints.js';
 import { callApiGet, callApiPost } from '../../api/apiClient.js';
+import { setStoredRefreshToken } from '../../offline/session.js';
 
 const REMEMBER_TELEPHONE_KEY = 'chu_ukv_remember_telephone';
 
@@ -12,6 +13,9 @@ export async function loginApi({ telephone, password }) {
   }
 
   localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+  if (data.refreshToken) {
+    setStoredRefreshToken(data.refreshToken);
+  }
 
   return data;
 }
@@ -35,6 +39,7 @@ export function clearRememberedTelephone() {
 
 export function logoutStorage() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
+  setStoredRefreshToken('');
 }
 
 function splitRoles(rawRoles = []) {

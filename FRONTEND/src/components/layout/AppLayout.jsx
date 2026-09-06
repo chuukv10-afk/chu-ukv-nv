@@ -2,6 +2,7 @@ import { Box, Drawer } from '@mui/joy';
 import { Outlet } from 'react-router-dom';
 import Header from './Header.jsx';
 import Sidebar, { SidebarNav } from './Sidebar.jsx';
+import OfflineBanner from '../../offline/OfflineBanner.jsx';
 import { LAYOUT } from '../../constants/layout.js';
 import { useAppDispatch, useAppSelector } from '../../hooks/useAppStore.js';
 import { setSidebarOpen } from '../../store/ui/uiSlice.js';
@@ -44,6 +45,7 @@ export default function AppLayout() {
         }}
       >
         <Header />
+        <OfflineBanner />
         <Box
           component="main"
           sx={{

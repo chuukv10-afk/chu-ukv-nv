@@ -11,6 +11,7 @@ import { ROUTES } from '../../../constants/routes.js';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { exportResourceApi } from '../../../utils/exportApi.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import VisiteCreateWizardModal from './components/VisiteCreateWizardModal.jsx';
@@ -282,6 +283,9 @@ export default function VisitesPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={3}>
+        <OfflineHint>
+          Nouvelle visite hors-ligne : le DPI doit déjà être en cache. L’admission sera créée au retour du serveur.
+        </OfflineHint>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2}>
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Box sx={{ width: 44, height: 44, borderRadius: 'md', bgcolor: LOTRU_PRIMARY[50], color: LOTRU_PRIMARY[600], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

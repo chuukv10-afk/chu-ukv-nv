@@ -34,6 +34,7 @@ import { ROUTES } from '../../../constants/routes.js';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import {
   buildClinicalForm,
@@ -277,6 +278,9 @@ export default function ConsultationDetailPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={3}>
+        <OfflineHint>
+          Notes de consultation hors-ligne : motif, anamnèse et examen sont mis en file. La clôture reste en ligne.
+        </OfflineHint>
         <Stack spacing={1}>
           <Breadcrumbs>
             <Link component={RouterLink} to={ROUTES.PATIENT.LIST}>Patients</Link>

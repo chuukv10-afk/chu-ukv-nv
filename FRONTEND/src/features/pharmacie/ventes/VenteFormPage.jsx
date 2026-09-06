@@ -25,8 +25,12 @@ import {
   VENTE_STATUT_LABELS,
   emptyVenteForm,
 } from './venteConstants.js';
+import OfflineHint from '../../../offline/OfflineHint.jsx';
+import { useOffline } from '../../../offline/useOffline.js';
 import {
   annulerVenteApi,
+  canUseOfflineCaisse,
+  completeVenteOfflineApi,
   createVenteApi,
   deleteVenteApi,
   fetchVenteApi,
@@ -56,6 +60,8 @@ export default function VenteFormPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
+  const { serverReachable, online } = useOffline();
+  const offlineCaisse = !online || !serverReachable || canUseOfflineCaisse();
   const isNew = !id;
   const canCreate = hasPermission(PERMISSIONS.PHARMACIE.VENTE_CREATE);
   const canUpdate = hasPermission(PERMISSIONS.PHARMACIE.VENTE_UPDATE);
@@ -248,6 +254,14 @@ export default function VenteFormPage() {
     setSaving(true);
     setError('');
     try {
+      if (isNew && offlineCaisse) {
+        const validated = await completeVenteOfflineApi(toPayload(form));
+        setVente(validated);
+        setConfirmAction(null);
+        showSuccess('Vente encaissée hors-ligne. Elle sera synchronisée au retour du serveur.');
+        printVenteTicket(validated);
+        return;
+      }
       if (canSave) {
         await updateVenteApi(id, toPayload(form));
       }
@@ -300,6 +314,9 @@ export default function VenteFormPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={2.5}>
+        <OfflineHint>
+          Caisse hors-ligne : encaissez un passant ou un patient déjà ouvert. Le serveur rejouera le FEFO à la reconnexion.
+        </OfflineHint>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'flex-start' }} spacing={1.5}>
           <Stack spacing={1}>
             <Button variant="plain" color="neutral" startDecorator={<ArrowLeft size={16} />} onClick={() => navigate(ROUTES.PHARMACIE.VENTES)} sx={{ alignSelf: 'flex-start', px: 0 }}>
@@ -341,9 +358,9 @@ export default function VenteFormPage() {
                 Imprimer le ticket
               </Button>
             ) : null}
-            {canValider && !isNew && !readOnly ? (
+            {canValider && !readOnly && (!isNew || offlineCaisse) ? (
               <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('valider')} loading={saving}>
-                Encaisser
+                Encaisser{offlineCaisse && isNew ? ' hors-ligne' : ''}
               </Button>
             ) : null}
           </Stack>
@@ -571,7 +588,9 @@ export default function VenteFormPage() {
       <ConfirmModal
         open={confirmAction === 'valider'}
         title="Encaisser la vente"
-        message="Le stock sera décrémenté (FEFO si aucun lot n’est choisi)."
+        message={offlineCaisse
+          ? 'La vente sera encaissée localement. Le serveur rejouera le FEFO à la reconnexion.'
+          : 'Le stock sera décrémenté (FEFO si aucun lot n’est choisi).'}
         confirmLabel="Encaisser"
         color="success"
         loading={confirmLoading}

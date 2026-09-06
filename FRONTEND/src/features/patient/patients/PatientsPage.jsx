@@ -11,6 +11,7 @@ import { ROUTES } from '../../../constants/routes.js';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { exportResourceApi } from '../../../utils/exportApi.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import PatientDeleteModal from './components/PatientDeleteModal.jsx';
@@ -236,6 +237,9 @@ export default function PatientsPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={3}>
+        <OfflineHint>
+          Création de patient hors-ligne : le dossier sera envoyé au serveur à la reconnexion. Évitez les doublons si un autre poste crée le même patient.
+        </OfflineHint>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2}>
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Box sx={{ width: 44, height: 44, borderRadius: 'md', bgcolor: LOTRU_PRIMARY[50], color: LOTRU_PRIMARY[600], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

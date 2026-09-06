@@ -1,6 +1,10 @@
 export const auth = {
   login: '/api/v1/login',
   me: '/api/v1/me',
+  health: '/api/v1/health',
+  refresh: '/api/v1/token/refresh',
+  syncPull: '/api/v1/sync/pull',
+  syncPush: '/api/v1/sync/push',
 };
 
 export const organisation = {

@@ -1,0 +1,18 @@
+{
+  "name": "CHU UKV",
+  "short_name": "CHU UKV",
+  "description": "Système d’information hospitalier CHU UKV",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111927",
+  "theme_color": "#111927",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
