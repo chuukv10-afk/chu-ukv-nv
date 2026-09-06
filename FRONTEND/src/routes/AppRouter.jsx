@@ -31,6 +31,23 @@ import TypesExamenPage from '../features/referentiel/types-examen/TypesExamenPag
 import TypesAntecedentPage from '../features/referentiel/types-antecedent/TypesAntecedentPage.jsx';
 import SignesVitauxPage from '../features/referentiel/signes-vitaux/SignesVitauxPage.jsx';
 import PlaintesPage from '../features/referentiel/plaintes/PlaintesPage.jsx';
+import UnitesPage from '../features/pharmacie/unites/UnitesPage.jsx';
+import FamillesPage from '../features/pharmacie/familles/FamillesPage.jsx';
+import MedicamentsPage from '../features/pharmacie/medicaments/MedicamentsPage.jsx';
+import FournisseursPage from '../features/pharmacie/fournisseurs/FournisseursPage.jsx';
+import ReceptionsPage from '../features/pharmacie/receptions/ReceptionsPage.jsx';
+import ReceptionFormPage from '../features/pharmacie/receptions/ReceptionFormPage.jsx';
+import LotsPage from '../features/pharmacie/lots/LotsPage.jsx';
+import MouvementsPage from '../features/pharmacie/mouvements/MouvementsPage.jsx';
+import VentesPage from '../features/pharmacie/ventes/VentesPage.jsx';
+import VenteFormPage from '../features/pharmacie/ventes/VenteFormPage.jsx';
+import DemandesServicePage from '../features/pharmacie/demandes-service/DemandesServicePage.jsx';
+import DemandeServiceFormPage from '../features/pharmacie/demandes-service/DemandeServiceFormPage.jsx';
+import CreancesPage from '../features/pharmacie/demandes-service/CreancesPage.jsx';
+import AjustementsPage from '../features/pharmacie/ajustements/AjustementsPage.jsx';
+import AlertesPage from '../features/pharmacie/alertes/AlertesPage.jsx';
+import RecettesPage from '../features/pharmacie/recettes/RecettesPage.jsx';
+import StatistiquesPage from '../features/pharmacie/statistiques/StatistiquesPage.jsx';
 import ConsultationDetailPage from '../features/clinique/consultations/ConsultationDetailPage.jsx';
 import TourDeSalleHubPage from '../features/clinique/tour-de-salle/TourDeSalleHubPage.jsx';
 import TourDeSalleFichePage from '../features/clinique/tour-de-salle/TourDeSalleFichePage.jsx';
@@ -232,6 +249,166 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.REFERENTIEL.PLAINTE_READ}>
                   <PlaintesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.UNITES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.UNITE_READ}>
+                  <UnitesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.FAMILLES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.FAMILLE_READ}>
+                  <FamillesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.MEDICAMENTS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.MEDICAMENT_READ}>
+                  <MedicamentsPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.FOURNISSEURS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.FOURNISSEUR_READ}>
+                  <FournisseursPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.RECEPTION_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.RECEPTION_CREATE}>
+                  <ReceptionFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.RECEPTION_DETAIL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.RECEPTION_READ}>
+                  <ReceptionFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.RECEPTIONS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.RECEPTION_READ}>
+                  <ReceptionsPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.LOTS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.LOT_READ}>
+                  <LotsPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.MOUVEMENTS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.MOUVEMENT_READ}>
+                  <MouvementsPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.VENTE_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.VENTE_CREATE}>
+                  <VenteFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.VENTE_DETAIL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.VENTE_READ}>
+                  <VenteFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.VENTES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.VENTE_READ}>
+                  <VentesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.DEMANDE_SERVICE_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_CREATE}>
+                  <DemandeServiceFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.DEMANDE_SERVICE_DETAIL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_READ}>
+                  <DemandeServiceFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.DEMANDES_SERVICE}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_READ}>
+                  <DemandesServicePage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.CREANCES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_READ}>
+                  <CreancesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.RECETTES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.RECETTE_READ}>
+                  <RecettesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.AJUSTEMENTS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.AJUSTEMENT_CREATE}>
+                  <AjustementsPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.ALERTES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.LOT_READ}>
+                  <AlertesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.STATISTIQUES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.STATISTIQUE_READ}>
+                  <StatistiquesPage />
                 </PermissionGuard>
               )}
             />

@@ -25,6 +25,7 @@ trait ExportResponseTrait
         string $emptyMessage,
         array $htmlColumnIndexes = [],
         array $richTextColumnIndexes = [],
+        string $pdfOrientation = 'portrait',
     ): Response {
         $format = strtolower(trim((string) $request->query->get('format', 'xlsx')));
 
@@ -41,6 +42,7 @@ trait ExportResponseTrait
             $emptyMessage,
             $htmlColumnIndexes,
             $richTextColumnIndexes,
+            $pdfOrientation,
         );
     }
 }

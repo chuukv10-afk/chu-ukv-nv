@@ -11,6 +11,23 @@ export const organisation = {
   blocs: '/api/v1/organisation/blocs',
 };
 
+export const pharmacie = {
+  unites: '/api/v1/pharmacie/unites',
+  familles: '/api/v1/pharmacie/familles',
+  medicaments: '/api/v1/pharmacie/medicaments',
+  fournisseurs: '/api/v1/pharmacie/fournisseurs',
+  receptions: '/api/v1/pharmacie/receptions',
+  lots: '/api/v1/pharmacie/lots',
+  mouvements: '/api/v1/pharmacie/mouvements',
+  ventes: '/api/v1/pharmacie/ventes',
+  visitesHospitalisees: '/api/v1/pharmacie/visites-hospitalisees',
+  servicesActifs: '/api/v1/pharmacie/services-actifs',
+  demandesService: '/api/v1/pharmacie/demandes-service',
+  ajustements: '/api/v1/pharmacie/ajustements',
+  recettes: '/api/v1/pharmacie/recettes',
+  statistiques: '/api/v1/pharmacie/statistiques',
+};
+
 export const referentiel = {
   grades: '/api/v1/referentiel/grades',
   specialites: '/api/v1/referentiel/specialites',

@@ -19,6 +19,7 @@ class Permission
     public const MODULE_FACTURATION = 'FACTURATION';
     public const MODULE_ORGANISATION = 'ORGANISATION';
     public const MODULE_REFERENTIEL = 'REFERENTIEL';
+    public const MODULE_PHARMACIE = 'PHARMACIE';
     public const MODULE_ADMIN = 'ADMIN';
 
     #[ORM\Column(length: 50, unique: true)]
@@ -61,6 +62,7 @@ class Permission
             self::MODULE_FACTURATION,
             self::MODULE_ORGANISATION,
             self::MODULE_REFERENTIEL,
+            self::MODULE_PHARMACIE,
             self::MODULE_ADMIN,
         ];
     }

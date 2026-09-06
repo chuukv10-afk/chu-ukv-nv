@@ -31,6 +31,7 @@ final class CreatePermissionInput
                 Permission::MODULE_FACTURATION,
                 Permission::MODULE_ORGANISATION,
                 Permission::MODULE_REFERENTIEL,
+                Permission::MODULE_PHARMACIE,
                 Permission::MODULE_ADMIN,
             ],
             message: 'Module invalide.',

@@ -287,4 +287,32 @@ class VisiteRepository extends ServiceEntityRepository
 
         $qb->andWhere('(' . implode(' OR ', $conditions) . ')');
     }
+
+    /**
+     * @return list<Visite>
+     */
+    public function findHospitalises(?string $search = null, int $limit = 12, ?int $serviceId = null): array
+    {
+        $qb = $this->createQueryBuilder('v')
+            ->leftJoin('v.dpi', 'd')->addSelect('d')
+            ->leftJoin('d.patient', 'p')->addSelect('p')
+            ->leftJoin('v.service', 's')->addSelect('s')
+            ->andWhere('v.statut = :statut')
+            ->setParameter('statut', Visite::STATUT_HOSPITALISE)
+            ->orderBy('v.hospitalizedAt', 'DESC')
+            ->setMaxResults($limit);
+
+        if (null !== $serviceId && $serviceId > 0) {
+            $qb->andWhere('s.id = :serviceId')->setParameter('serviceId', $serviceId);
+        }
+
+        $normalized = null !== $search ? trim($search) : '';
+        if ('' !== $normalized) {
+            $qb
+                ->andWhere('LOWER(p.nom) LIKE :q OR LOWER(p.postNom) LIKE :q OR LOWER(p.prenom) LIKE :q OR LOWER(d.numDossier) LIKE :q')
+                ->setParameter('q', '%' . mb_strtolower($normalized) . '%');
+        }
+
+        return $qb->getQuery()->getResult();
+    }
 }

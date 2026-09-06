@@ -37,6 +37,7 @@ final class TableExportService
         string $emptyMessage,
         array $htmlColumnIndexes = [],
         array $richTextColumnIndexes = [],
+        string $pdfOrientation = 'portrait',
     ): Response {
         return match ($format) {
             'pdf' => $this->createPdfResponse(
@@ -46,6 +47,7 @@ final class TableExportService
                 $filenamePrefix,
                 $emptyMessage,
                 $htmlColumnIndexes,
+                $pdfOrientation,
             ),
             'xlsx' => $this->createExcelResponse(
                 $headers,
@@ -70,6 +72,7 @@ final class TableExportService
         string $filenamePrefix,
         string $emptyMessage,
         array $htmlColumnIndexes = [],
+        string $orientation = 'portrait',
     ): Response {
         $tableRows = [];
         foreach ($dataRows as $index => $row) {
@@ -90,7 +93,7 @@ final class TableExportService
             filename: $this->buildFilename($filenamePrefix, 'pdf'),
             generatedBy: $this->resolveCurrentUserDisplayName(),
             generatedAt: new \DateTimeImmutable(),
-            orientation: 'portrait',
+            orientation: $orientation,
         );
     }
 
@@ -224,7 +227,7 @@ final class TableExportService
         return sprintf('%s_%s.%s', $prefix, (new \DateTimeImmutable())->format('Ymd_His'), $extension);
     }
 
-    private function resolveCurrentUserDisplayName(): string
+    public function resolveCurrentUserDisplayName(): string
     {
         $user = $this->security->getUser();
         if (!$user instanceof Personnel) {
