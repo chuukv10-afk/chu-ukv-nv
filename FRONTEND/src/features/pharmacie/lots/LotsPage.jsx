@@ -4,6 +4,7 @@ import {
 } from '@mui/joy';
 import { AlertTriangle, Layers, Search } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { formatDate, formatPrix } from '../shared/format.js';
 import {
@@ -152,9 +153,12 @@ export default function LotsPage() {
                   <td>{item.quantiteRestante}</td>
                   <td>{formatPrix(item.prixAchatUnitaire)}</td>
                   <td>
-                    <Chip size="sm" variant="soft" color={LOT_STATUT_COLORS[item.statut] ?? 'neutral'}>
-                      {LOT_STATUT_LABELS[item.statut] ?? item.statut}
-                    </Chip>
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      <Chip size="sm" variant="soft" color={LOT_STATUT_COLORS[item.statut] ?? 'neutral'}>
+                        {LOT_STATUT_LABELS[item.statut] ?? item.statut}
+                      </Chip>
+                      <PendingSyncChip show={item.pendingSync} />
+                    </Stack>
                   </td>
                 </tr>
               ))}

@@ -243,7 +243,7 @@ export default function ReceptionFormPage() {
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={2.5}>
         <OfflineHint>
-          Réception hors-ligne : brouillon et validation sont mis en file. Les lots seront créés sur le serveur à la synchro.
+          Réception hors-ligne : le brouillon reste un brouillon. Une fois validée, le stock, les lots et le journal des mouvements se mettent à jour tout de suite. Le serveur confirme à la synchro.
         </OfflineHint>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'flex-start' }} spacing={1.5}>
           <Stack spacing={1}>

@@ -1,5 +1,7 @@
 import { offlineDb } from './db.js';
 import { namedListForAction } from './policies.js';
+import { lotsFromOutboxRow, movementsFromOutboxRow } from './stockJournal.js';
+import { getLocalStock } from './stockLocal.js';
 
 export function cacheKey(endpoint) {
   return String(endpoint || '');
@@ -54,7 +56,7 @@ const LIST_SOURCES = [
   { prefix: '/api/v1/pharmacie/ventes', named: 'pharmacie.ventes', searchKeys: ['numero', 'clientNom'] },
   { prefix: '/api/v1/pharmacie/demandes-service', named: 'pharmacie.demandes', searchKeys: ['numero', 'motif'] },
   { prefix: '/api/v1/pharmacie/lots', named: 'pharmacie.lots', searchKeys: ['numeroLot'] },
-  { prefix: '/api/v1/pharmacie/mouvements', named: 'pharmacie.mouvements', searchKeys: ['type', 'motif'] },
+  { prefix: '/api/v1/pharmacie/mouvements', named: 'pharmacie.mouvements', searchKeys: ['type', 'motif', 'documentType'] },
   { prefix: '/api/v1/patients', named: 'patients', searchKeys: ['nom', 'postNom', 'prenom', 'fullName', 'telephone', 'numDossier'], extraEquals: ['status', 'sexe'] },
   { prefix: '/api/v1/clinique/visites', named: 'clinique.visites', searchKeys: ['patientName', 'motif', 'numDossier'], extraEquals: ['statut', 'serviceId'] },
   { prefix: '/api/v1/clinique/consultations', named: 'clinique.consultations', searchKeys: ['motif', 'patientName'], extraEquals: ['statut', 'visiteId', 'typeConsultation'] },
@@ -87,7 +89,9 @@ function mergeById(rows) {
 function matchesSearch(item, search, keys) {
   if (!search) return true;
   const needle = String(search).toLowerCase();
-  return keys.some((key) => String(item?.[key] ?? '').toLowerCase().includes(needle));
+  if (keys.some((key) => String(item?.[key] ?? '').toLowerCase().includes(needle))) return true;
+  return [item?.medicament?.libelle, item?.medicament?.code, item?.lot?.numeroLot]
+    .some((value) => String(value ?? '').toLowerCase().includes(needle));
 }
 
 function calendarDay(raw) {
@@ -131,6 +135,20 @@ function matchesCollectionFilters(item, params, collection) {
   return true;
 }
 
+async function medicamentsById() {
+  const items = namedItems(await readNamedCache('pharmacie.medicaments'));
+  return new Map(items.map((item) => [String(item.id), item]));
+}
+
+async function applyLocalStockLevels(items) {
+  const next = [];
+  for (const item of items) {
+    const local = await getLocalStock(item.id);
+    next.push(local ? { ...item, stockDisponible: local.stockDisponible } : item);
+  }
+  return next;
+}
+
 async function outboxItemsFor(named) {
   const rows = await offlineDb.outbox
     .where('status')
@@ -138,7 +156,19 @@ async function outboxItemsFor(named) {
     .toArray();
   const extras = [];
   const removed = new Set();
+  const lookup = (named === 'pharmacie.mouvements' || named === 'pharmacie.lots')
+    ? await medicamentsById()
+    : new Map();
+
   for (const row of rows) {
+    if (named === 'pharmacie.mouvements') {
+      extras.push(...movementsFromOutboxRow(row, lookup));
+      continue;
+    }
+    if (named === 'pharmacie.lots') {
+      extras.push(...lotsFromOutboxRow(row, lookup));
+      continue;
+    }
     if (namedListForAction(row.action) !== named) continue;
     const localId = row.optimistic?.id ?? row.payload?.id;
     if (row.action.endsWith('.delete') && localId != null) {
@@ -154,8 +184,39 @@ async function outboxItemsFor(named) {
 
 async function visibleList(named, seed = []) {
   const { extras, removed } = await outboxItemsFor(named);
-  return mergeById([...extras, ...seed])
+  const items = mergeById([...extras, ...seed])
     .filter((item) => !removed.has(String(item.id)));
+  if (named === 'pharmacie.medicaments') {
+    return applyLocalStockLevels(items);
+  }
+  return items;
+}
+
+function mergeVendableLots(localLots, cachedLots) {
+  const map = new Map();
+  for (const lot of [...cachedLots, ...localLots]) {
+    if (!lot) continue;
+    const key = String(lot.id ?? lot.numeroLot ?? '');
+    if (!key) continue;
+    map.set(key, { ...map.get(key), ...lot });
+  }
+  return [...map.values()].filter((lot) => Number(lot.quantiteRestante || 0) > 0);
+}
+
+async function overlayVendableLots(endpoint, payload) {
+  const [path] = String(endpoint).split('?');
+  const match = path.match(/\/lots\/vendables\/([^/]+)$/);
+  if (!match) return payload;
+  const local = await getLocalStock(match[1]);
+  const localLots = (local?.lots || []).map((lot) => ({
+    ...lot,
+    medicamentId: local.medicamentId,
+    statut: lot.statut || 'DISPONIBLE',
+  }));
+  const merged = mergeVendableLots(localLots, namedItems(payload));
+  if (Array.isArray(payload)) return merged;
+  if (Array.isArray(payload?.data)) return { ...payload, data: merged };
+  return { success: true, data: merged };
 }
 
 export async function invalidateListCaches(prefix) {
@@ -184,6 +245,10 @@ export async function readCacheWithFallback(endpoint) {
       const merged = await visibleList(source.named, [...named, ...namedItems(exact)]);
       return { success: true, data: merged.filter((item) => !item.statut || item.statut === 'ACTIF') };
     }
+  }
+
+  if (path.includes('/lots/vendables/')) {
+    return overlayVendableLots(endpoint, await readCache(endpoint));
   }
 
   if (SKIP_SEGMENTS.some((segment) => path.includes(`/${segment}`))) {
@@ -233,6 +298,10 @@ export async function overlayPendingOnGet(endpoint, payload) {
   const [path, queryString = ''] = String(endpoint).split('?');
   const params = new URLSearchParams(queryString);
 
+  if (path.includes('/lots/vendables/')) {
+    return overlayVendableLots(endpoint, payload);
+  }
+
   if (path.endsWith('/actifs')) {
     const source = LIST_SOURCES.find((item) => path === `${item.prefix}/actifs`);
     if (!source) return payload;
@@ -247,13 +316,25 @@ export async function overlayPendingOnGet(endpoint, payload) {
   if (!collection) return payload;
 
   const { extras, removed } = await outboxItemsFor(collection.named);
-  if (extras.length === 0 && removed.size === 0) return payload;
+  if (extras.length === 0 && removed.size === 0) {
+    if (collection.named === 'pharmacie.medicaments') {
+      const items = await applyLocalStockLevels(namedItems(payload));
+      if (payload?.data?.items) {
+        return { ...payload, data: { ...payload.data, items } };
+      }
+      return { ...payload, success: true, data: items };
+    }
+    return payload;
+  }
 
   const matches = (item) => matchesCollectionFilters(item, params, collection);
 
   const extrasVisible = extras.filter(matches);
   const existing = namedItems(payload).filter((item) => !removed.has(String(item.id)));
-  const items = mergeById([...extrasVisible, ...existing]);
+  let items = mergeById([...extrasVisible, ...existing]);
+  if (collection.named === 'pharmacie.medicaments') {
+    items = await applyLocalStockLevels(items);
+  }
   const extraOnlyCount = extrasVisible.filter((item) => !existing.some((row) => String(row.id) === String(item.id))).length;
   const pagination = payload?.data?.pagination;
   const baseTotal = Number(pagination?.total ?? existing.length);
