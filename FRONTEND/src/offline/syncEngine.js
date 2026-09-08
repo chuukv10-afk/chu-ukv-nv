@@ -4,7 +4,7 @@ import { auth } from '../api/endpoints.js';
 import { isServerReachable, pingServer, setConnectivityPatch } from './connectivity.js';
 import { writeCache, writeNamedCache } from './cache.js';
 import { rememberIdMapping, resolvePayloadIds } from './idMap.js';
-import { addConflict, listPendingMutations, markOutboxStatus, refreshOutboxCounts } from './outbox.js';
+import { addConflict, clearConflict, listPendingMutations, markOutboxStatus, refreshOutboxCounts } from './outbox.js';
 import { decrementLocalStock, incrementLocalStock, replaceStockSnapshot, restoreLocalStock } from './stockLocal.js';
 
 async function authorizedJson(endpoint, method, body) {
@@ -131,15 +131,16 @@ export async function pushOutbox() {
       if (item.optimistic?.id && result.entityId) {
         await rememberIdMapping(result.entityType, item.optimistic.id, result.entityId);
       }
+      await clearConflict(result.clientId);
       await markOutboxStatus(result.clientId, 'synced', { serverId: result.entityId, result });
     } else if (result.status === 'CONFLICT') {
-      if (item.action?.includes('vente') || item.action === 'pharmacie.demande_service.delivrer') {
+      if (item.status === 'pending' && (item.action?.includes('vente') || item.action === 'pharmacie.demande_service.delivrer')) {
         await restoreLocalStock(item.payload?.lignes || []);
       }
-      if (item.action === 'pharmacie.reception.valider') {
+      if (item.status === 'pending' && item.action === 'pharmacie.reception.valider') {
         await decrementLocalStock(item.payload?.lignes || []);
       }
-      if (item.action === 'pharmacie.ajustement.create') {
+      if (item.status === 'pending' && item.action === 'pharmacie.ajustement.create') {
         const ligne = [{
           medicamentId: item.payload.medicamentId,
           quantite: item.payload.quantite,

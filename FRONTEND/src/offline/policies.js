@@ -85,5 +85,8 @@ export function namedListForAction(action = '') {
   if (action.startsWith('pharmacie.famille')) return 'pharmacie.familles';
   if (action.startsWith('pharmacie.fournisseur')) return 'pharmacie.fournisseurs';
   if (action.startsWith('pharmacie.ajustement')) return 'pharmacie.mouvements';
+  if (action.startsWith('patient')) return 'patients';
+  if (action.startsWith('clinique.visite')) return 'clinique.visites';
+  if (action.startsWith('clinique.consultation')) return 'clinique.consultations';
   return null;
 }

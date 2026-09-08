@@ -10,6 +10,7 @@ import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { formatDate } from '../shared/format.js';
 import {
@@ -161,9 +162,12 @@ export default function ReceptionsPage() {
                   <td>{item.referenceExterne || '—'}</td>
                   <td>{item.lignesCount ?? 0}</td>
                   <td>
-                    <Chip size="sm" variant="soft" color={RECEPTION_STATUT_COLORS[item.statut] ?? 'neutral'}>
-                      {RECEPTION_STATUT_LABELS[item.statut] ?? item.statut}
-                    </Chip>
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      <Chip size="sm" variant="soft" color={RECEPTION_STATUT_COLORS[item.statut] ?? 'neutral'}>
+                        {RECEPTION_STATUT_LABELS[item.statut] ?? item.statut}
+                      </Chip>
+                      <PendingSyncChip show={item.pendingSync} />
+                    </Stack>
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end">

@@ -8,6 +8,7 @@ import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import FamilleFormModal from './components/FamilleFormModal.jsx';
 import {
@@ -187,9 +188,12 @@ export default function FamillesPage() {
                   <td>{item.libelle}</td>
                   <td>{item.ordre ?? 0}</td>
                   <td>
-                    <Chip size="sm" variant="soft" color={item.statut === 'ACTIF' ? 'success' : 'neutral'}>
-                      {FAMILLE_STATUT_LABELS[item.statut] ?? item.statut}
-                    </Chip>
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      <Chip size="sm" variant="soft" color={item.statut === 'ACTIF' ? 'success' : 'neutral'}>
+                        {FAMILLE_STATUT_LABELS[item.statut] ?? item.statut}
+                      </Chip>
+                      <PendingSyncChip show={item.pendingSync} />
+                    </Stack>
                   </td>
                   {showActions ? (
                     <td style={{ textAlign: 'right' }}>

@@ -12,6 +12,7 @@ import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import OfflineHint from '../../../offline/OfflineHint.jsx';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { exportResourceApi } from '../../../utils/exportApi.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import PatientDeleteModal from './components/PatientDeleteModal.jsx';
@@ -343,7 +344,12 @@ export default function PatientsPage() {
                       <td>{PATIENT_SEX_LABELS[item.sexe] ?? item.sexe}</td>
                       <td>{formatDate(item.dateNaissance)}</td>
                       <td>{item.telephone ?? '—'}</td>
-                      <td><StatusChip status={item.status} /></td>
+                      <td>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          <StatusChip status={item.status} />
+                          <PendingSyncChip show={item.pendingSync} />
+                        </Stack>
+                      </td>
                       <td><DpiChip statut={item.dpiStatut} /></td>
                       {showActions ? (
                         <td>

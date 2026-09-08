@@ -11,6 +11,7 @@ import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import { exportResourceApi } from '../../../utils/exportApi.js';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { fetchFamillesActivesApi } from '../familles/famillesApi.js';
 import { fetchUnitesActivesApi } from '../unites/unitesApi.js';
@@ -243,7 +244,10 @@ export default function MedicamentsPage() {
               ) : items.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <Typography level="body-sm" sx={{ fontWeight: 600 }}>{item.libelle}</Typography>
+                    <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Typography level="body-sm" sx={{ fontWeight: 600 }}>{item.libelle}</Typography>
+                      <PendingSyncChip show={item.pendingSync} />
+                    </Stack>
                     {item.dosage || item.forme ? (
                       <Typography level="body-xs" sx={{ color: LOTRU_NEUTRAL[500] }}>
                         {[item.forme, item.dosage].filter(Boolean).join(' · ')}

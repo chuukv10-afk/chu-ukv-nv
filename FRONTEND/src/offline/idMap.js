@@ -73,5 +73,8 @@ export async function resolvePayloadIds(payload) {
   if (Array.isArray(next.lignes)) {
     next.lignes = await Promise.all(next.lignes.map((ligne) => resolvePayloadIds(ligne)));
   }
+  if (next.lotId != null && (isLocalId(next.lotId) || Number(next.lotId) <= 0 || Number.isNaN(Number(next.lotId)))) {
+    next.lotId = null;
+  }
   return next;
 }

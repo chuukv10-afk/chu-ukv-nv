@@ -36,10 +36,11 @@ export async function openConsultationForVisite({
     || (visite.statut === 'HOSPITALISE' ? 'AU_LIT' : 'NORMALE');
 
   const created = await createConsultationApi({
-    visiteId: Number(visite.id),
+    visiteId: visite.id,
     typeConsultation: resolvedType,
-    motif: visite.triage?.motif ?? '',
+    motif: visite.triage?.motif ?? visite.motif ?? '',
     statut: 'EN_COURS',
+    patientName: visite.patientName,
   });
 
   navigate(getConsultationWorkspacePath(created));

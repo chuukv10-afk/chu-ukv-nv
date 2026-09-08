@@ -1,4 +1,5 @@
 import { offlineDb } from './db.js';
+import { namedListForAction } from './policies.js';
 
 export function cacheKey(endpoint) {
   return String(endpoint || '');
@@ -54,9 +55,14 @@ const LIST_SOURCES = [
   { prefix: '/api/v1/pharmacie/demandes-service', named: 'pharmacie.demandes', searchKeys: ['numero', 'motif'] },
   { prefix: '/api/v1/pharmacie/lots', named: 'pharmacie.lots', searchKeys: ['numeroLot'] },
   { prefix: '/api/v1/pharmacie/mouvements', named: 'pharmacie.mouvements', searchKeys: ['type', 'motif'] },
+  { prefix: '/api/v1/patients', named: 'patients', searchKeys: ['nom', 'postNom', 'prenom', 'fullName', 'telephone', 'numDossier'], extraEquals: ['status', 'sexe'] },
+  { prefix: '/api/v1/clinique/visites', named: 'clinique.visites', searchKeys: ['patientName', 'motif', 'numDossier'], extraEquals: ['statut', 'serviceId'] },
+  { prefix: '/api/v1/clinique/consultations', named: 'clinique.consultations', searchKeys: ['motif', 'patientName'], extraEquals: ['statut', 'visiteId', 'typeConsultation'] },
 ];
 
-const SKIP_SEGMENTS = ['actifs', 'export', 'meta', 'alertes', 'vendables', 'fiches-stock'];
+const NAMED_PREFIX = Object.fromEntries(LIST_SOURCES.map((item) => [item.named, item.prefix]));
+
+const SKIP_SEGMENTS = ['export', 'meta', 'alertes', 'vendables', 'fiches-stock'];
 
 function namedItems(raw) {
   if (Array.isArray(raw)) return raw;
@@ -66,50 +72,144 @@ function namedItems(raw) {
   return [];
 }
 
+function mergeById(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    if (row?.id == null) continue;
+    const key = String(row.id);
+    if (!map.has(key) || row.pendingSync) {
+      map.set(key, { ...map.get(key), ...row });
+    }
+  }
+  return [...map.values()];
+}
+
 function matchesSearch(item, search, keys) {
   if (!search) return true;
   const needle = String(search).toLowerCase();
   return keys.some((key) => String(item?.[key] ?? '').toLowerCase().includes(needle));
 }
 
+function calendarDay(raw) {
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+  return String(raw).slice(0, 10);
+}
+
+function inDateRange(item, from, to) {
+  if (!from && !to) return true;
+  const raw = item.dateVente || item.dateReception || item.enterAt || item.createdAt;
+  if (!raw) return true;
+  const day = calendarDay(raw);
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
+}
+
 function isCollectionPath(path, prefix) {
-  if (path !== prefix && !path.startsWith(`${prefix}?`)) {
+  return path === prefix;
+}
+
+function matchesCollectionFilters(item, params, collection) {
+  if (!matchesSearch(item, params.get('search'), collection.searchKeys)) return false;
+  if (params.get('statut') && item.statut !== params.get('statut')) return false;
+  if (params.get('statutPaiement') && item.statutPaiement !== params.get('statutPaiement')) return false;
+  if (params.get('medicamentId') && String(item.medicamentId) !== params.get('medicamentId') && String(item.medicament?.id) !== params.get('medicamentId')) {
     return false;
+  }
+  if (!inDateRange(item, params.get('dateFrom'), params.get('dateTo'))) return false;
+  if (params.get('pendingHospitalization') === 'true' && !item.pendingHospitalization) return false;
+  for (const key of collection.extraEquals || []) {
+    const expected = params.get(key);
+    if (!expected) continue;
+    if (String(item[key] ?? '') !== String(expected)) return false;
   }
   return true;
 }
 
+async function outboxItemsFor(named) {
+  const rows = await offlineDb.outbox
+    .where('status')
+    .anyOf(['pending', 'conflict', 'rejected'])
+    .toArray();
+  const extras = [];
+  const removed = new Set();
+  for (const row of rows) {
+    if (namedListForAction(row.action) !== named) continue;
+    const localId = row.optimistic?.id ?? row.payload?.id;
+    if (row.action.endsWith('.delete') && localId != null) {
+      removed.add(String(localId));
+      continue;
+    }
+    if (row.optimistic) {
+      extras.push({ ...row.optimistic, pendingSync: true });
+    }
+  }
+  return { extras, removed };
+}
+
+async function visibleList(named, seed = []) {
+  const { extras, removed } = await outboxItemsFor(named);
+  return mergeById([...extras, ...seed])
+    .filter((item) => !removed.has(String(item.id)));
+}
+
+export async function invalidateListCaches(prefix) {
+  if (!prefix) return;
+  const rows = await offlineDb.cache.toArray();
+  await Promise.all(rows
+    .filter((row) => {
+      const key = String(row.key || '');
+      if (key.startsWith('named:')) return false;
+      const [path] = key.split('?');
+      return path === prefix;
+    })
+    .map((row) => offlineDb.cache.delete(row.key)));
+}
+
 export async function readCacheWithFallback(endpoint) {
+  const [path, queryString = ''] = String(endpoint).split('?');
+  const params = new URLSearchParams(queryString);
+
+  if (path.endsWith('/actifs')) {
+    const source = LIST_SOURCES.find((item) => path === `${item.prefix}/actifs`);
+    if (source) {
+      const exact = await readCache(endpoint);
+      const named = namedItems(await readNamedCache(source.named))
+        .filter((item) => !item.statut || item.statut === 'ACTIF');
+      const merged = await visibleList(source.named, [...named, ...namedItems(exact)]);
+      return { success: true, data: merged.filter((item) => !item.statut || item.statut === 'ACTIF') };
+    }
+  }
+
+  if (SKIP_SEGMENTS.some((segment) => path.includes(`/${segment}`))) {
+    return readCache(endpoint);
+  }
+
+  const collection = LIST_SOURCES.find((item) => isCollectionPath(path, item.prefix));
+  if (collection) {
+    const exact = await readCache(endpoint);
+    const named = namedItems(await readNamedCache(collection.named));
+    const items = (await visibleList(collection.named, [...named, ...namedItems(exact)]))
+      .filter((item) => matchesCollectionFilters(item, params, collection));
+    return paginatedEnvelope(items, Number(params.get('page') || 1), Number(params.get('limit') || 10));
+  }
+
   const exact = await readCache(endpoint);
   if (exact) {
     return exact;
-  }
-
-  const [path, queryString = ''] = String(endpoint).split('?');
-  if (SKIP_SEGMENTS.some((segment) => path.includes(`/${segment}`))) {
-    return null;
-  }
-
-  const params = new URLSearchParams(queryString);
-  const collection = LIST_SOURCES.find((item) => isCollectionPath(path, item.prefix));
-  if (collection) {
-    const items = namedItems(await readNamedCache(collection.named))
-      .filter((item) => matchesSearch(item, params.get('search'), collection.searchKeys))
-      .filter((item) => !params.get('statut') || item.statut === params.get('statut'))
-      .filter((item) => !params.get('statutPaiement') || item.statutPaiement === params.get('statutPaiement'))
-      .filter((item) => !params.get('medicamentId') || String(item.medicamentId) === params.get('medicamentId') || String(item.medicament?.id) === params.get('medicamentId'));
-    if (items.length === 0) {
-      return paginatedEnvelope([], Number(params.get('page') || 1), Number(params.get('limit') || 10));
-    }
-    return paginatedEnvelope(items, Number(params.get('page') || 1), Number(params.get('limit') || 10));
   }
 
   for (const source of LIST_SOURCES) {
     const match = path.match(new RegExp(`^${source.prefix.replaceAll('/', '\\/')}/([^/]+)$`));
     if (!match) continue;
     const id = match[1];
-    const item = namedItems(await readNamedCache(source.named))
-      .find((row) => String(row.id) === String(id));
+    const items = await visibleList(source.named, namedItems(await readNamedCache(source.named)));
+    const item = items.find((row) => String(row.id) === String(id));
     if (item) {
       return { success: true, data: item };
     }
@@ -125,6 +225,55 @@ export async function upsertNamedList(name, item, { remove = false } = {}) {
     ? current.filter((row) => String(row.id) !== String(item.id))
     : [item, ...current.filter((row) => String(row.id) !== String(item.id))];
   await writeNamedCache(name, next);
+  await invalidateListCaches(NAMED_PREFIX[name]);
+}
+
+export async function overlayPendingOnGet(endpoint, payload) {
+  if (!payload) return payload;
+  const [path, queryString = ''] = String(endpoint).split('?');
+  const params = new URLSearchParams(queryString);
+
+  if (path.endsWith('/actifs')) {
+    const source = LIST_SOURCES.find((item) => path === `${item.prefix}/actifs`);
+    if (!source) return payload;
+    const merged = (await visibleList(source.named, namedItems(payload)))
+      .filter((item) => !item.statut || item.statut === 'ACTIF');
+    if (Array.isArray(payload)) return merged;
+    if (Array.isArray(payload?.data)) return { ...payload, data: merged };
+    return { ...payload, success: true, data: merged };
+  }
+
+  const collection = LIST_SOURCES.find((item) => isCollectionPath(path, item.prefix));
+  if (!collection) return payload;
+
+  const { extras, removed } = await outboxItemsFor(collection.named);
+  if (extras.length === 0 && removed.size === 0) return payload;
+
+  const matches = (item) => matchesCollectionFilters(item, params, collection);
+
+  const extrasVisible = extras.filter(matches);
+  const existing = namedItems(payload).filter((item) => !removed.has(String(item.id)));
+  const items = mergeById([...extrasVisible, ...existing]);
+  const extraOnlyCount = extrasVisible.filter((item) => !existing.some((row) => String(row.id) === String(item.id))).length;
+  const pagination = payload?.data?.pagination;
+  const baseTotal = Number(pagination?.total ?? existing.length);
+
+  return {
+    ...payload,
+    success: payload.success !== false,
+    data: {
+      items,
+      pagination: {
+        page: Number(pagination?.page || params.get('page') || 1),
+        limit: Number(pagination?.limit || params.get('limit') || 10),
+        total: baseTotal + extraOnlyCount,
+        totalPages: Math.max(
+          1,
+          Math.ceil((baseTotal + extraOnlyCount) / Number(pagination?.limit || params.get('limit') || 10)),
+        ),
+      },
+    },
+  };
 }
 
 export function createOfflineReadError(endpoint) {

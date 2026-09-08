@@ -10,6 +10,7 @@ import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { formatPrix } from '../shared/format.js';
 import {
@@ -143,7 +144,14 @@ export default function DemandesServicePage() {
                   <td>{item.service?.libelle ?? '—'}</td>
                   <td>{item.visite?.patientName || item.visite?.patient ? (item.visite.patientName || [item.visite.patient?.nom, item.visite.patient?.prenom].filter(Boolean).join(' ')) : '—'}</td>
                   <td>{formatPrix(item.montantTotal)}</td>
-                  <td><Chip size="sm" variant="soft" color={DEMANDE_STATUT_COLORS[item.statut] ?? 'neutral'}>{DEMANDE_STATUT_LABELS[item.statut] ?? item.statut}</Chip></td>
+                  <td>
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      <Chip size="sm" variant="soft" color={DEMANDE_STATUT_COLORS[item.statut] ?? 'neutral'}>
+                        {DEMANDE_STATUT_LABELS[item.statut] ?? item.statut}
+                      </Chip>
+                      <PendingSyncChip show={item.pendingSync} />
+                    </Stack>
+                  </td>
                   <td><Chip size="sm" variant="soft" color={PAIEMENT_STATUT_COLORS[item.statutPaiement] ?? 'neutral'}>{PAIEMENT_STATUT_LABELS[item.statutPaiement] ?? item.statutPaiement}</Chip></td>
                   <td style={{ textAlign: 'right' }}>
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end">

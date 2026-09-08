@@ -99,16 +99,22 @@ final class SyncPushService
         }
 
         $existing = $this->syncMutationRepository->findOneByClientId($clientId);
-        if (null !== $existing) {
+        if (null !== $existing && SyncMutation::STATUS_ACCEPTED === $existing->getStatus()) {
             return $this->serializeStored($existing);
         }
 
-        $record = (new SyncMutation())
+        $record = $existing ?? (new SyncMutation())
             ->setClientId($clientId)
             ->setModule('' !== $module ? $module : $this->moduleFromAction($action))
             ->setAction($action)
             ->setCreatedAt(new \DateTimeImmutable())
             ->setCreatedBy($this->currentPersonnel());
+        if (null !== $existing) {
+            $record
+                ->setModule('' !== $module ? $module : $record->getModule())
+                ->setAction($action)
+                ->setCreatedBy($this->currentPersonnel());
+        }
 
         try {
             [$entityType, $entityId, $data] = $this->dispatch($action, $payload);
@@ -128,6 +134,20 @@ final class SyncPushService
             $record
                 ->setStatus(SyncMutation::STATUS_REJECTED)
                 ->setResultJson(json_encode(['message' => $message], JSON_THROW_ON_ERROR));
+        }
+
+        if (!$this->entityManager->isOpen()) {
+            $result = $record->getResult() ?? [];
+
+            return [
+                'clientId' => $clientId,
+                'status' => $record->getStatus() ?? SyncMutation::STATUS_CONFLICT,
+                'action' => $action,
+                'entityType' => $record->getEntityType(),
+                'entityId' => $record->getEntityId(),
+                'message' => $result['message'] ?? 'EntityManager fermé après conflit.',
+                'data' => null,
+            ];
         }
 
         $this->entityManager->persist($record);
@@ -757,9 +777,10 @@ final class SyncPushService
                 continue;
             }
             $lotId = $ligne['lotId'] ?? null;
+            $resolvedLotId = null !== $lotId && '' !== $lotId && is_numeric($lotId) ? (int) $lotId : null;
             $lignes[] = new VenteLigneInput(
                 medicamentId: (int) ($ligne['medicamentId'] ?? 0),
-                lotId: null !== $lotId && '' !== $lotId ? (int) $lotId : null,
+                lotId: null !== $resolvedLotId && $resolvedLotId > 0 ? $resolvedLotId : null,
                 quantite: (int) ($ligne['quantite'] ?? 0),
             );
         }

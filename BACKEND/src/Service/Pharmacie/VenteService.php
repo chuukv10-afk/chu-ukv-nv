@@ -78,9 +78,20 @@ final class VenteService
 
     public function createAndValider(UpsertVenteInput $input): Vente
     {
-        $vente = $this->create($input);
+        $connection = $this->entityManager->getConnection();
+        $connection->beginTransaction();
+        try {
+            $vente = $this->create($input);
+            $vente = $this->valider((int) $vente->getId());
+            $connection->commit();
 
-        return $this->valider((int) $vente->getId());
+            return $vente;
+        } catch (\Throwable $exception) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     public function update(int $id, UpsertVenteInput $input): Vente
@@ -109,12 +120,13 @@ final class VenteService
         foreach ($vente->getLignes() as $ligne) {
             $medicament = $ligne->getMedicament();
             $lot = $ligne->getLot();
-            if (null === $lot) {
-                $lot = $this->stockService->resolveFefo($medicament, $ligne->getQuantite());
-                $ligne->setLot($lot);
-            } elseif ($lot->getMedicament()?->getId() !== $medicament?->getId()) {
-                throw new ConflictException('Le lot choisi ne correspond pas au médicament.');
+            if (null !== $lot && $lot->getMedicament()?->getId() !== $medicament?->getId()) {
+                $lot = null;
             }
+            if (null === $lot || !$this->stockService->canSortir($lot, $ligne->getQuantite())) {
+                $lot = $this->stockService->resolveFefo($medicament, $ligne->getQuantite());
+            }
+            $ligne->setLot($lot);
 
             $this->stockService->applySortie(
                 $lot,
@@ -332,8 +344,8 @@ final class VenteService
             $lot = null;
             if (null !== $ligneInput->lotId && $ligneInput->lotId > 0) {
                 $lot = $this->lotRepository->find($ligneInput->lotId);
-                if (null === $lot) {
-                    throw new NotFoundException('Lot non trouvé.');
+                if (null === $lot || $lot->getMedicament()?->getId() !== $medicament->getId()) {
+                    $lot = null;
                 }
             }
 

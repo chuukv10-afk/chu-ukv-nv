@@ -9,6 +9,7 @@ let state = {
   syncing: false,
   pending: 0,
   conflicts: 0,
+  lastConflict: '',
 };
 
 export function getConnectivity() {

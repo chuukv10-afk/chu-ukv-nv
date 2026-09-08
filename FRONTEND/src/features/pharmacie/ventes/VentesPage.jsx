@@ -20,6 +20,7 @@ import {
   VENTE_STATUT_LABELS,
   VENTE_STATUTS,
 } from './venteConstants.js';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { deleteVenteApi, fetchVenteApi, fetchVentesApi } from './ventesApi.js';
 import { printVenteTicket } from './printVenteTicket.js';
 
@@ -33,7 +34,9 @@ function clientKind(item) {
 
 function clientLabel(item) {
   if (item.origine === 'HOSPITALISE' || item.clientType === 'PATIENT') {
-    return formatPatientName(item.patient);
+    const name = formatPatientName(item.patient);
+    if (name && name !== '—') return name;
+    return item.clientNom || 'Patient';
   }
   return item.clientNom || 'Passant';
 }
@@ -215,9 +218,12 @@ export default function VentesPage() {
                   <td>{item.modePaiement}</td>
                   <td>{formatPrix(item.montantTotal)}</td>
                   <td>
-                    <Chip size="sm" variant="soft" color={VENTE_STATUT_COLORS[item.statut] ?? 'neutral'}>
-                      {VENTE_STATUT_LABELS[item.statut] ?? item.statut}
-                    </Chip>
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      <Chip size="sm" variant="soft" color={VENTE_STATUT_COLORS[item.statut] ?? 'neutral'}>
+                        {VENTE_STATUT_LABELS[item.statut] ?? item.statut}
+                      </Chip>
+                      <PendingSyncChip show={item.pendingSync} />
+                    </Stack>
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end">

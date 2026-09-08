@@ -3,7 +3,7 @@ import { CloudOff, RefreshCw, Wifi } from 'lucide-react';
 import { useOffline } from './useOffline.js';
 
 export default function OfflineBanner() {
-  const { online, serverReachable, syncing, pending, conflicts, syncNow } = useOffline();
+  const { online, serverReachable, syncing, pending, conflicts, lastConflict, syncNow } = useOffline();
   const reachable = online && serverReachable;
 
   if (reachable && pending === 0 && conflicts === 0 && !syncing) {
@@ -22,7 +22,7 @@ export default function OfflineBanner() {
   const message = !reachable
     ? 'Le serveur est injoignable. Lecture du cache local et file d’attente des écritures autorisées.'
     : conflicts > 0
-      ? `${conflicts} conflit(s) à traiter. Les ventes concernées n’ont pas été appliquées sur le stock serveur.`
+      ? `${conflicts} opération(s) à renvoyer. ${lastConflict || 'Le serveur a refusé au moins une écriture.'} Cliquez sur Synchroniser pour réessayer.`
       : `${pending} opération(s) en attente d’envoi.`;
 
   return (

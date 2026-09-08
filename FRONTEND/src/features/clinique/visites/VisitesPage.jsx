@@ -12,6 +12,7 @@ import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import OfflineHint from '../../../offline/OfflineHint.jsx';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { exportResourceApi } from '../../../utils/exportApi.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import VisiteCreateWizardModal from './components/VisiteCreateWizardModal.jsx';
@@ -364,6 +365,7 @@ export default function VisitesPage() {
                       <td>
                         <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
                           <StatusChip statut={item.statut} />
+                          <PendingSyncChip show={item.pendingSync} />
                           {item.pendingHospitalization ? (
                             <Chip size="sm" variant="soft" color="warning">À hospitaliser</Chip>
                           ) : null}

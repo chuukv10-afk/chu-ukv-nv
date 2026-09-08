@@ -12,12 +12,16 @@ export function createClientId() {
 }
 
 export async function refreshOutboxCounts() {
-  const [pending, conflicts] = await Promise.all([
+  const [pending, conflictRows] = await Promise.all([
     offlineDb.outbox.where('status').equals('pending').count(),
-    offlineDb.conflicts.count(),
+    offlineDb.conflicts.orderBy('createdAt').reverse().toArray(),
   ]);
-  setConnectivityPatch({ pending, conflicts });
-  return { pending, conflicts };
+  setConnectivityPatch({
+    pending,
+    conflicts: conflictRows.length,
+    lastConflict: conflictRows[0]?.message || '',
+  });
+  return { pending, conflicts: conflictRows.length };
 }
 
 export async function enqueueMutation({
@@ -78,7 +82,10 @@ function detailEndpoint(endpoint, id) {
 }
 
 export async function listPendingMutations() {
-  return offlineDb.outbox.where('status').equals('pending').sortBy('createdAt');
+  return offlineDb.outbox
+    .where('status')
+    .anyOf(['pending', 'conflict', 'rejected'])
+    .sortBy('createdAt');
 }
 
 export async function findPendingByLocalId(localId) {
@@ -111,7 +118,13 @@ export async function markOutboxStatus(clientId, status, extra = {}) {
   await refreshOutboxCounts();
 }
 
+export async function clearConflict(clientId) {
+  const existing = await offlineDb.conflicts.where('clientId').equals(clientId).toArray();
+  await Promise.all(existing.map((row) => offlineDb.conflicts.delete(row.id)));
+}
+
 export async function addConflict(clientId, message, payload) {
+  await clearConflict(clientId);
   await offlineDb.conflicts.add({
     clientId,
     message,

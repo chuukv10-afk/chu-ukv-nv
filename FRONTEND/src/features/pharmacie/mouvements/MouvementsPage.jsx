@@ -8,6 +8,7 @@ import ExportButtons from '../../../components/export/ExportButtons.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { formatDateTime } from '../shared/format.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
@@ -183,7 +184,12 @@ export default function MouvementsPage() {
               ) : items.map((item) => (
                 <tr key={item.id}>
                   <td>{formatDateTime(item.createdAt)}</td>
-                  <td>{MOUVEMENT_TYPE_LABELS[item.type] ?? item.type}</td>
+                  <td>
+                    <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Typography level="body-sm">{MOUVEMENT_TYPE_LABELS[item.type] ?? item.type}</Typography>
+                      <PendingSyncChip show={item.pendingSync} />
+                    </Stack>
+                  </td>
                   <td>
                     <Chip size="sm" variant="soft" color={item.sens === 'ENTREE' ? 'success' : 'danger'}>
                       {item.sens}

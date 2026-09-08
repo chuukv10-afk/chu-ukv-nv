@@ -62,6 +62,8 @@ export async function completeVenteOfflineApi(payload) {
       modePaiement: payload.modePaiement,
       lignes: payload.lignes || [],
       montantTotal: '0',
+      dateVente: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
     },
   });
 }

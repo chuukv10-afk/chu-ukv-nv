@@ -46,6 +46,11 @@ final class StockService
             && $lot->getDatePeremption() >= $this->today();
     }
 
+    public function canSortir(Lot $lot, int $quantite): bool
+    {
+        return $quantite > 0 && $this->isVendable($lot) && $lot->getQuantiteRestante() >= $quantite;
+    }
+
     public function stockDisponible(Medicament $medicament): int
     {
         return $this->lotRepository->stockDisponible($medicament, $this->today());

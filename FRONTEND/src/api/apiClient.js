@@ -5,7 +5,7 @@ import {
   createSessionExpiredError,
   handleUnauthorizedApiResponse,
 } from '../features/auth/authSession.js';
-import { createOfflineReadError, readCacheWithFallback, writeCache } from '../offline/cache.js';
+import { createOfflineReadError, overlayPendingOnGet, readCacheWithFallback, writeCache } from '../offline/cache.js';
 import { isServerReachable, setConnectivityPatch } from '../offline/connectivity.js';
 import { cancelLocalMutation, enqueueMutation, findPendingByLocalId } from '../offline/outbox.js';
 import { isLocalId } from '../offline/idMap.js';
@@ -236,6 +236,7 @@ async function enqueueWrite(method, endpoint, body) {
 function buildOptimistic(action, payload) {
   if (action.startsWith('pharmacie.vente')) {
     const validated = action.includes('valider') || action.includes('complete');
+    const now = new Date().toISOString();
     return {
       id: payload.id,
       numero: 'OFF-VENTE',
@@ -246,6 +247,8 @@ function buildOptimistic(action, payload) {
       modePaiement: payload.modePaiement,
       lignes: payload.lignes || [],
       montantTotal: '0',
+      dateVente: now,
+      createdAt: now,
     };
   }
   if (action.startsWith('pharmacie.demande_service')) {
@@ -270,28 +273,37 @@ function buildOptimistic(action, payload) {
       motif: payload.motif,
       lignes: payload.lignes || [],
       modePaiement: payload.modePaiement,
+      createdAt: new Date().toISOString(),
     };
   }
   if (action.startsWith('pharmacie.reception')) {
+    const now = new Date().toISOString();
     return {
       id: payload.id,
       numero: 'OFF-REC',
       statut: action.endsWith('.valider') ? 'VALIDEE' : 'BROUILLON',
+      createdAt: now,
+      dateReception: payload.dateReception || now,
       fournisseurId: payload.fournisseurId,
-      dateReception: payload.dateReception,
       referenceExterne: payload.referenceExterne,
       lignes: payload.lignes || [],
+      lignesCount: (payload.lignes || []).length,
     };
   }
   if (action.startsWith('pharmacie.medicament') || action.startsWith('pharmacie.unite') || action.startsWith('pharmacie.famille') || action.startsWith('pharmacie.fournisseur')) {
     return { ...payload, id: payload.id, statut: payload.statut || 'ACTIF' };
   }
   if (action === 'pharmacie.ajustement.create') {
+    const now = new Date().toISOString();
     return {
       type: payload.type,
       quantite: payload.quantite,
       motif: payload.motif,
       lotId: payload.lotId,
+      medicamentId: payload.medicamentId,
+      sens: payload.type === 'AJUSTEMENT_PLUS' ? 'ENTREE' : 'SORTIE',
+      documentType: 'AJUSTEMENT',
+      createdAt: now,
     };
   }
   if (action === 'patient.create') {
@@ -300,15 +312,27 @@ function buildOptimistic(action, payload) {
       postNom: payload.postNom,
       prenom: payload.prenom,
       fullName: [payload.nom, payload.postNom, payload.prenom].filter(Boolean).join(' '),
+      telephone: payload.telephone,
+      sexe: payload.sexe,
+      dateNaissance: payload.dateNaissance,
       status: payload.status || 'ACTIF',
+      numDossier: 'OFF-PAT',
+      createdAt: new Date().toISOString(),
     };
   }
   if (action === 'clinique.visite.create') {
+    const now = new Date().toISOString();
     return {
-      statut: 'TRIAGE',
+      statut: payload.statut || 'TRIAGE',
       motif: payload.motif,
       serviceId: payload.serviceId,
       dpiId: payload.dpiId,
+      patientId: payload.patientId,
+      patientName: payload.patientName || 'Patient (hors-ligne)',
+      typeEntree: payload.typeEntree,
+      enterAt: now,
+      createdAt: now,
+      consultationCount: 0,
     };
   }
   if (action.startsWith('clinique.consultation')) {
@@ -317,6 +341,7 @@ function buildOptimistic(action, payload) {
       motif: payload.motif,
       visiteId: payload.visiteId || payload.id,
       typeConsultation: payload.typeConsultation,
+      createdAt: new Date().toISOString(),
     };
   }
   return payload;
@@ -332,10 +357,14 @@ export async function callApi(endpoint, method = 'GET', body = null) {
         if (!shouldBypassCache(endpoint)) {
           await writeCache(endpoint, payload);
         }
-        return payload;
+        return overlayPendingOnGet(endpoint, payload);
       } catch (error) {
         if (isNetworkFailure(error) || error.status >= 500) {
           setConnectivityPatch({ serverReachable: false });
+          const cached = await readCacheWithFallback(endpoint);
+          if (cached) return cached;
+        }
+        if (error.status === 404) {
           const cached = await readCacheWithFallback(endpoint);
           if (cached) return cached;
         }
