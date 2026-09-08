@@ -6,8 +6,22 @@ use App\DTO\Clinique\CreateConsultationInput;
 use App\DTO\Clinique\CreateVisiteInput;
 use App\DTO\Clinique\UpdateConsultationInput;
 use App\DTO\Patient\CreatePatientInput;
+use App\DTO\Pharmacie\AnnulerVenteInput;
+use App\DTO\Pharmacie\CreateAjustementInput;
+use App\DTO\Pharmacie\CreateFamilleMedicamentInput;
+use App\DTO\Pharmacie\CreateFournisseurInput;
+use App\DTO\Pharmacie\CreateMedicamentInput;
+use App\DTO\Pharmacie\CreateUniteMedicamentInput;
 use App\DTO\Pharmacie\DemandeServiceLigneInput;
+use App\DTO\Pharmacie\ReceptionLigneInput;
+use App\DTO\Pharmacie\RefuserDemandeInput;
+use App\DTO\Pharmacie\ReglerDemandeInput;
+use App\DTO\Pharmacie\UpdateFamilleMedicamentInput;
+use App\DTO\Pharmacie\UpdateFournisseurInput;
+use App\DTO\Pharmacie\UpdateMedicamentInput;
+use App\DTO\Pharmacie\UpdateUniteMedicamentInput;
 use App\DTO\Pharmacie\UpsertDemandeServiceInput;
+use App\DTO\Pharmacie\UpsertReceptionInput;
 use App\DTO\Pharmacie\UpsertVenteInput;
 use App\DTO\Pharmacie\VenteLigneInput;
 use App\Entity\Personnel;
@@ -18,7 +32,13 @@ use App\Repository\SyncMutationRepository;
 use App\Service\Clinique\ConsultationService;
 use App\Service\Clinique\VisiteService;
 use App\Service\Patient\PatientService;
+use App\Service\Pharmacie\AjustementService;
 use App\Service\Pharmacie\DemandeServiceService;
+use App\Service\Pharmacie\FamilleMedicamentService;
+use App\Service\Pharmacie\FournisseurService;
+use App\Service\Pharmacie\MedicamentService;
+use App\Service\Pharmacie\ReceptionService;
+use App\Service\Pharmacie\UniteMedicamentService;
 use App\Service\Pharmacie\VenteService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -32,6 +52,12 @@ final class SyncPushService
         private readonly SyncMutationRepository $syncMutationRepository,
         private readonly VenteService $venteService,
         private readonly DemandeServiceService $demandeServiceService,
+        private readonly ReceptionService $receptionService,
+        private readonly AjustementService $ajustementService,
+        private readonly MedicamentService $medicamentService,
+        private readonly UniteMedicamentService $uniteMedicamentService,
+        private readonly FamilleMedicamentService $familleMedicamentService,
+        private readonly FournisseurService $fournisseurService,
         private readonly PatientService $patientService,
         private readonly VisiteService $visiteService,
         private readonly ConsultationService $consultationService,
@@ -119,8 +145,34 @@ final class SyncPushService
         return match ($action) {
             'pharmacie.vente.create' => $this->venteCreate($payload, false),
             'pharmacie.vente.complete', 'pharmacie.vente.create_and_valider' => $this->venteCreate($payload, true),
+            'pharmacie.vente.update' => $this->venteUpdate($payload),
             'pharmacie.vente.valider' => $this->venteValider($payload),
+            'pharmacie.vente.annuler' => $this->venteAnnuler($payload),
+            'pharmacie.vente.delete' => $this->venteDelete($payload),
             'pharmacie.demande_service.create' => $this->demandeCreate($payload),
+            'pharmacie.demande_service.update' => $this->demandeUpdate($payload),
+            'pharmacie.demande_service.envoyer' => $this->demandeEnvoyer($payload),
+            'pharmacie.demande_service.delivrer' => $this->demandeDelivrer($payload),
+            'pharmacie.demande_service.refuser' => $this->demandeRefuser($payload),
+            'pharmacie.demande_service.regler' => $this->demandeRegler($payload),
+            'pharmacie.demande_service.delete' => $this->demandeDelete($payload),
+            'pharmacie.reception.create' => $this->receptionCreate($payload),
+            'pharmacie.reception.update' => $this->receptionUpdate($payload),
+            'pharmacie.reception.valider' => $this->receptionValider($payload),
+            'pharmacie.reception.delete' => $this->receptionDelete($payload),
+            'pharmacie.ajustement.create' => $this->ajustementCreate($payload),
+            'pharmacie.medicament.create' => $this->medicamentCreate($payload),
+            'pharmacie.medicament.update' => $this->medicamentUpdate($payload),
+            'pharmacie.medicament.delete' => $this->medicamentDelete($payload),
+            'pharmacie.unite.create' => $this->uniteCreate($payload),
+            'pharmacie.unite.update' => $this->uniteUpdate($payload),
+            'pharmacie.unite.delete' => $this->uniteDelete($payload),
+            'pharmacie.famille.create' => $this->familleCreate($payload),
+            'pharmacie.famille.update' => $this->familleUpdate($payload),
+            'pharmacie.famille.delete' => $this->familleDelete($payload),
+            'pharmacie.fournisseur.create' => $this->fournisseurCreate($payload),
+            'pharmacie.fournisseur.update' => $this->fournisseurUpdate($payload),
+            'pharmacie.fournisseur.delete' => $this->fournisseurDelete($payload),
             'patient.create' => $this->patientCreate($payload),
             'clinique.visite.create' => $this->visiteCreate($payload),
             'clinique.consultation.create' => $this->consultationCreate($payload),
@@ -162,28 +214,375 @@ final class SyncPushService
      * @param array<string, mixed> $payload
      * @return array{0: string, 1: string, 2: array<string, mixed>}
      */
+    private function venteUpdate(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Vente');
+        $vente = $this->venteService->update($id, $this->venteInput($payload));
+
+        return ['vente', (string) $vente->getId(), $this->venteService->serializeDetail($vente)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function venteAnnuler(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Vente');
+        $vente = $this->venteService->annuler($id, new AnnulerVenteInput(
+            motif: isset($payload['motif']) ? (string) $payload['motif'] : null,
+        ));
+
+        return ['vente', (string) $vente->getId(), $this->venteService->serializeDetail($vente)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function venteDelete(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Vente');
+        $this->venteService->delete($id);
+
+        return ['vente', (string) $id, ['id' => $id, 'deleted' => true]];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
     private function demandeCreate(array $payload): array
     {
-        $lignes = [];
-        foreach ($payload['lignes'] ?? [] as $ligne) {
-            if (!is_array($ligne)) {
-                continue;
-            }
-            $lignes[] = new DemandeServiceLigneInput(
-                medicamentId: (int) ($ligne['medicamentId'] ?? 0),
-                quantite: (int) ($ligne['quantite'] ?? 0),
-            );
-        }
-
-        $input = new UpsertDemandeServiceInput(
-            serviceId: (int) ($payload['serviceId'] ?? 0),
-            motif: isset($payload['motif']) ? (string) $payload['motif'] : null,
-            visiteId: isset($payload['visiteId']) ? (int) $payload['visiteId'] : null,
-            lignes: $lignes,
-        );
-        $demande = $this->demandeServiceService->create($input);
+        $demande = $this->demandeServiceService->create($this->demandeInput($payload));
 
         return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function demandeUpdate(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Demande');
+        $demande = $this->demandeServiceService->update($id, $this->demandeInput($payload));
+
+        return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function demandeEnvoyer(array $payload): array
+    {
+        $demande = $this->demandeServiceService->envoyer($this->requireServerId($payload['id'] ?? 0, 'Demande'));
+
+        return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function demandeDelivrer(array $payload): array
+    {
+        $demande = $this->demandeServiceService->delivrer($this->requireServerId($payload['id'] ?? 0, 'Demande'));
+
+        return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function demandeRefuser(array $payload): array
+    {
+        $demande = $this->demandeServiceService->refuser(
+            $this->requireServerId($payload['id'] ?? 0, 'Demande'),
+            new RefuserDemandeInput(motif: (string) ($payload['motif'] ?? '')),
+        );
+
+        return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function demandeRegler(array $payload): array
+    {
+        $demande = $this->demandeServiceService->regler(
+            $this->requireServerId($payload['id'] ?? 0, 'Demande'),
+            new ReglerDemandeInput(modePaiement: (string) ($payload['modePaiement'] ?? 'ESPECES')),
+        );
+
+        return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function demandeDelete(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Demande');
+        $this->demandeServiceService->delete($id);
+
+        return ['demande_service', (string) $id, ['id' => $id, 'deleted' => true]];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function receptionCreate(array $payload): array
+    {
+        $reception = $this->receptionService->create($this->receptionInput($payload));
+
+        return ['reception', (string) $reception->getId(), $this->receptionService->serializeDetail($reception)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function receptionUpdate(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Réception');
+        $reception = $this->receptionService->update($id, $this->receptionInput($payload));
+
+        return ['reception', (string) $reception->getId(), $this->receptionService->serializeDetail($reception)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function receptionValider(array $payload): array
+    {
+        $reception = $this->receptionService->valider($this->requireServerId($payload['id'] ?? 0, 'Réception'));
+
+        return ['reception', (string) $reception->getId(), $this->receptionService->serializeDetail($reception)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function receptionDelete(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Réception');
+        $this->receptionService->delete($id);
+
+        return ['reception', (string) $id, ['id' => $id, 'deleted' => true]];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function ajustementCreate(array $payload): array
+    {
+        $data = $this->ajustementService->create(new CreateAjustementInput(
+            lotId: (int) ($payload['lotId'] ?? 0),
+            type: (string) ($payload['type'] ?? 'AJUSTEMENT_MOINS'),
+            quantite: (int) ($payload['quantite'] ?? 0),
+            motif: (string) ($payload['motif'] ?? ''),
+        ));
+
+        return ['ajustement', (string) ($data['id'] ?? 0), $data];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function medicamentCreate(array $payload): array
+    {
+        $medicament = $this->medicamentService->create(new CreateMedicamentInput(
+            code: (string) ($payload['code'] ?? ''),
+            libelle: (string) ($payload['libelle'] ?? ''),
+            dci: $this->strOrNull($payload['dci'] ?? null),
+            forme: $this->strOrNull($payload['forme'] ?? null),
+            dosage: $this->strOrNull($payload['dosage'] ?? null),
+            uniteId: (int) ($payload['uniteId'] ?? 0),
+            familleId: (int) ($payload['familleId'] ?? 0),
+            prixVente: (string) ($payload['prixVente'] ?? '0'),
+            seuilAlerte: (int) ($payload['seuilAlerte'] ?? 0),
+            statut: (string) ($payload['statut'] ?? 'ACTIF'),
+        ));
+
+        return ['medicament', (string) $medicament->getId(), $this->medicamentService->serializeSummary($medicament)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function medicamentUpdate(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Médicament');
+        $medicament = $this->medicamentService->update($id, new UpdateMedicamentInput(
+            libelle: (string) ($payload['libelle'] ?? ''),
+            dci: $this->strOrNull($payload['dci'] ?? null),
+            forme: $this->strOrNull($payload['forme'] ?? null),
+            dosage: $this->strOrNull($payload['dosage'] ?? null),
+            uniteId: (int) ($payload['uniteId'] ?? 0),
+            familleId: (int) ($payload['familleId'] ?? 0),
+            prixVente: (string) ($payload['prixVente'] ?? '0'),
+            seuilAlerte: (int) ($payload['seuilAlerte'] ?? 0),
+            statut: (string) ($payload['statut'] ?? 'ACTIF'),
+        ));
+
+        return ['medicament', (string) $medicament->getId(), $this->medicamentService->serializeSummary($medicament)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function medicamentDelete(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Médicament');
+        $this->medicamentService->delete($id);
+
+        return ['medicament', (string) $id, ['id' => $id, 'deleted' => true]];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function uniteCreate(array $payload): array
+    {
+        $unite = $this->uniteMedicamentService->create(new CreateUniteMedicamentInput(
+            code: (string) ($payload['code'] ?? ''),
+            libelle: (string) ($payload['libelle'] ?? ''),
+            ordre: (int) ($payload['ordre'] ?? 0),
+            statut: (string) ($payload['statut'] ?? 'ACTIF'),
+        ));
+
+        return ['unite', (string) $unite->getId(), $this->uniteMedicamentService->serializeSummary($unite)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function uniteUpdate(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Unité');
+        $unite = $this->uniteMedicamentService->update($id, new UpdateUniteMedicamentInput(
+            libelle: (string) ($payload['libelle'] ?? ''),
+            ordre: (int) ($payload['ordre'] ?? 0),
+            statut: (string) ($payload['statut'] ?? 'ACTIF'),
+        ));
+
+        return ['unite', (string) $unite->getId(), $this->uniteMedicamentService->serializeSummary($unite)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function uniteDelete(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Unité');
+        $this->uniteMedicamentService->delete($id);
+
+        return ['unite', (string) $id, ['id' => $id, 'deleted' => true]];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function familleCreate(array $payload): array
+    {
+        $famille = $this->familleMedicamentService->create(new CreateFamilleMedicamentInput(
+            code: (string) ($payload['code'] ?? ''),
+            libelle: (string) ($payload['libelle'] ?? ''),
+            ordre: (int) ($payload['ordre'] ?? 0),
+            statut: (string) ($payload['statut'] ?? 'ACTIF'),
+        ));
+
+        return ['famille', (string) $famille->getId(), $this->familleMedicamentService->serializeSummary($famille)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function familleUpdate(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Famille');
+        $famille = $this->familleMedicamentService->update($id, new UpdateFamilleMedicamentInput(
+            libelle: (string) ($payload['libelle'] ?? ''),
+            ordre: (int) ($payload['ordre'] ?? 0),
+            statut: (string) ($payload['statut'] ?? 'ACTIF'),
+        ));
+
+        return ['famille', (string) $famille->getId(), $this->familleMedicamentService->serializeSummary($famille)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function familleDelete(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Famille');
+        $this->familleMedicamentService->delete($id);
+
+        return ['famille', (string) $id, ['id' => $id, 'deleted' => true]];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function fournisseurCreate(array $payload): array
+    {
+        $fournisseur = $this->fournisseurService->create(new CreateFournisseurInput(
+            code: (string) ($payload['code'] ?? ''),
+            libelle: (string) ($payload['libelle'] ?? ''),
+            telephone: $this->strOrNull($payload['telephone'] ?? null),
+            adresse: $this->strOrNull($payload['adresse'] ?? null),
+            statut: (string) ($payload['statut'] ?? 'ACTIF'),
+        ));
+
+        return ['fournisseur', (string) $fournisseur->getId(), $this->fournisseurService->serializeSummary($fournisseur)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function fournisseurUpdate(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Fournisseur');
+        $fournisseur = $this->fournisseurService->update($id, new UpdateFournisseurInput(
+            libelle: (string) ($payload['libelle'] ?? ''),
+            telephone: $this->strOrNull($payload['telephone'] ?? null),
+            adresse: $this->strOrNull($payload['adresse'] ?? null),
+            statut: (string) ($payload['statut'] ?? 'ACTIF'),
+        ));
+
+        return ['fournisseur', (string) $fournisseur->getId(), $this->fournisseurService->serializeSummary($fournisseur)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function fournisseurDelete(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Fournisseur');
+        $this->fournisseurService->delete($id);
+
+        return ['fournisseur', (string) $id, ['id' => $id, 'deleted' => true]];
     }
 
     /**
@@ -274,6 +673,77 @@ final class SyncPushService
         $consultation = $this->consultationService->update($id, $input);
 
         return ['consultation', (string) $consultation->getId(), $this->consultationService->serializeSummary($consultation)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function demandeInput(array $payload): UpsertDemandeServiceInput
+    {
+        $lignes = [];
+        foreach ($payload['lignes'] ?? [] as $ligne) {
+            if (!is_array($ligne)) {
+                continue;
+            }
+            $lignes[] = new DemandeServiceLigneInput(
+                medicamentId: (int) ($ligne['medicamentId'] ?? 0),
+                quantite: (int) ($ligne['quantite'] ?? 0),
+            );
+        }
+
+        return new UpsertDemandeServiceInput(
+            serviceId: (int) ($payload['serviceId'] ?? 0),
+            motif: isset($payload['motif']) ? (string) $payload['motif'] : null,
+            visiteId: isset($payload['visiteId']) ? (int) $payload['visiteId'] : null,
+            lignes: $lignes,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function receptionInput(array $payload): UpsertReceptionInput
+    {
+        $lignes = [];
+        foreach ($payload['lignes'] ?? [] as $ligne) {
+            if (!is_array($ligne)) {
+                continue;
+            }
+            $lignes[] = new ReceptionLigneInput(
+                medicamentId: (int) ($ligne['medicamentId'] ?? 0),
+                numeroLot: (string) ($ligne['numeroLot'] ?? ''),
+                datePeremption: (string) ($ligne['datePeremption'] ?? ''),
+                quantite: (int) ($ligne['quantite'] ?? 0),
+                prixAchatUnitaire: (string) ($ligne['prixAchatUnitaire'] ?? '0'),
+                prixVente: isset($ligne['prixVente']) ? (string) $ligne['prixVente'] : null,
+            );
+        }
+
+        return new UpsertReceptionInput(
+            fournisseurId: (int) ($payload['fournisseurId'] ?? 0),
+            dateReception: (string) ($payload['dateReception'] ?? ''),
+            referenceExterne: $this->strOrNull($payload['referenceExterne'] ?? null),
+            lignes: $lignes,
+        );
+    }
+
+    private function requireServerId(mixed $value, string $label): int
+    {
+        $id = (int) $value;
+        if ($id <= 0) {
+            throw new \InvalidArgumentException($label.' : identifiant local non encore synchronisé.');
+        }
+
+        return $id;
+    }
+
+    private function strOrNull(mixed $value): ?string
+    {
+        if (null === $value || '' === $value) {
+            return null;
+        }
+
+        return (string) $value;
     }
 
     /**

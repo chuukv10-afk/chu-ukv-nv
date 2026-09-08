@@ -11,6 +11,17 @@ offlineDb.version(1).stores({
   stockLocal: 'medicamentId',
 });
 
+offlineDb.version(2).stores({
+  session: 'id',
+  cache: 'key, updatedAt',
+  outbox: '++id, clientId, status, createdAt',
+  syncMeta: 'id',
+  conflicts: '++id, clientId, createdAt',
+  stockLocal: 'medicamentId',
+  localUsers: 'telephone',
+  idMap: 'localId, entityType, serverId',
+});
+
 export async function clearOfflineData() {
   await Promise.all([
     offlineDb.session.clear(),
@@ -19,5 +30,6 @@ export async function clearOfflineData() {
     offlineDb.syncMeta.clear(),
     offlineDb.conflicts.clear(),
     offlineDb.stockLocal.clear(),
+    offlineDb.idMap.clear(),
   ]);
 }

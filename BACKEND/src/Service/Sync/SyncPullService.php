@@ -2,11 +2,17 @@
 
 namespace App\Service\Sync;
 
+use App\DTO\Common\PaginatedResult;
+use App\DTO\Pharmacie\PharmacieListQuery;
+use App\DTO\Referentiel\ReferentielListQuery;
 use App\Repository\ServiceRepository;
-use App\Repository\VisiteRepository;
+use App\Service\Pharmacie\DemandeServiceService;
 use App\Service\Pharmacie\FamilleMedicamentService;
+use App\Service\Pharmacie\FournisseurService;
 use App\Service\Pharmacie\LotService;
 use App\Service\Pharmacie\MedicamentService;
+use App\Service\Pharmacie\MouvementStockService;
+use App\Service\Pharmacie\ReceptionService;
 use App\Service\Pharmacie\UniteMedicamentService;
 use App\Service\Pharmacie\VenteService;
 use App\Service\Referentiel\PlainteService;
@@ -18,10 +24,13 @@ final class SyncPullService
         private readonly UniteMedicamentService $uniteMedicamentService,
         private readonly FamilleMedicamentService $familleMedicamentService,
         private readonly MedicamentService $medicamentService,
+        private readonly FournisseurService $fournisseurService,
+        private readonly ReceptionService $receptionService,
         private readonly LotService $lotService,
         private readonly VenteService $venteService,
+        private readonly DemandeServiceService $demandeServiceService,
+        private readonly MouvementStockService $mouvementStockService,
         private readonly ServiceRepository $serviceRepository,
-        private readonly VisiteRepository $visiteRepository,
         private readonly PlainteService $plainteService,
         private readonly SigneVitalService $signeVitalService,
     ) {
@@ -65,7 +74,9 @@ final class SyncPullService
     /** @return array<string, mixed> */
     private function pullPharmacie(): array
     {
-        $medicaments = $this->medicamentService->listActifs();
+        $medicaments = $this->collectPages(
+            fn (int $page): PaginatedResult => $this->medicamentService->paginate(new ReferentielListQuery(page: $page, limit: 100)),
+        );
         $stock = [];
         foreach ($medicaments as $medicament) {
             $id = (int) ($medicament['id'] ?? 0);
@@ -79,13 +90,55 @@ final class SyncPullService
             ];
         }
 
+        $from = (new \DateTimeImmutable('-21 days'))->format('Y-m-d');
+        $to = (new \DateTimeImmutable())->format('Y-m-d');
+
         return [
-            'unites' => $this->uniteMedicamentService->listActifs(),
-            'familles' => $this->familleMedicamentService->listActifs(),
+            'unites' => $this->collectPages(
+                fn (int $page): PaginatedResult => $this->uniteMedicamentService->paginate(new ReferentielListQuery(page: $page, limit: 100)),
+            ),
+            'familles' => $this->collectPages(
+                fn (int $page): PaginatedResult => $this->familleMedicamentService->paginate(new ReferentielListQuery(page: $page, limit: 100)),
+            ),
             'medicaments' => $medicaments,
+            'fournisseurs' => $this->collectPages(
+                fn (int $page): PaginatedResult => $this->fournisseurService->paginate(new PharmacieListQuery(page: $page, limit: 100)),
+            ),
+            'receptions' => $this->collectPages(
+                fn (int $page): PaginatedResult => $this->receptionService->paginate(new PharmacieListQuery(page: $page, limit: 100, dateFrom: $from, dateTo: $to)),
+            ),
+            'ventes' => $this->collectPages(
+                fn (int $page): PaginatedResult => $this->venteService->paginate(new PharmacieListQuery(page: $page, limit: 100, dateFrom: $from, dateTo: $to)),
+            ),
+            'demandes' => $this->collectPages(
+                fn (int $page): PaginatedResult => $this->demandeServiceService->paginate(new PharmacieListQuery(page: $page, limit: 100, dateFrom: $from, dateTo: $to)),
+            ),
+            'lots' => $this->collectPages(
+                fn (int $page): PaginatedResult => $this->lotService->paginate(new PharmacieListQuery(page: $page, limit: 100)),
+            ),
+            'mouvements' => $this->collectPages(
+                fn (int $page): PaginatedResult => $this->mouvementStockService->paginate(new PharmacieListQuery(page: $page, limit: 100, dateFrom: $from, dateTo: $to)),
+            ),
             'stock' => $stock,
             'alertes' => $this->lotService->alertes(),
         ];
+    }
+
+    /**
+     * @param callable(int): PaginatedResult $paginate
+     * @return list<array<string, mixed>>
+     */
+    private function collectPages(callable $paginate): array
+    {
+        $items = [];
+        $page = 1;
+        do {
+            $result = $paginate($page);
+            $items = array_merge($items, $result->items);
+            $page++;
+        } while (count($items) < $result->total && $page <= 40);
+
+        return $items;
     }
 
     /** @return array<string, mixed> */

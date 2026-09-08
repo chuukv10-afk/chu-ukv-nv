@@ -5,6 +5,7 @@ import {
 import { SlidersHorizontal } from 'lucide-react';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { useToast } from '../../../hooks/useToast.js';
+import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { createAjustementApi } from './ajustementsApi.js';
 import { fetchLotsApi } from '../lots/lotsApi.js';
@@ -73,6 +74,9 @@ export default function AjustementsPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={2.5} sx={{ maxWidth: 720 }}>
+        <OfflineHint>
+          Ajustement hors-ligne : le stock local est mis à jour tout de suite. Le serveur rejoue le mouvement à la reconnexion.
+        </OfflineHint>
         <Stack direction="row" spacing={1.5} alignItems="center">
           <SlidersHorizontal size={24} color={LOTRU_PRIMARY[600]} />
           <Box>

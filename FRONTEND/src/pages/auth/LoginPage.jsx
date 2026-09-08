@@ -23,6 +23,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import logo from '../../assets/img/logo.jpg';
 import { ROUTES } from '../../constants/routes.js';
 import { loginUser } from '../../features/auth/authService.js';
+import { useOffline } from '../../offline/useOffline.js';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -37,6 +38,8 @@ export default function LoginPage() {
     password: '',
   });
   const [error, setError] = useState('');
+  const { serverReachable, online } = useOffline();
+  const localLogin = !online || !serverReachable;
 
   const handleLogin = async (event) => {
     event?.preventDefault();
@@ -132,6 +135,15 @@ export default function LoginPage() {
             <Typography level="body-sm" textColor="neutral.500">
               Veillez vous identifier pour continuer
             </Typography>
+            {localLogin ? (
+              <Typography
+                color="warning"
+                level="body-xs"
+                sx={{ mt: 1, textAlign: 'center', bgcolor: 'warning.50', p: 1, borderRadius: 'sm' }}
+              >
+                Serveur injoignable : connexion locale avec un compte déjà utilisé sur ce poste.
+              </Typography>
+            ) : null}
           </Stack>
 
           {sessionExpired && !error ? (

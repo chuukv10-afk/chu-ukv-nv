@@ -3,8 +3,9 @@ import { AUTH_TOKEN_KEY } from '../constants/apiConfig.js';
 import { auth } from '../api/endpoints.js';
 import { isServerReachable, pingServer, setConnectivityPatch } from './connectivity.js';
 import { writeCache, writeNamedCache } from './cache.js';
+import { rememberIdMapping, resolvePayloadIds } from './idMap.js';
 import { addConflict, listPendingMutations, markOutboxStatus, refreshOutboxCounts } from './outbox.js';
-import { replaceStockSnapshot, restoreLocalStock } from './stockLocal.js';
+import { decrementLocalStock, incrementLocalStock, replaceStockSnapshot, restoreLocalStock } from './stockLocal.js';
 
 async function authorizedJson(endpoint, method, body) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -25,6 +26,39 @@ async function authorizedJson(endpoint, method, body) {
   return payload;
 }
 
+function paginatedEnvelope(items, page = 1, limit = 10) {
+  const total = items.length;
+  return {
+    success: true,
+    data: {
+      items: items.slice(0, limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total > 0 ? Math.ceil(total / limit) : 0,
+      },
+    },
+  };
+}
+
+async function writeListSnapshot(path, named, items, actifsPath) {
+  const list = Array.isArray(items) ? items : [];
+  await writeNamedCache(named, list);
+  await writeCache(path, paginatedEnvelope(list));
+  if (actifsPath) {
+    await writeCache(actifsPath, {
+      success: true,
+      data: list.filter((item) => !item.statut || item.statut === 'ACTIF'),
+    });
+  }
+  for (const item of list) {
+    if (item?.id != null) {
+      await writeCache(`${path}/${item.id}`, { success: true, data: item });
+    }
+  }
+}
+
 export async function pullSnapshots(modules = ['pharmacie', 'organisation', 'referentiel', 'clinique']) {
   const response = await authorizedJson(auth.syncPull, 'POST', { modules });
   const data = response?.data ?? response;
@@ -32,10 +66,16 @@ export async function pullSnapshots(modules = ['pharmacie', 'organisation', 'ref
 
   const pharmacie = data?.modules?.pharmacie;
   if (pharmacie) {
-    await writeCache('/api/v1/pharmacie/medicaments/actifs', { success: true, data: pharmacie.medicaments });
-    await writeCache('/api/v1/pharmacie/unites/actifs', { success: true, data: pharmacie.unites });
-    await writeCache('/api/v1/pharmacie/familles/actifs', { success: true, data: pharmacie.familles });
-    await writeCache('/api/v1/pharmacie/lots/alertes', { success: true, data: pharmacie.alertes });
+    await writeListSnapshot('/api/v1/pharmacie/medicaments', 'pharmacie.medicaments', pharmacie.medicaments, '/api/v1/pharmacie/medicaments/actifs');
+    await writeListSnapshot('/api/v1/pharmacie/unites', 'pharmacie.unites', pharmacie.unites, '/api/v1/pharmacie/unites/actifs');
+    await writeListSnapshot('/api/v1/pharmacie/familles', 'pharmacie.familles', pharmacie.familles, '/api/v1/pharmacie/familles/actifs');
+    await writeListSnapshot('/api/v1/pharmacie/fournisseurs', 'pharmacie.fournisseurs', pharmacie.fournisseurs, '/api/v1/pharmacie/fournisseurs/actifs');
+    await writeListSnapshot('/api/v1/pharmacie/receptions', 'pharmacie.receptions', pharmacie.receptions);
+    await writeListSnapshot('/api/v1/pharmacie/ventes', 'pharmacie.ventes', pharmacie.ventes);
+    await writeListSnapshot('/api/v1/pharmacie/demandes-service', 'pharmacie.demandes', pharmacie.demandes);
+    await writeListSnapshot('/api/v1/pharmacie/lots', 'pharmacie.lots', pharmacie.lots);
+    await writeListSnapshot('/api/v1/pharmacie/mouvements', 'pharmacie.mouvements', pharmacie.mouvements);
+    await writeCache('/api/v1/pharmacie/lots/alertes', { success: true, data: pharmacie.alertes || [] });
     await replaceStockSnapshot(pharmacie.stock || []);
     for (const item of pharmacie.stock || []) {
       await writeCache(`/api/v1/pharmacie/lots/vendables/${item.medicamentId}`, {
@@ -48,6 +88,7 @@ export async function pullSnapshots(modules = ['pharmacie', 'organisation', 'ref
   const organisation = data?.modules?.organisation;
   if (organisation?.services) {
     await writeCache('/api/v1/pharmacie/services-actifs', { success: true, data: organisation.services });
+    await writeCache('/api/v1/organisation/services', paginatedEnvelope(organisation.services));
   }
 
   const clinique = data?.modules?.clinique;
@@ -68,27 +109,50 @@ export async function pushOutbox() {
     return [];
   }
 
-  const response = await authorizedJson(auth.syncPush, 'POST', {
-    mutations: pending.map((item) => ({
-      clientId: item.clientId,
-      module: item.module,
-      action: item.action,
-      payload: item.payload,
-      createdAt: item.createdAt,
-    })),
-  });
-  const results = response?.data?.results ?? [];
+  const results = [];
+  for (const item of pending) {
+    const payload = await resolvePayloadIds(item.payload || {});
+    const response = await authorizedJson(auth.syncPush, 'POST', {
+      mutations: [{
+        clientId: item.clientId,
+        module: item.module,
+        action: item.action,
+        payload,
+        createdAt: item.createdAt,
+      }],
+    });
+    const result = (response?.data?.results ?? [])[0];
+    if (!result) {
+      continue;
+    }
+    results.push(result);
 
-  for (const result of results) {
     if (result.status === 'ACCEPTED') {
+      if (item.optimistic?.id && result.entityId) {
+        await rememberIdMapping(result.entityType, item.optimistic.id, result.entityId);
+      }
       await markOutboxStatus(result.clientId, 'synced', { serverId: result.entityId, result });
     } else if (result.status === 'CONFLICT') {
-      const row = pending.find((item) => item.clientId === result.clientId);
-      if (row?.action?.includes('vente') && Array.isArray(row?.payload?.lignes)) {
-        await restoreLocalStock(row.payload.lignes);
+      if (item.action?.includes('vente') || item.action === 'pharmacie.demande_service.delivrer') {
+        await restoreLocalStock(item.payload?.lignes || []);
+      }
+      if (item.action === 'pharmacie.reception.valider') {
+        await decrementLocalStock(item.payload?.lignes || []);
+      }
+      if (item.action === 'pharmacie.ajustement.create') {
+        const ligne = [{
+          medicamentId: item.payload.medicamentId,
+          quantite: item.payload.quantite,
+          lotId: item.payload.lotId,
+        }];
+        if (item.payload?.type === 'AJUSTEMENT_PLUS') {
+          await decrementLocalStock(ligne);
+        } else {
+          await incrementLocalStock(ligne);
+        }
       }
       await markOutboxStatus(result.clientId, 'conflict', { result });
-      await addConflict(result.clientId, result.message || 'Conflit de synchronisation.', row?.payload);
+      await addConflict(result.clientId, result.message || 'Conflit de synchronisation.', item.payload);
     } else {
       await markOutboxStatus(result.clientId, 'rejected', { result });
       await addConflict(result.clientId, result.message || 'Mutation rejetée.', result);

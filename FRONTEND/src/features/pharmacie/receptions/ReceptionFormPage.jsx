@@ -9,6 +9,7 @@ import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { fetchFournisseursActifsApi } from '../fournisseurs/fournisseursApi.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
@@ -241,6 +242,9 @@ export default function ReceptionFormPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={2.5}>
+        <OfflineHint>
+          Réception hors-ligne : brouillon et validation sont mis en file. Les lots seront créés sur le serveur à la synchro.
+        </OfflineHint>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'flex-start' }} spacing={1.5}>
           <Stack spacing={1}>
             <Button variant="plain" color="neutral" startDecorator={<ArrowLeft size={16} />} onClick={() => navigate(ROUTES.PHARMACIE.RECEPTIONS)} sx={{ alignSelf: 'flex-start', px: 0 }}>

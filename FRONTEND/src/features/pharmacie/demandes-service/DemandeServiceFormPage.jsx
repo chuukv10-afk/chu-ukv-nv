@@ -192,7 +192,7 @@ export default function DemandeServiceFormPage() {
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={2.5}>
         <OfflineHint>
-          Brouillon de demande hors-ligne : il sera créé sur le serveur à la reconnexion. Envoi et délivrance restent en ligne.
+          Demande hors-ligne : brouillon, envoi, délivrance et règlement sont mis en file. La délivrance décrémente le stock local (FEFO).
         </OfflineHint>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5}>
           <Stack spacing={1}>

@@ -86,3 +86,68 @@ export async function restoreLocalStock(lignes = []) {
     });
   }
 }
+
+export async function incrementLocalStock(lignes = []) {
+  for (const ligne of lignes) {
+    const medicamentId = Number(ligne.medicamentId);
+    const quantite = Number(ligne.quantite || 0);
+    if (!medicamentId || quantite <= 0) continue;
+    const current = await getLocalStock(medicamentId) || {
+      medicamentId,
+      stockDisponible: 0,
+      lots: [],
+    };
+    const lots = [...(current.lots || [])];
+    const numeroLot = String(ligne.numeroLot || '').trim();
+    const existing = numeroLot
+      ? lots.find((lot) => String(lot.numeroLot).toUpperCase() === numeroLot.toUpperCase())
+      : null;
+    if (existing) {
+      existing.quantiteRestante = Number(existing.quantiteRestante || 0) + quantite;
+    } else {
+      lots.push({
+        id: ligne.lotId || `offline-lot-${medicamentId}-${numeroLot || Date.now()}`,
+        numeroLot: numeroLot || 'OFF',
+        quantiteRestante: quantite,
+        datePeremption: ligne.datePeremption || null,
+        statut: 'DISPONIBLE',
+      });
+    }
+    await offlineDb.stockLocal.put({
+      ...current,
+      stockDisponible: Number(current.stockDisponible || 0) + quantite,
+      lots,
+    });
+  }
+}
+
+export async function adjustLocalLot(lotId, type, quantite) {
+  const qty = Number(quantite || 0);
+  if (!lotId || qty <= 0) {
+    const error = new Error('Ajustement local invalide.');
+    error.offline = true;
+    throw error;
+  }
+  const plus = type === 'AJUSTEMENT_PLUS';
+  const rows = await offlineDb.stockLocal.toArray();
+  for (const row of rows) {
+    const lot = (row.lots || []).find((item) => String(item.id) === String(lotId));
+    if (!lot) continue;
+    const nextLotQty = Number(lot.quantiteRestante || 0) + (plus ? qty : -qty);
+    if (nextLotQty < 0) {
+      const error = new Error('Stock local insuffisant pour cet ajustement.');
+      error.offline = true;
+      throw error;
+    }
+    lot.quantiteRestante = nextLotQty;
+    await offlineDb.stockLocal.put({
+      ...row,
+      stockDisponible: Number(row.stockDisponible || 0) + (plus ? qty : -qty),
+      lots: row.lots,
+    });
+    return row.medicamentId;
+  }
+  const error = new Error('Lot inconnu hors-ligne. Synchronisez avant d’ajuster le stock.');
+  error.offline = true;
+  throw error;
+}

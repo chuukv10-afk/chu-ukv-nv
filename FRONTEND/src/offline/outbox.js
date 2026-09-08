@@ -1,6 +1,8 @@
 import { offlineDb } from './db.js';
 import { setConnectivityPatch } from './connectivity.js';
-import { writeCache } from './cache.js';
+import { namedListForAction } from './policies.js';
+import { upsertNamedList, writeCache } from './cache.js';
+import { restoreLocalStock } from './stockLocal.js';
 
 export function createClientId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -25,6 +27,7 @@ export async function enqueueMutation({
   method,
   payload,
   optimistic,
+  createdByTelephone = '',
 }) {
   const clientId = createClientId();
   const createdAt = new Date().toISOString();
@@ -47,6 +50,7 @@ export async function enqueueMutation({
     optimistic: optimisticData,
     status: 'pending',
     createdAt,
+    createdByTelephone,
   });
 
   if (endpoint && optimisticData) {
@@ -56,17 +60,48 @@ export async function enqueueMutation({
     });
   }
 
+  const listName = namedListForAction(action);
+  if (listName) {
+    await upsertNamedList(listName, optimisticData, { remove: action.endsWith('.delete') });
+  }
+
   await refreshOutboxCounts();
   return optimisticData;
 }
 
 function detailEndpoint(endpoint, id) {
   const [path] = endpoint.split('?');
+  if (/\/\d+$/.test(path) || /\/offline-[^/]+$/.test(path)) {
+    return path;
+  }
   return `${path.replace(/\/$/, '')}/${id}`;
 }
 
 export async function listPendingMutations() {
   return offlineDb.outbox.where('status').equals('pending').sortBy('createdAt');
+}
+
+export async function findPendingByLocalId(localId) {
+  if (localId == null || localId === '') return null;
+  const pending = await listPendingMutations();
+  return pending.find((row) => String(row.optimistic?.id) === String(localId)) ?? null;
+}
+
+export async function cancelLocalMutation(localId, { restoreLignes = [] } = {}) {
+  const row = await findPendingByLocalId(localId);
+  if (!row) {
+    return false;
+  }
+  if (restoreLignes.length > 0) {
+    await restoreLocalStock(restoreLignes);
+  }
+  await offlineDb.outbox.update(row.id, { status: 'cancelled' });
+  const listName = namedListForAction(row.action);
+  if (listName && row.optimistic) {
+    await upsertNamedList(listName, row.optimistic, { remove: true });
+  }
+  await refreshOutboxCounts();
+  return true;
 }
 
 export async function markOutboxStatus(clientId, status, extra = {}) {

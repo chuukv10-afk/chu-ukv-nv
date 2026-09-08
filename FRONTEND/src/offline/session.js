@@ -1,5 +1,5 @@
 import { AUTH_REFRESH_TOKEN_KEY, AUTH_TOKEN_KEY } from '../constants/apiConfig.js';
-import { offlineDb, clearOfflineData } from './db.js';
+import { offlineDb } from './db.js';
 
 const SESSION_ID = 'current';
 
@@ -7,6 +7,9 @@ export async function persistOfflineSession({ token, refreshToken, profile, role
   const nextRefresh = refreshToken ?? localStorage.getItem(AUTH_REFRESH_TOKEN_KEY);
   if (nextRefresh) {
     localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, nextRefresh);
+  }
+  if (token) {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
   }
   await offlineDb.session.put({
     id: SESSION_ID,
@@ -21,7 +24,7 @@ export async function persistOfflineSession({ token, refreshToken, profile, role
 
 export async function readOfflineSession() {
   const row = await offlineDb.session.get(SESSION_ID);
-  if (!row?.token || !row?.profile) {
+  if (!row?.profile) {
     return null;
   }
   return row;
@@ -30,7 +33,7 @@ export async function readOfflineSession() {
 export async function clearOfflineSession() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
-  await clearOfflineData();
+  await offlineDb.session.clear();
 }
 
 export function getStoredRefreshToken() {

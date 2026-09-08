@@ -5,12 +5,13 @@ import {
   createSessionExpiredError,
   handleUnauthorizedApiResponse,
 } from '../features/auth/authSession.js';
-import { createOfflineReadError, readCache, writeCache } from '../offline/cache.js';
+import { createOfflineReadError, readCacheWithFallback, writeCache } from '../offline/cache.js';
 import { isServerReachable, setConnectivityPatch } from '../offline/connectivity.js';
-import { enqueueMutation } from '../offline/outbox.js';
+import { cancelLocalMutation, enqueueMutation, findPendingByLocalId } from '../offline/outbox.js';
+import { isLocalId } from '../offline/idMap.js';
 import { isAuthBypassEndpoint, matchWritePolicy, shouldBypassCache } from '../offline/policies.js';
-import { getStoredRefreshToken, setStoredRefreshToken } from '../offline/session.js';
-import { decrementLocalStock } from '../offline/stockLocal.js';
+import { getStoredRefreshToken, setStoredRefreshToken, readOfflineSession } from '../offline/session.js';
+import { adjustLocalLot, decrementLocalStock, incrementLocalStock, restoreLocalStock } from '../offline/stockLocal.js';
 
 let refreshPromise = null;
 
@@ -135,6 +136,50 @@ async function networkFetch(endpoint, method, body, allowRefresh = true) {
   return payload;
 }
 
+async function loadCachedEntity(basePath, id) {
+  const cached = await readCacheWithFallback(`${basePath}/${id}`);
+  return cached?.data ?? cached ?? null;
+}
+
+async function lignesForDocument(kind, id, fallback = []) {
+  if (Array.isArray(fallback) && fallback.length > 0) {
+    return fallback;
+  }
+  const bases = {
+    vente: '/api/v1/pharmacie/ventes',
+    demande: '/api/v1/pharmacie/demandes-service',
+    reception: '/api/v1/pharmacie/receptions',
+  };
+  const entity = await loadCachedEntity(bases[kind], id);
+  return Array.isArray(entity?.lignes) ? entity.lignes : [];
+}
+
+async function applyLocalStock(action, payload) {
+  if (action === 'pharmacie.vente.complete' || action === 'pharmacie.vente.create_and_valider' || action === 'pharmacie.vente.valider') {
+    const lignes = await lignesForDocument('vente', payload.id, payload.lignes);
+    payload.lignes = lignes;
+    await decrementLocalStock(lignes);
+  }
+  if (action === 'pharmacie.vente.annuler') {
+    const lignes = await lignesForDocument('vente', payload.id, payload.lignes);
+    payload.lignes = lignes;
+    await restoreLocalStock(lignes);
+  }
+  if (action === 'pharmacie.demande_service.delivrer') {
+    const lignes = await lignesForDocument('demande', payload.id, payload.lignes);
+    payload.lignes = lignes;
+    await decrementLocalStock(lignes);
+  }
+  if (action === 'pharmacie.reception.valider') {
+    const lignes = await lignesForDocument('reception', payload.id, payload.lignes);
+    payload.lignes = lignes;
+    await incrementLocalStock(lignes);
+  }
+  if (action === 'pharmacie.ajustement.create') {
+    payload.medicamentId = await adjustLocalLot(payload.lotId, payload.type, payload.quantite);
+  }
+}
+
 async function enqueueWrite(method, endpoint, body) {
   const policy = matchWritePolicy(method, endpoint);
   if (!policy) {
@@ -148,12 +193,29 @@ async function enqueueWrite(method, endpoint, body) {
     payload.id = policy.idFromPath(endpoint);
   }
 
-  if (policy.action === 'pharmacie.vente.complete' || policy.action === 'pharmacie.vente.create_and_valider') {
-    await decrementLocalStock(payload.lignes || []);
+  if (payload.id != null && isLocalId(payload.id) && (
+    policy.action.endsWith('.annuler')
+    || policy.action.endsWith('.delete')
+  )) {
+    const pending = await findPendingByLocalId(payload.id);
+    if (pending) {
+      const lignes = pending.payload?.lignes || [];
+      const cancelled = await cancelLocalMutation(payload.id, {
+        restoreLignes: policy.action.includes('vente') || policy.action.includes('delivrer') ? lignes : [],
+      });
+      if (cancelled) {
+        return {
+          success: true,
+          offline: true,
+          message: 'Opération locale annulée (pas encore synchronisée).',
+          data: { id: payload.id, cancelled: true },
+        };
+      }
+    }
   }
-  if (policy.action === 'pharmacie.vente.create') {
-    await decrementLocalStock([]);
-  }
+
+  await applyLocalStock(policy.action, payload);
+  const session = await readOfflineSession();
 
   return {
     success: true,
@@ -166,15 +228,18 @@ async function enqueueWrite(method, endpoint, body) {
       method,
       payload,
       optimistic: buildOptimistic(policy.action, payload),
+      createdByTelephone: session?.profile?.telephone || '',
     }),
   };
 }
 
 function buildOptimistic(action, payload) {
   if (action.startsWith('pharmacie.vente')) {
+    const validated = action.includes('valider') || action.includes('complete');
     return {
+      id: payload.id,
       numero: 'OFF-VENTE',
-      statut: action.includes('valider') || action.includes('complete') ? 'VALIDEE' : 'BROUILLON',
+      statut: action.includes('annuler') ? 'ANNULEE' : (validated ? 'VALIDEE' : 'BROUILLON'),
       clientType: payload.clientType,
       clientNom: payload.clientNom,
       patientId: payload.patientId,
@@ -183,14 +248,50 @@ function buildOptimistic(action, payload) {
       montantTotal: '0',
     };
   }
-  if (action === 'pharmacie.demande_service.create') {
+  if (action.startsWith('pharmacie.demande_service')) {
+    let statut = 'BROUILLON';
+    let statutPaiement = 'SANS_OBJET';
+    if (action.endsWith('.envoyer')) statut = 'ENVOYEE';
+    if (action.endsWith('.delivrer')) {
+      statut = 'DELIVREE';
+      statutPaiement = 'IMPAYEE';
+    }
+    if (action.endsWith('.refuser')) statut = 'REFUSEE';
+    if (action.endsWith('.regler')) {
+      statut = 'DELIVREE';
+      statutPaiement = 'PAYEE';
+    }
     return {
+      id: payload.id,
       numero: 'OFF-DEM',
-      statut: 'BROUILLON',
-      statutPaiement: 'SANS_OBJET',
+      statut,
+      statutPaiement,
       serviceId: payload.serviceId,
       motif: payload.motif,
       lignes: payload.lignes || [],
+      modePaiement: payload.modePaiement,
+    };
+  }
+  if (action.startsWith('pharmacie.reception')) {
+    return {
+      id: payload.id,
+      numero: 'OFF-REC',
+      statut: action.endsWith('.valider') ? 'VALIDEE' : 'BROUILLON',
+      fournisseurId: payload.fournisseurId,
+      dateReception: payload.dateReception,
+      referenceExterne: payload.referenceExterne,
+      lignes: payload.lignes || [],
+    };
+  }
+  if (action.startsWith('pharmacie.medicament') || action.startsWith('pharmacie.unite') || action.startsWith('pharmacie.famille') || action.startsWith('pharmacie.fournisseur')) {
+    return { ...payload, id: payload.id, statut: payload.statut || 'ACTIF' };
+  }
+  if (action === 'pharmacie.ajustement.create') {
+    return {
+      type: payload.type,
+      quantite: payload.quantite,
+      motif: payload.motif,
+      lotId: payload.lotId,
     };
   }
   if (action === 'patient.create') {
@@ -235,14 +336,14 @@ export async function callApi(endpoint, method = 'GET', body = null) {
       } catch (error) {
         if (isNetworkFailure(error) || error.status >= 500) {
           setConnectivityPatch({ serverReachable: false });
-          const cached = await readCache(endpoint);
+          const cached = await readCacheWithFallback(endpoint);
           if (cached) return cached;
         }
         throw error;
       }
     }
 
-    const cached = await readCache(endpoint);
+    const cached = await readCacheWithFallback(endpoint);
     if (cached) return cached;
     throw createOfflineReadError(endpoint);
   }
