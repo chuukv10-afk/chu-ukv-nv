@@ -1,5 +1,5 @@
 import { pharmacie } from '../../../api/endpoints.js';
-import { callApiGet } from '../../../api/apiClient.js';
+import { callApiGet, callApiPut } from '../../../api/apiClient.js';
 import { buildQueryString, paginatedResult, unwrapData } from '../shared/pharmacieApi.js';
 
 export async function fetchLotsApi(params = {}) {
@@ -21,4 +21,9 @@ export async function fetchLotsVendablesApi(medicamentId) {
   const response = await callApiGet(`${pharmacie.lots}/vendables/${medicamentId}`);
   const data = unwrapData(response);
   return Array.isArray(data) ? data : [];
+}
+
+export async function updateLotApi(id, payload) {
+  const response = await callApiPut(`${pharmacie.lots}/${id}`, payload);
+  return unwrapData(response);
 }

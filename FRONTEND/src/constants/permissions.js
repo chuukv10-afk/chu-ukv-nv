@@ -78,6 +78,7 @@ export const PERMISSIONS = {
     RECEPTION_DELETE: 'pharmacie.reception.delete',
     RECEPTION_VALIDER: 'pharmacie.reception.valider',
     LOT_READ: 'pharmacie.lot.read',
+    LOT_UPDATE: 'pharmacie.lot.update',
     MOUVEMENT_READ: 'pharmacie.mouvement.read',
     VENTE_READ: 'pharmacie.vente.read',
     VENTE_CREATE: 'pharmacie.vente.create',
@@ -98,6 +99,7 @@ export const PERMISSIONS = {
     RECETTE_READ: 'pharmacie.recette.read',
     STATISTIQUE_READ: 'pharmacie.statistique.read',
     MOUVEMENT_EXPORT: 'pharmacie.mouvement.export',
+    SYNC_CONFLICT_DELETE: 'pharmacie.sync_conflict.delete',
   },
   CLINIQUE: {
     EXAMEN_READ: 'clinique.examen.read',

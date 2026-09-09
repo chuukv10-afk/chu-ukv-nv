@@ -15,6 +15,8 @@ import { fetchFournisseursActifsApi } from '../fournisseurs/fournisseursApi.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
 import MedicamentAutocomplete from '../shared/MedicamentAutocomplete.jsx';
 import { todayIso } from '../shared/format.js';
+import { toSyncId } from '../../../offline/idMap.js';
+import { assertReceptionPayload } from '../../../offline/pharmacyRules.js';
 import {
   EMPTY_RECEPTION_LIGNE,
   RECEPTION_STATUT_COLORS,
@@ -31,11 +33,11 @@ import {
 
 function toPayload(form) {
   return {
-    fournisseurId: Number(form.fournisseurId),
+    fournisseurId: toSyncId(form.fournisseurId),
     dateReception: form.dateReception,
     referenceExterne: form.referenceExterne.trim() || null,
     lignes: form.lignes.map((ligne) => ({
-      medicamentId: Number(ligne.medicamentId),
+      medicamentId: toSyncId(ligne.medicamentId),
       numeroLot: String(ligne.numeroLot).trim().toUpperCase(),
       datePeremption: ligne.datePeremption,
       quantite: Number(ligne.quantite),
@@ -184,10 +186,16 @@ export default function ReceptionFormPage() {
   };
 
   const handleSave = async () => {
+    const payload = toPayload(form);
+    try {
+      assertReceptionPayload(payload);
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      const payload = toPayload(form);
       if (isNew) {
         const created = await createReceptionApi(payload);
         showSuccess('Brouillon de réception enregistré.');
@@ -205,12 +213,20 @@ export default function ReceptionFormPage() {
   };
 
   const handleValider = async () => {
+    const payload = toPayload(form);
+    try {
+      assertReceptionPayload(payload);
+    } catch (err) {
+      setError(err.message);
+      setConfirmAction(null);
+      return;
+    }
     setConfirmLoading(true);
     setSaving(true);
     setError('');
     try {
       if (canSave) {
-        const updated = await updateReceptionApi(id, toPayload(form));
+        const updated = await updateReceptionApi(id, payload);
         setReception(updated);
       }
       const validated = await validerReceptionApi(id);

@@ -1,14 +1,78 @@
 import { offlineDb } from './db.js';
 import { setConnectivityPatch } from './connectivity.js';
 import { namedListForAction } from './policies.js';
-import { upsertNamedList, writeCache } from './cache.js';
-import { restoreLocalStock } from './stockLocal.js';
+import { upsertNamedList, writeCache, cacheKey } from './cache.js';
+import { reverseLocalMutationStock, restoreLocalStock } from './stockLocal.js';
+import { createLocalEntityId, isLocalId } from './idMap.js';
 
 export function createClientId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
   return `offline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function kindFromAction(action = '') {
+  if (action.includes('reception')) return 'reception';
+  if (action.includes('vente')) return 'vente';
+  if (action.includes('demande')) return 'demande';
+  if (action.includes('medicament')) return 'medicament';
+  if (action.includes('fournisseur')) return 'fournisseur';
+  if (action.includes('famille')) return 'famille';
+  if (action.includes('unite')) return 'unite';
+  if (action.includes('patient')) return 'patient';
+  if (action.includes('visite')) return 'visite';
+  if (action.includes('consultation')) return 'consultation';
+  if (action.includes('lot')) return 'lot';
+  return 'entity';
+}
+
+function isCreateAction(action = '') {
+  return action.endsWith('.create')
+    || action.endsWith('.complete')
+    || action.includes('create_and_valider');
+}
+
+function isFollowUpAction(action = '') {
+  return /\.(update|valider|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(action);
+}
+
+async function listByStatus(statuses) {
+  return offlineDb.outbox.where('status').anyOf(statuses).sortBy('createdAt');
+}
+
+function sameLocalEntity(row, localId) {
+  if (localId == null || localId === '') return false;
+  const needle = String(localId);
+  return String(row.optimistic?.id ?? '') === needle || String(row.payload?.id ?? '') === needle;
+}
+
+async function findPendingCreate(localId) {
+  const pending = await listByStatus(['pending']);
+  return pending.find((row) => isCreateAction(row.action) && sameLocalEntity(row, localId)) ?? null;
+}
+
+async function findPendingFollowUp(action, localId) {
+  const pending = await listByStatus(['pending']);
+  return pending.find((row) => row.action === action && sameLocalEntity(row, localId)) ?? null;
+}
+
+async function persistOptimistic(endpoint, action, optimisticData, { remove = false } = {}) {
+  if (endpoint && optimisticData) {
+    await writeCache(detailEndpoint(endpoint, optimisticData.id), {
+      success: true,
+      data: optimisticData,
+    });
+  }
+  const listName = namedListForAction(action);
+  if (listName && optimisticData) {
+    await upsertNamedList(listName, optimisticData, { remove });
+  }
+}
+
+async function patchOutboxRow(row, changes) {
+  await offlineDb.outbox.update(row.id, changes);
+  await refreshOutboxCounts();
 }
 
 export async function refreshOutboxCounts() {
@@ -33,12 +97,64 @@ export async function enqueueMutation({
   optimistic,
   createdByTelephone = '',
 }) {
+  const nextPayload = { ...(payload || {}) };
+  if (isCreateAction(action) && (nextPayload.id == null || nextPayload.id === '')) {
+    nextPayload.id = optimistic?.id || createLocalEntityId(kindFromAction(action));
+  }
+
+  const localId = nextPayload.id ?? optimistic?.id;
+  if (localId != null && isLocalId(localId) && isFollowUpAction(action)) {
+    const pendingCreate = await findPendingCreate(localId);
+    if (pendingCreate && action.endsWith('.update')) {
+      const mergedPayload = { ...pendingCreate.payload, ...nextPayload, id: localId };
+      const mergedOptimistic = {
+        ...pendingCreate.optimistic,
+        ...optimistic,
+        id: localId,
+        pendingSync: true,
+      };
+      await patchOutboxRow(pendingCreate, { payload: mergedPayload, optimistic: mergedOptimistic });
+      await persistOptimistic(pendingCreate.endpoint || endpoint, pendingCreate.action, mergedOptimistic);
+      return mergedOptimistic;
+    }
+    if (pendingCreate && action === 'pharmacie.vente.valider') {
+      const mergedPayload = { ...pendingCreate.payload, ...nextPayload, id: localId };
+      const mergedOptimistic = {
+        ...pendingCreate.optimistic,
+        ...optimistic,
+        id: localId,
+        statut: 'VALIDEE',
+        pendingSync: true,
+      };
+      await patchOutboxRow(pendingCreate, {
+        action: 'pharmacie.vente.create_and_valider',
+        payload: mergedPayload,
+        optimistic: mergedOptimistic,
+      });
+      await persistOptimistic(pendingCreate.endpoint || endpoint, pendingCreate.action, mergedOptimistic);
+      return mergedOptimistic;
+    }
+    const duplicate = await findPendingFollowUp(action, localId);
+    if (duplicate) {
+      const mergedPayload = { ...duplicate.payload, ...nextPayload, id: localId };
+      const mergedOptimistic = {
+        ...duplicate.optimistic,
+        ...optimistic,
+        id: localId,
+        pendingSync: true,
+      };
+      await patchOutboxRow(duplicate, { payload: mergedPayload, optimistic: mergedOptimistic });
+      await persistOptimistic(duplicate.endpoint || endpoint, action, mergedOptimistic);
+      return mergedOptimistic;
+    }
+  }
+
   const clientId = createClientId();
   const createdAt = new Date().toISOString();
-  const localId = optimistic?.id ?? `offline-${clientId}`;
+  const entityId = localId || createLocalEntityId(kindFromAction(action));
   const optimisticData = {
     ...optimistic,
-    id: localId,
+    id: entityId,
     clientId,
     pendingSync: true,
     createdAt,
@@ -50,25 +166,14 @@ export async function enqueueMutation({
     module,
     endpoint,
     method,
-    payload,
+    payload: { ...nextPayload, id: nextPayload.id ?? entityId },
     optimistic: optimisticData,
     status: 'pending',
     createdAt,
     createdByTelephone,
   });
 
-  if (endpoint && optimisticData) {
-    await writeCache(detailEndpoint(endpoint, localId), {
-      success: true,
-      data: optimisticData,
-    });
-  }
-
-  const listName = namedListForAction(action);
-  if (listName) {
-    await upsertNamedList(listName, optimisticData, { remove: action.endsWith('.delete') });
-  }
-
+  await persistOptimistic(endpoint, action, optimisticData, { remove: action.endsWith('.delete') });
   await refreshOutboxCounts();
   return optimisticData;
 }
@@ -82,16 +187,31 @@ function detailEndpoint(endpoint, id) {
 }
 
 export async function listPendingMutations() {
-  return offlineDb.outbox
-    .where('status')
-    .anyOf(['pending', 'conflict', 'rejected'])
-    .sortBy('createdAt');
+  return listByStatus(['pending']);
+}
+
+export async function listRetryableMutations() {
+  return listByStatus(['pending', 'conflict', 'rejected']);
+}
+
+export async function requeueUnblockedMutations(resolvePayload) {
+  const blocked = await listByStatus(['conflict', 'rejected']);
+  for (const row of blocked) {
+    if (!isFollowUpAction(row.action)) continue;
+    const payload = typeof resolvePayload === 'function'
+      ? await resolvePayload(row.payload || {})
+      : row.payload || {};
+    const resolvedId = payload.id;
+    if (resolvedId == null || isLocalId(resolvedId)) continue;
+    await clearConflict(row.clientId);
+    await offlineDb.outbox.update(row.id, { status: 'pending', payload: { ...row.payload, ...payload } });
+  }
 }
 
 export async function findPendingByLocalId(localId) {
   if (localId == null || localId === '') return null;
-  const pending = await listPendingMutations();
-  return pending.find((row) => String(row.optimistic?.id) === String(localId)) ?? null;
+  const pending = await listRetryableMutations();
+  return pending.find((row) => sameLocalEntity(row, localId)) ?? null;
 }
 
 export async function cancelLocalMutation(localId, { restoreLignes = [] } = {}) {
@@ -136,4 +256,81 @@ export async function addConflict(clientId, message, payload) {
 
 export async function listConflicts() {
   return offlineDb.conflicts.orderBy('createdAt').reverse().toArray();
+}
+
+async function removeOptimisticTrace(row) {
+  const listName = namedListForAction(row.action);
+  if (listName && row.optimistic) {
+    await upsertNamedList(listName, row.optimistic, { remove: true });
+  }
+  const entityId = row.optimistic?.id ?? row.payload?.id;
+  if (row.endpoint && entityId != null) {
+    try {
+      await offlineDb.cache.delete(cacheKey(detailEndpoint(row.endpoint, entityId)));
+    } catch {
+      // Dexie / SQLite : la clé de cache peut déjà être absente.
+    }
+  }
+}
+
+export async function listUnsyncedMutations() {
+  const [rows, conflicts] = await Promise.all([
+    listRetryableMutations(),
+    listConflicts(),
+  ]);
+  const byClient = Object.fromEntries(conflicts.map((item) => [item.clientId, item]));
+  return rows.map((row) => {
+    const conflict = byClient[row.clientId];
+    return {
+      id: row.id,
+      clientId: row.clientId,
+      createdAt: row.createdAt,
+      action: row.action,
+      status: row.status,
+      payload: row.payload,
+      optimistic: row.optimistic,
+      message: conflict?.message
+        || (row.status === 'pending'
+          ? 'En attente de synchronisation.'
+          : row.result?.message || 'Écriture refusée.'),
+    };
+  });
+}
+
+export async function discardUnsynced(clientId) {
+  const row = await offlineDb.outbox.where('clientId').equals(clientId).first();
+  await clearConflict(clientId);
+  if (!row) {
+    await refreshOutboxCounts();
+    return;
+  }
+  if (row.status === 'pending') {
+    try {
+      await reverseLocalMutationStock(row.action, row.payload || {});
+    } catch {
+      // Stock déjà rétabli, lot absent : on abandonne quand même l'écriture locale.
+    }
+  }
+  await offlineDb.outbox.update(row.id, { status: 'discarded' });
+  await removeOptimisticTrace(row);
+  await refreshOutboxCounts();
+}
+
+export async function discardAllUnsynced() {
+  const rows = await listUnsyncedMutations();
+  for (const row of rows) {
+    await discardUnsynced(row.clientId);
+  }
+}
+
+export async function listConflictsWithMutations() {
+  return listUnsyncedMutations();
+}
+
+export async function discardConflict(clientId) {
+  await discardUnsynced(clientId);
+}
+
+export async function discardAllConflicts() {
+  await discardAllUnsynced();
 }

@@ -151,6 +151,9 @@ final class ReceptionService
                 'datePeremption' => $ligne->getDatePeremption()?->format('Y-m-d'),
                 'quantite' => $ligne->getQuantite(),
                 'prixAchatUnitaire' => $ligne->getPrixAchatUnitaire(),
+                'lotId' => $medicament
+                    ? $this->lotRepository->findOneByMedicamentAndNumero($medicament, (string) $ligne->getNumeroLot())?->getId()
+                    : null,
             ];
         }
 

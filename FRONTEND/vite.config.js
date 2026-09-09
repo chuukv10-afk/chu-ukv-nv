@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
+const isElectronBuild = process.env.ELECTRON === '1';
+
 export default defineConfig({
   plugins: [
     react(),
@@ -22,6 +24,7 @@ export default defineConfig({
       },
     }),
   ],
+  base: isElectronBuild ? './' : '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -29,12 +32,17 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    strictPort: isElectronBuild,
     proxy: {
       '/api': {
         target: 'http://54.155.99.199',
-        //target: 'http://localhost:8000',
         changeOrigin: true,
       },
     },
+  },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: false,
   },
 });

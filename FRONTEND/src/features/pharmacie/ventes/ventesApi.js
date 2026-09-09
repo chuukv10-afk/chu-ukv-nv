@@ -6,7 +6,9 @@ import {
   callApiPut,
 } from '../../../api/apiClient.js';
 import { enqueueMutation } from '../../../offline/outbox.js';
+import { assertPharmacyWrite } from '../../../offline/pharmacyRules.js';
 import { decrementLocalStock } from '../../../offline/stockLocal.js';
+import { priceVenteLignes } from '../../../offline/ventePricing.js';
 import { isServerReachable } from '../../../offline/connectivity.js';
 import { buildQueryString, paginatedResult, unwrapData } from '../shared/pharmacieApi.js';
 
@@ -45,31 +47,34 @@ export async function deleteVenteApi(id) {
 }
 
 export async function completeVenteOfflineApi(payload) {
-  await decrementLocalStock(payload.lignes || []);
+  const checked = await assertPharmacyWrite('pharmacie.vente.complete', payload);
+  await decrementLocalStock(checked.lignes || []);
+  const now = new Date().toISOString();
+  const priced = await priceVenteLignes(checked.lignes || []);
   return enqueueMutation({
     action: 'pharmacie.vente.complete',
     module: 'pharmacie',
     endpoint: pharmacie.ventes,
     method: 'POST',
-    payload,
+    payload: checked,
     optimistic: {
       numero: 'OFF-VENTE',
       statut: 'VALIDEE',
-      clientType: payload.clientType,
-      clientNom: payload.clientNom,
-      patientId: payload.patientId,
-      visiteId: payload.visiteId,
-      modePaiement: payload.modePaiement,
-      lignes: payload.lignes || [],
-      montantTotal: '0',
-      dateVente: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
+      clientType: checked.clientType,
+      clientNom: checked.clientNom,
+      patientId: checked.patientId,
+      visiteId: checked.visiteId,
+      modePaiement: checked.modePaiement,
+      lignes: priced.lignes,
+      montantTotal: priced.montantTotal,
+      dateVente: now,
+      createdAt: now,
     },
   });
 }
 
 export function canUseOfflineCaisse() {
-  return !isServerReachable();
+  return !isServerReachable() || Boolean(typeof window !== 'undefined' && window.electronAPI?.isDesktop);
 }
 
 export async function fetchVisitesHospitaliseesApi(search = '', serviceId) {

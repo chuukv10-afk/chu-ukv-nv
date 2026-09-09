@@ -3,6 +3,7 @@ import {
   Box, Button, FormControl, FormLabel, Input, Modal, ModalDialog, Option, Select, Stack, Typography,
 } from '@mui/joy';
 import { Package } from 'lucide-react';
+import { toSyncId } from '../../../../offline/idMap.js';
 import { MEDICAMENT_STATUTS } from '../medicamentConstants.js';
 
 const MODAL_SX = {
@@ -29,24 +30,33 @@ export default function MedicamentFormModal({
   onSubmit,
 }) {
   const [form, setForm] = useState(initialValues);
+  const [localError, setLocalError] = useState('');
   const isEdit = mode === 'edit';
 
   useEffect(() => {
-    if (open) setForm(initialValues);
+    if (open) {
+      setForm(initialValues);
+      setLocalError('');
+    }
   }, [open, initialValues]);
 
   const handleChange = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    if (!form.uniteId || !form.familleId) {
+      setLocalError('L’unité et la famille sont obligatoires.');
+      return;
+    }
+    setLocalError('');
     onSubmit({
       ...(isEdit ? {} : { code: form.code.trim().toUpperCase() }),
       libelle: form.libelle.trim(),
       dci: form.dci.trim() || null,
       forme: form.forme.trim() || null,
       dosage: form.dosage.trim() || null,
-      uniteId: Number(form.uniteId),
-      familleId: Number(form.familleId),
+      uniteId: toSyncId(form.uniteId),
+      familleId: toSyncId(form.familleId),
       prixVente: String(form.prixVente).replace(',', '.'),
       seuilAlerte: Number(form.seuilAlerte) || 0,
       statut: form.statut,
@@ -73,9 +83,9 @@ export default function MedicamentFormModal({
         >
           <Box sx={{ p: 3, overflow: 'auto', flex: 1, minHeight: 0 }}>
             <Stack spacing={2}>
-              {error ? (
+              {(error || localError) ? (
                 <Typography level="body-sm" color="danger" sx={{ bgcolor: 'danger.50', p: 1.5, borderRadius: 'md' }}>
-                  {error}
+                  {localError || error}
                 </Typography>
               ) : null}
 

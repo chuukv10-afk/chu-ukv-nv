@@ -14,6 +14,8 @@ import { LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
 import MedicamentAutocomplete from '../shared/MedicamentAutocomplete.jsx';
 import { formatPatientName, formatPrix } from '../shared/format.js';
+import { toSyncId } from '../../../offline/idMap.js';
+import { assertDemandePayload } from '../../../offline/pharmacyRules.js';
 import { fetchVisitesHospitaliseesApi } from '../ventes/ventesApi.js';
 import {
   DEMANDE_STATUT_COLORS,
@@ -37,11 +39,11 @@ import {
 
 function toPayload(form) {
   return {
-    serviceId: Number(form.serviceId),
-    visiteId: form.visiteId ? Number(form.visiteId) : null,
+    serviceId: toSyncId(form.serviceId),
+    visiteId: toSyncId(form.visiteId),
     motif: form.motif.trim() || null,
     lignes: form.lignes.map((ligne) => ({
-      medicamentId: Number(ligne.medicamentId),
+      medicamentId: toSyncId(ligne.medicamentId),
       quantite: Number(ligne.quantite),
     })),
   };
@@ -162,23 +164,22 @@ export default function DemandeServiceFormPage() {
   };
 
   const handleSave = async () => {
-    if (!form.serviceId) {
-      setError('Le service est obligatoire.');
-      return;
-    }
-    if (form.lignes.some((ligne) => !ligne.medicamentId || Number(ligne.quantite) < 1)) {
-      setError('Chaque ligne doit avoir un médicament et une quantité.');
+    const payload = toPayload(form);
+    try {
+      assertDemandePayload(payload);
+    } catch (err) {
+      setError(err.message);
       return;
     }
     setSaving(true);
     setError('');
     try {
       if (isNew) {
-        const created = await createDemandeServiceApi(toPayload(form));
+        const created = await createDemandeServiceApi(payload);
         showSuccess('Brouillon enregistré.');
         navigate(ROUTES.PHARMACIE.DEMANDE_SERVICE_DETAIL.replace(':id', String(created.id)), { replace: true });
       } else {
-        setDemande(await updateDemandeServiceApi(id, toPayload(form)));
+        setDemande(await updateDemandeServiceApi(id, payload));
         showSuccess('Demande mise à jour.');
       }
     } catch (err) {

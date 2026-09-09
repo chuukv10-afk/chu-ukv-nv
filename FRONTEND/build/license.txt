@@ -1,0 +1,4 @@
+CHU UKV — Application desktop pharmacie
+Copyright (c) 2026 CHU UKV. Tous droits réservés.
+
+Usage interne au Centre Hospitalier Universitaire.

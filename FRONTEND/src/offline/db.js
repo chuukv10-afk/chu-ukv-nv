@@ -1,26 +1,34 @@
 import Dexie from 'dexie';
+import { isDesktopApp } from './desktop.js';
+import { createSqliteOfflineDb } from './sqliteAdapter.js';
 
-export const offlineDb = new Dexie('chu_ukv_offline');
+function createDexieDb() {
+  const db = new Dexie('chu_ukv_offline');
 
-offlineDb.version(1).stores({
-  session: 'id',
-  cache: 'key, updatedAt',
-  outbox: '++id, clientId, status, createdAt',
-  syncMeta: 'id',
-  conflicts: '++id, clientId, createdAt',
-  stockLocal: 'medicamentId',
-});
+  db.version(1).stores({
+    session: 'id',
+    cache: 'key, updatedAt',
+    outbox: '++id, clientId, status, createdAt',
+    syncMeta: 'id',
+    conflicts: '++id, clientId, createdAt',
+    stockLocal: 'medicamentId',
+  });
 
-offlineDb.version(2).stores({
-  session: 'id',
-  cache: 'key, updatedAt',
-  outbox: '++id, clientId, status, createdAt',
-  syncMeta: 'id',
-  conflicts: '++id, clientId, createdAt',
-  stockLocal: 'medicamentId',
-  localUsers: 'telephone',
-  idMap: 'localId, entityType, serverId',
-});
+  db.version(2).stores({
+    session: 'id',
+    cache: 'key, updatedAt',
+    outbox: '++id, clientId, status, createdAt',
+    syncMeta: 'id',
+    conflicts: '++id, clientId, createdAt',
+    stockLocal: 'medicamentId',
+    localUsers: 'telephone',
+    idMap: 'localId, entityType, serverId',
+  });
+
+  return db;
+}
+
+export const offlineDb = isDesktopApp() ? createSqliteOfflineDb() : createDexieDb();
 
 export async function clearOfflineData() {
   await Promise.all([

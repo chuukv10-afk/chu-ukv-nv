@@ -18,7 +18,12 @@ function registerLabels(group) {
 registerLabels(PERMISSIONS.ORGANISATION);
 registerLabels(PERMISSIONS.REFERENTIEL);
 registerLabels(PERMISSIONS.CLINIQUE);
+registerLabels(PERMISSIONS.PHARMACIE);
+registerLabels(PERMISSIONS.PATIENT);
 registerLabels(PERMISSIONS.ADMIN);
+
+PERMISSION_LABELS[PERMISSIONS.PHARMACIE.SYNC_CONFLICT_DELETE] = 'Hors-ligne — supprimer une écriture non synchronisée';
+PERMISSION_LABELS[PERMISSIONS.PHARMACIE.LOT_UPDATE] = 'Lot — modifier n° et péremption';
 
 function humanizePermissionCode(code) {
   if (code.startsWith('ROLE_')) {

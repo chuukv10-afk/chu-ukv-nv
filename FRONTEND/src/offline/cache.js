@@ -2,6 +2,9 @@ import { offlineDb } from './db.js';
 import { namedListForAction } from './policies.js';
 import { lotsFromOutboxRow, movementsFromOutboxRow } from './stockJournal.js';
 import { getLocalStock } from './stockLocal.js';
+import { isDesktopApp } from './desktop.js';
+import { isServerReachable } from './connectivity.js';
+import { buildLocalRecettes, buildLocalStatistiques } from './localAnalytics.js';
 
 export function cacheKey(endpoint) {
   return String(endpoint || '');
@@ -182,12 +185,30 @@ async function outboxItemsFor(named) {
   return { extras, removed };
 }
 
+async function applyMissingVenteMontants(items) {
+  const medicaments = namedItems(await readNamedCache('pharmacie.medicaments'));
+  const byId = new Map(medicaments.map((item) => [String(item.id), item]));
+  return items.map((item) => {
+    if (Number(item.montantTotal || 0) > 0) return item;
+    const lignes = Array.isArray(item.lignes) ? item.lignes : [];
+    if (lignes.length === 0) return item;
+    const montantTotal = lignes.reduce((sum, ligne) => {
+      const prix = Number(byId.get(String(ligne.medicamentId))?.prixVente ?? ligne.prixUnitaire ?? 0);
+      return sum + prix * Number(ligne.quantite || 0);
+    }, 0);
+    return montantTotal > 0 ? { ...item, montantTotal: String(montantTotal) } : item;
+  });
+}
+
 async function visibleList(named, seed = []) {
   const { extras, removed } = await outboxItemsFor(named);
-  const items = mergeById([...extras, ...seed])
+  let items = mergeById([...extras, ...seed])
     .filter((item) => !removed.has(String(item.id)));
   if (named === 'pharmacie.medicaments') {
-    return applyLocalStockLevels(items);
+    items = await applyLocalStockLevels(items);
+  }
+  if (named === 'pharmacie.ventes') {
+    items = await applyMissingVenteMontants(items);
   }
   return items;
 }
@@ -235,6 +256,14 @@ export async function invalidateListCaches(prefix) {
 export async function readCacheWithFallback(endpoint) {
   const [path, queryString = ''] = String(endpoint).split('?');
   const params = new URLSearchParams(queryString);
+  const useLocalAnalytics = isDesktopApp() || !isServerReachable();
+
+  if (useLocalAnalytics && path === '/api/v1/pharmacie/recettes') {
+    return buildLocalRecettes(params);
+  }
+  if (useLocalAnalytics && path === '/api/v1/pharmacie/statistiques') {
+    return buildLocalStatistiques(params);
+  }
 
   if (path.endsWith('/actifs')) {
     const source = LIST_SOURCES.find((item) => path === `${item.prefix}/actifs`);
@@ -288,7 +317,11 @@ export async function upsertNamedList(name, item, { remove = false } = {}) {
   const current = namedItems(await readNamedCache(name));
   const next = remove
     ? current.filter((row) => String(row.id) !== String(item.id))
-    : [item, ...current.filter((row) => String(row.id) !== String(item.id))];
+    : (() => {
+      const previous = current.find((row) => String(row.id) === String(item.id));
+      const merged = previous ? { ...previous, ...item } : item;
+      return [merged, ...current.filter((row) => String(row.id) !== String(item.id))];
+    })();
   await writeNamedCache(name, next);
   await invalidateListCaches(NAMED_PREFIX[name]);
 }
@@ -334,6 +367,9 @@ export async function overlayPendingOnGet(endpoint, payload) {
   let items = mergeById([...extrasVisible, ...existing]);
   if (collection.named === 'pharmacie.medicaments') {
     items = await applyLocalStockLevels(items);
+  }
+  if (collection.named === 'pharmacie.ventes') {
+    items = await applyMissingVenteMontants(items);
   }
   const extraOnlyCount = extrasVisible.filter((item) => !existing.some((row) => String(row.id) === String(item.id))).length;
   const pagination = payload?.data?.pagination;

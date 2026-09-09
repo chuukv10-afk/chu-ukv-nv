@@ -23,6 +23,28 @@ export function isLocalId(value) {
   return Number.isNaN(Number(raw));
 }
 
+export function createLocalEntityId(kind = 'entity') {
+  const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `offline-${kind}-${uuid}`;
+}
+
+export function toSyncId(value) {
+  if (value == null || value === '') {
+    return null;
+  }
+  const raw = String(value).trim();
+  if (!raw || raw === 'NaN') {
+    return null;
+  }
+  if (isLocalId(raw)) {
+    return raw;
+  }
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : raw;
+}
+
 export async function rememberIdMapping(entityType, localId, serverId) {
   if (!localId || !serverId) {
     return;

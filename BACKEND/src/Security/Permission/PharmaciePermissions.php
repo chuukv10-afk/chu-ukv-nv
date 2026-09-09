@@ -37,6 +37,7 @@ final class PharmaciePermissions
     public const RECEPTION_VALIDER = 'pharmacie.reception.valider';
 
     public const LOT_READ = 'pharmacie.lot.read';
+    public const LOT_UPDATE = 'pharmacie.lot.update';
     public const MOUVEMENT_READ = 'pharmacie.mouvement.read';
 
     public const VENTE_READ = 'pharmacie.vente.read';
@@ -60,6 +61,7 @@ final class PharmaciePermissions
     public const RECETTE_READ = 'pharmacie.recette.read';
     public const STATISTIQUE_READ = 'pharmacie.statistique.read';
     public const MOUVEMENT_EXPORT = 'pharmacie.mouvement.export';
+    public const SYNC_CONFLICT_DELETE = 'pharmacie.sync_conflict.delete';
 
     /**
      * @return list<array{code: string, libelle: string, module: string}>
@@ -88,6 +90,11 @@ final class PharmaciePermissions
                 [
                     'code' => self::LOT_READ,
                     'libelle' => 'Consulter les lots et péremptions',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::LOT_UPDATE,
+                    'libelle' => 'Modifier le numéro et la date de péremption d’un lot',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
                 [
@@ -154,6 +161,11 @@ final class PharmaciePermissions
                 [
                     'code' => self::STATISTIQUE_READ,
                     'libelle' => 'Consulter les statistiques pharmacie',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::SYNC_CONFLICT_DELETE,
+                    'libelle' => 'Supprimer une écriture hors-ligne non synchronisée (file d’attente ou conflit)',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
             ],

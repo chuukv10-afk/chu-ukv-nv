@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Input, Modal, ModalDialog,
+  Box, Button, Card, Chip, FormControl, FormHelperText, FormLabel, IconButton, Input, Modal, ModalDialog,
   Option, Select, Stack, Typography,
 } from '@mui/joy';
 import { ArrowLeft, Ban, Check, Plus, Printer, Search, ShoppingCart, Trash2 } from 'lucide-react';
@@ -16,6 +16,8 @@ import { fetchLotsVendablesApi } from '../lots/lotsApi.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
 import MedicamentAutocomplete from '../shared/MedicamentAutocomplete.jsx';
 import { entityId, formatDate, formatPatientName, formatPrix, isSameCalendarDay } from '../shared/format.js';
+import { toSyncId } from '../../../offline/idMap.js';
+import { assertVentePayload } from '../../../offline/pharmacyRules.js';
 import { printVenteTicket } from './printVenteTicket.js';
 import {
   EMPTY_VENTE_LIGNE,
@@ -45,11 +47,11 @@ function toPayload(form) {
     clientType: hospitalise ? 'PATIENT' : form.clientType,
     patientId: form.clientType === 'PATIENT' ? form.patientId || null : null,
     clientNom: form.clientType === 'PASSANT' ? form.clientNom.trim() : null,
-    visiteId: hospitalise && form.visiteId ? Number(form.visiteId) : null,
+    visiteId: hospitalise ? toSyncId(form.visiteId) : null,
     modePaiement: form.modePaiement,
     lignes: form.lignes.map((ligne) => ({
-      medicamentId: Number(ligne.medicamentId),
-      lotId: ligne.lotId ? Number(ligne.lotId) : null,
+      medicamentId: toSyncId(ligne.medicamentId),
+      lotId: toSyncId(ligne.lotId),
       quantite: Number(ligne.quantite),
     })),
   };
@@ -229,10 +231,16 @@ export default function VenteFormPage() {
       setError('Sélectionnez une visite hospitalisée.');
       return;
     }
+    const payload = toPayload(form);
+    try {
+      assertVentePayload(payload);
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      const payload = toPayload(form);
       if (isNew) {
         const created = await createVenteApi(payload);
         showSuccess('Brouillon de vente enregistré.');
@@ -250,12 +258,25 @@ export default function VenteFormPage() {
   };
 
   const handleValider = async () => {
+    if (form.clientType === 'HOSPITALISE' && !form.visiteId) {
+      setError('Sélectionnez une visite hospitalisée.');
+      setConfirmAction(null);
+      return;
+    }
+    const payload = toPayload(form);
+    try {
+      assertVentePayload(payload);
+    } catch (err) {
+      setError(err.message);
+      setConfirmAction(null);
+      return;
+    }
     setConfirmLoading(true);
     setSaving(true);
     setError('');
     try {
       if (isNew && offlineCaisse) {
-        const validated = await completeVenteOfflineApi(toPayload(form));
+        const validated = await completeVenteOfflineApi(payload);
         setVente(validated);
         setConfirmAction(null);
         showSuccess('Vente encaissée hors-ligne. Elle sera synchronisée au retour du serveur.');
@@ -263,7 +284,7 @@ export default function VenteFormPage() {
         return;
       }
       if (canSave) {
-        await updateVenteApi(id, toPayload(form));
+        await updateVenteApi(id, payload);
       }
       const validated = await validerVenteApi(id);
       setVente(validated);
@@ -409,13 +430,15 @@ export default function VenteFormPage() {
                   </Select>
                 </FormControl>
                 {form.clientType === 'PASSANT' ? (
-                  <FormControl required sx={{ flex: 1 }}>
+                    <FormControl required sx={{ flex: 1 }}>
                     <FormLabel>Nom du passant</FormLabel>
                     <Input
                       value={form.clientNom}
                       onChange={(e) => setField('clientNom', e.target.value)}
                       disabled={readOnly || saving}
+                      placeholder="Nom et prénom du client"
                     />
+                    <FormHelperText>Obligatoire, y compris hors-ligne — sinon la synchro est refusée.</FormHelperText>
                   </FormControl>
                 ) : form.clientType === 'HOSPITALISE' ? (
                   <FormControl required sx={{ flex: 1 }}>

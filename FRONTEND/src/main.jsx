@@ -7,9 +7,11 @@ import { store } from './store/index.js';
 import { joyTheme } from './theme/joyTheme.js';
 import './styles/global.css';
 
-import('virtual:pwa-register')
-  .then(({ registerSW }) => registerSW({ immediate: true }))
-  .catch(() => {});
+if (!window.electronAPI) {
+  import('virtual:pwa-register')
+    .then(({ registerSW }) => registerSW({ immediate: true }))
+    .catch(() => {});
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

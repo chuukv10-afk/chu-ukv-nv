@@ -16,6 +16,7 @@ use App\DTO\Pharmacie\DemandeServiceLigneInput;
 use App\DTO\Pharmacie\ReceptionLigneInput;
 use App\DTO\Pharmacie\RefuserDemandeInput;
 use App\DTO\Pharmacie\ReglerDemandeInput;
+use App\DTO\Pharmacie\UpdateLotInput;
 use App\DTO\Pharmacie\UpdateFamilleMedicamentInput;
 use App\DTO\Pharmacie\UpdateFournisseurInput;
 use App\DTO\Pharmacie\UpdateMedicamentInput;
@@ -36,6 +37,7 @@ use App\Service\Pharmacie\AjustementService;
 use App\Service\Pharmacie\DemandeServiceService;
 use App\Service\Pharmacie\FamilleMedicamentService;
 use App\Service\Pharmacie\FournisseurService;
+use App\Service\Pharmacie\LotService;
 use App\Service\Pharmacie\MedicamentService;
 use App\Service\Pharmacie\ReceptionService;
 use App\Service\Pharmacie\UniteMedicamentService;
@@ -58,6 +60,7 @@ final class SyncPushService
         private readonly UniteMedicamentService $uniteMedicamentService,
         private readonly FamilleMedicamentService $familleMedicamentService,
         private readonly FournisseurService $fournisseurService,
+        private readonly LotService $lotService,
         private readonly PatientService $patientService,
         private readonly VisiteService $visiteService,
         private readonly ConsultationService $consultationService,
@@ -193,6 +196,7 @@ final class SyncPushService
             'pharmacie.fournisseur.create' => $this->fournisseurCreate($payload),
             'pharmacie.fournisseur.update' => $this->fournisseurUpdate($payload),
             'pharmacie.fournisseur.delete' => $this->fournisseurDelete($payload),
+            'pharmacie.lot.update' => $this->lotUpdate($payload),
             'patient.create' => $this->patientCreate($payload),
             'clinique.visite.create' => $this->visiteCreate($payload),
             'clinique.consultation.create' => $this->consultationCreate($payload),
@@ -603,6 +607,21 @@ final class SyncPushService
         $this->fournisseurService->delete($id);
 
         return ['fournisseur', (string) $id, ['id' => $id, 'deleted' => true]];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function lotUpdate(array $payload): array
+    {
+        $id = $this->requireServerId($payload['id'] ?? 0, 'Lot');
+        $lot = $this->lotService->update($id, new UpdateLotInput(
+            numeroLot: (string) ($payload['numeroLot'] ?? ''),
+            datePeremption: (string) ($payload['datePeremption'] ?? ''),
+        ));
+
+        return ['lot', (string) $lot->getId(), $this->lotService->serializeSummary($lot)];
     }
 
     /**

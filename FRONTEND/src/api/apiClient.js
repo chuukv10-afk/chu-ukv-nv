@@ -7,11 +7,15 @@ import {
 } from '../features/auth/authSession.js';
 import { createOfflineReadError, overlayPendingOnGet, readCacheWithFallback, writeCache } from '../offline/cache.js';
 import { isServerReachable, setConnectivityPatch } from '../offline/connectivity.js';
+import { isDesktopApp } from '../offline/desktop.js';
 import { cancelLocalMutation, enqueueMutation, findPendingByLocalId } from '../offline/outbox.js';
 import { isLocalId } from '../offline/idMap.js';
 import { isAuthBypassEndpoint, matchWritePolicy, shouldBypassCache } from '../offline/policies.js';
 import { getStoredRefreshToken, setStoredRefreshToken, readOfflineSession } from '../offline/session.js';
-import { adjustLocalLot, decrementLocalStock, incrementLocalStock, restoreLocalStock } from '../offline/stockLocal.js';
+import { assertPharmacyWrite } from '../offline/pharmacyRules.js';
+import { adjustLocalLot, decrementLocalStock, incrementLocalStock, restoreLocalStock, updateLocalLotMeta } from '../offline/stockLocal.js';
+import { priceVenteLignes } from '../offline/ventePricing.js';
+import { runSyncCycle } from '../offline/syncEngine.js';
 
 let refreshPromise = null;
 
@@ -178,6 +182,9 @@ async function applyLocalStock(action, payload) {
   if (action === 'pharmacie.ajustement.create') {
     payload.medicamentId = await adjustLocalLot(payload.lotId, payload.type, payload.quantite);
   }
+  if (action === 'pharmacie.lot.update') {
+    await updateLocalLotMeta(payload.id, payload.numeroLot, payload.datePeremption);
+  }
 }
 
 async function enqueueWrite(method, endpoint, body) {
@@ -214,6 +221,8 @@ async function enqueueWrite(method, endpoint, body) {
     }
   }
 
+  const checked = await assertPharmacyWrite(policy.action, payload);
+  Object.assign(payload, checked);
   await applyLocalStock(policy.action, payload);
   const session = await readOfflineSession();
 
@@ -227,16 +236,17 @@ async function enqueueWrite(method, endpoint, body) {
       endpoint,
       method,
       payload,
-      optimistic: buildOptimistic(policy.action, payload),
+      optimistic: await buildOptimistic(policy.action, payload),
       createdByTelephone: session?.profile?.telephone || '',
     }),
   };
 }
 
-function buildOptimistic(action, payload) {
+async function buildOptimistic(action, payload) {
   if (action.startsWith('pharmacie.vente')) {
     const validated = action.includes('valider') || action.includes('complete');
     const now = new Date().toISOString();
+    const priced = await priceVenteLignes(payload.lignes || []);
     return {
       id: payload.id,
       numero: 'OFF-VENTE',
@@ -245,8 +255,8 @@ function buildOptimistic(action, payload) {
       clientNom: payload.clientNom,
       patientId: payload.patientId,
       modePaiement: payload.modePaiement,
-      lignes: payload.lignes || [],
-      montantTotal: '0',
+      lignes: priced.lignes,
+      montantTotal: priced.montantTotal,
       dateVente: now,
       createdAt: now,
     };
@@ -288,6 +298,13 @@ function buildOptimistic(action, payload) {
       referenceExterne: payload.referenceExterne,
       lignes: payload.lignes || [],
       lignesCount: (payload.lignes || []).length,
+    };
+  }
+  if (action === 'pharmacie.lot.update') {
+    return {
+      id: payload.id,
+      numeroLot: String(payload.numeroLot || '').trim().toUpperCase(),
+      datePeremption: payload.datePeremption,
     };
   }
   if (action.startsWith('pharmacie.medicament') || action.startsWith('pharmacie.unite') || action.startsWith('pharmacie.famille') || action.startsWith('pharmacie.fournisseur')) {
@@ -347,8 +364,60 @@ function buildOptimistic(action, payload) {
   return payload;
 }
 
+function isDesktopLocalEndpoint(endpoint) {
+  if (isAuthBypassEndpoint(endpoint) || shouldBypassCache(endpoint)) {
+    return false;
+  }
+  const path = String(endpoint || '').split('?')[0];
+  return path !== '/api/v1/me' && path !== '/api/v1/sync/pull' && path !== '/api/v1/sync/push';
+}
+
+function isComputedLocalEndpoint(endpoint) {
+  const path = String(endpoint || '').split('?')[0];
+  return path === '/api/v1/pharmacie/recettes' || path === '/api/v1/pharmacie/statistiques';
+}
+
+function isEmptyLocalList(payload) {
+  const items = payload?.data?.items;
+  if (!Array.isArray(items)) {
+    return !payload;
+  }
+  return items.length === 0 && Number(payload?.data?.pagination?.total || 0) === 0;
+}
+
 export async function callApi(endpoint, method = 'GET', body = null) {
   const reachable = isServerReachable();
+  const desktop = isDesktopApp();
+
+  if (desktop && method === 'GET' && isDesktopLocalEndpoint(endpoint)) {
+    const local = await readCacheWithFallback(endpoint);
+    const useLocal = local && (
+      isComputedLocalEndpoint(endpoint)
+      || !isEmptyLocalList(local)
+      || !reachable
+    );
+    if (useLocal) {
+      if (reachable && !isComputedLocalEndpoint(endpoint)) {
+        networkFetch(endpoint, method, body)
+          .then(async (payload) => {
+            await writeCache(endpoint, payload);
+          })
+          .catch(() => {});
+      }
+      return local;
+    }
+    if (!reachable) {
+      throw createOfflineReadError(endpoint);
+    }
+  }
+
+  if (desktop && method !== 'GET' && matchWritePolicy(method, endpoint)) {
+    const result = await enqueueWrite(method, endpoint, body);
+    if (reachable) {
+      runSyncCycle().catch(() => {});
+    }
+    return result;
+  }
 
   if (method === 'GET') {
     if (reachable) {

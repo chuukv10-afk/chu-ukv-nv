@@ -3,9 +3,10 @@ import { AUTH_TOKEN_KEY } from '../constants/apiConfig.js';
 import { auth } from '../api/endpoints.js';
 import { isServerReachable, pingServer, setConnectivityPatch } from './connectivity.js';
 import { writeCache, writeNamedCache } from './cache.js';
-import { rememberIdMapping, resolvePayloadIds } from './idMap.js';
-import { addConflict, clearConflict, listPendingMutations, markOutboxStatus, refreshOutboxCounts } from './outbox.js';
-import { decrementLocalStock, incrementLocalStock, replaceStockSnapshot, restoreLocalStock } from './stockLocal.js';
+import { rememberIdMapping, resolvePayloadIds, isLocalId } from './idMap.js';
+import { addConflict, clearConflict, listPendingMutations, markOutboxStatus, refreshOutboxCounts, requeueUnblockedMutations } from './outbox.js';
+import { canPushMutation, sortMutationsForPush } from './outboxOrder.js';
+import { decrementLocalStock, incrementLocalStock, makeLocalLotId, replaceStockSnapshot, restoreLocalStock } from './stockLocal.js';
 
 async function authorizedJson(endpoint, method, body) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -103,14 +104,29 @@ export async function pullSnapshots(modules = ['pharmacie', 'organisation', 'ref
 }
 
 export async function pushOutbox() {
-  const pending = await listPendingMutations();
+  await requeueUnblockedMutations((payload) => resolvePayloadIds(payload));
+  const pending = sortMutationsForPush(await listPendingMutations());
   if (pending.length === 0) {
     await refreshOutboxCounts();
     return [];
   }
 
   const results = [];
-  for (const item of pending) {
+  const queue = [...pending];
+
+  while (queue.length > 0) {
+    let index = -1;
+    for (let i = 0; i < queue.length; i += 1) {
+      if (await canPushMutation(queue[i])) {
+        index = i;
+        break;
+      }
+    }
+    if (index < 0) {
+      break;
+    }
+
+    const item = queue.splice(index, 1)[0];
     const payload = await resolvePayloadIds(item.payload || {});
     const response = await authorizedJson(auth.syncPush, 'POST', {
       mutations: [{
@@ -128,9 +144,7 @@ export async function pushOutbox() {
     results.push(result);
 
     if (result.status === 'ACCEPTED') {
-      if (item.optimistic?.id && result.entityId) {
-        await rememberIdMapping(result.entityType, item.optimistic.id, result.entityId);
-      }
+      await rememberIdsFromResult(item, result);
       await clearConflict(result.clientId);
       await markOutboxStatus(result.clientId, 'synced', { serverId: result.entityId, result });
     } else if (result.status === 'CONFLICT') {
@@ -163,19 +177,55 @@ export async function pushOutbox() {
   return results;
 }
 
+async function rememberIdsFromResult(item, result) {
+  if (item.optimistic?.id && result.entityId) {
+    await rememberIdMapping(result.entityType, item.optimistic.id, result.entityId);
+  }
+  if (item.action !== 'pharmacie.reception.valider') {
+    return;
+  }
+  const serverLignes = result.data?.lignes || [];
+  for (const ligne of serverLignes) {
+    if (!ligne.lotId || !ligne.numeroLot || ligne.medicamentId == null) continue;
+    await rememberIdMapping('lot', makeLocalLotId(ligne.medicamentId, ligne.numeroLot), ligne.lotId);
+  }
+  for (const ligne of item.payload?.lignes || []) {
+    if (!ligne.lotId || !isLocalId(ligne.lotId)) continue;
+    const serverLigne = serverLignes.find((row) => (
+      String(row.medicamentId) === String(ligne.medicamentId)
+      && String(row.numeroLot || '').toUpperCase() === String(ligne.numeroLot || '').toUpperCase()
+    ));
+    if (serverLigne?.lotId) {
+      await rememberIdMapping('lot', ligne.lotId, serverLigne.lotId);
+    }
+  }
+}
+
+let syncCyclePromise = null;
+
 export async function runSyncCycle() {
-  const reachable = await pingServer();
-  if (!reachable || !isServerReachable()) {
-    return { pulled: false, pushed: [] };
+  if (syncCyclePromise) {
+    return syncCyclePromise;
   }
 
-  setConnectivityPatch({ syncing: true });
-  try {
-    await pushOutbox();
-    await pullSnapshots();
-    return { pulled: true };
-  } finally {
-    setConnectivityPatch({ syncing: false });
-    await refreshOutboxCounts();
-  }
+  syncCyclePromise = (async () => {
+    const reachable = await pingServer();
+    if (!reachable || !isServerReachable()) {
+      return { pulled: false, pushed: [] };
+    }
+
+    setConnectivityPatch({ syncing: true });
+    try {
+      await pushOutbox();
+      await pullSnapshots();
+      return { pulled: true };
+    } finally {
+      setConnectivityPatch({ syncing: false });
+      await refreshOutboxCounts();
+    }
+  })().finally(() => {
+    syncCyclePromise = null;
+  });
+
+  return syncCyclePromise;
 }

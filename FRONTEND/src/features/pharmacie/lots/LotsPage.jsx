@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Card, Chip, Input, Option, Select, Sheet, Stack, Table, Typography,
+  Box, Card, Chip, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
-import { AlertTriangle, Layers, Search } from 'lucide-react';
+import { AlertTriangle, Layers, Pencil, Search } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
+import { PERMISSIONS } from '../../../constants/permissions.js';
+import { usePermissions } from '../../../hooks/usePermissions.js';
+import { useToast } from '../../../hooks/useToast.js';
+import { isLocalId } from '../../../offline/idMap.js';
 import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { formatDate, formatPrix } from '../shared/format.js';
+import LotFormModal from './components/LotFormModal.jsx';
 import {
   DEFAULT_LOT_PAGE_SIZE,
   LOT_PAGE_SIZE_OPTIONS,
@@ -14,12 +19,16 @@ import {
   LOT_STATUT_LABELS,
   LOT_STATUTS,
 } from './lotConstants.js';
-import { fetchLotAlertesApi, fetchLotsApi } from './lotsApi.js';
+import { fetchLotAlertesApi, fetchLotsApi, updateLotApi } from './lotsApi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_LOT_PAGE_SIZE, total: 0, totalPages: 0 };
 const EMPTY_ALERTES = { perimes: [], peremptionProche: [], stockBas: [] };
 
 export default function LotsPage() {
+  const { hasPermission } = usePermissions();
+  const { showSuccess } = useToast();
+  const canUpdate = hasPermission(PERMISSIONS.PHARMACIE.LOT_UPDATE);
+
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState(EMPTY_PAGINATION);
   const [alertes, setAlertes] = useState(EMPTY_ALERTES);
@@ -30,6 +39,9 @@ export default function LotsPage() {
   const [statut, setStatut] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_LOT_PAGE_SIZE);
+  const [editing, setEditing] = useState(null);
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -64,6 +76,22 @@ export default function LotsPage() {
   }, [page, limit, debouncedSearch, statut]);
 
   useEffect(() => { load(page); }, [load, page]);
+
+  const handleUpdate = async (payload) => {
+    if (!editing) return;
+    setFormLoading(true);
+    setFormError('');
+    try {
+      await updateLotApi(editing.id, payload);
+      showSuccess('Lot mis à jour.');
+      setEditing(null);
+      await load(page);
+    } catch (error) {
+      setFormError(error.message || 'Mise à jour impossible.');
+    } finally {
+      setFormLoading(false);
+    }
+  };
 
   const alerteCount = alertes.perimes.length + alertes.peremptionProche.length + alertes.stockBas.length;
 
@@ -138,13 +166,14 @@ export default function LotsPage() {
                 <th>Qté restante</th>
                 <th>Prix d’achat</th>
                 <th>Statut</th>
+                {canUpdate ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
+                <tr><td colSpan={canUpdate ? 7 : 6}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={6}><Typography level="body-sm" sx={{ p: 2, color: LOTRU_NEUTRAL[600] }}>Aucun lot.</Typography></td></tr>
+                <tr><td colSpan={canUpdate ? 7 : 6}><Typography level="body-sm" sx={{ p: 2, color: LOTRU_NEUTRAL[600] }}>Aucun lot.</Typography></td></tr>
               ) : items.map((item) => (
                 <tr key={item.id}>
                   <td>{item.medicament ? `${item.medicament.code} — ${item.medicament.libelle}` : '—'}</td>
@@ -160,6 +189,19 @@ export default function LotsPage() {
                       <PendingSyncChip show={item.pendingSync} />
                     </Stack>
                   </td>
+                  {canUpdate ? (
+                    <td style={{ textAlign: 'right' }}>
+                      <IconButton
+                        size="sm"
+                        variant="plain"
+                        disabled={Boolean(item.pendingSync) || isLocalId(item.id)}
+                        title={item.pendingSync || isLocalId(item.id) ? 'Synchronisez ce lot avant de le corriger' : 'Corriger le n° ou la péremption'}
+                        onClick={() => { setFormError(''); setEditing(item); }}
+                      >
+                        <Pencil size={16} />
+                      </IconButton>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -176,6 +218,15 @@ export default function LotsPage() {
           onLimitChange={setLimit}
         />
       </Stack>
+
+      <LotFormModal
+        open={Boolean(editing)}
+        lot={editing}
+        loading={formLoading}
+        error={formError}
+        onClose={() => !formLoading && setEditing(null)}
+        onSubmit={handleUpdate}
+      />
     </Box>
   );
 }

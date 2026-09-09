@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { ROUTES } from '../constants/routes.js';
 import { AUTH_TOKEN_KEY } from '../constants/apiConfig.js';
@@ -55,6 +55,9 @@ import DemandesExamenPage from '../features/clinique/demandes-examen/DemandesExa
 import { PermissionGuard } from '../components/auth/PermissionGuard.jsx';
 import { PERMISSIONS } from '../constants/permissions.js';
 import { fetchMe } from '../features/auth/authService.js';
+import { isDesktopApp } from '../offline/desktop.js';
+
+const Router = isDesktopApp() ? HashRouter : BrowserRouter;
 
 export default function AppRouter() {
   const dispatch = useDispatch();
@@ -79,7 +82,7 @@ export default function AppRouter() {
   }
 
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
         <Route element={<GuestRoute />}>
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
@@ -451,6 +454,6 @@ export default function AppRouter() {
         <Route path={ROUTES.ACCESS_DENIED} element={<AccessDeniedPage />} />
         <Route path={ROUTES.NOT_FOUND} element={<NotFoundPage />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   );
 }

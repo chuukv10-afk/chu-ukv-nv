@@ -7,6 +7,8 @@ import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { useToast } from '../../../hooks/useToast.js';
 import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
+import { toSyncId } from '../../../offline/idMap.js';
+import { assertAjustementPayload } from '../../../offline/pharmacyRules.js';
 import { createAjustementApi } from './ajustementsApi.js';
 import { fetchLotsApi } from '../lots/lotsApi.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
@@ -51,14 +53,21 @@ export default function AjustementsPage() {
   }, [medicamentId]);
 
   const handleSubmit = async () => {
+    const payload = {
+      lotId: toSyncId(lotId),
+      type,
+      quantite: Number(quantite),
+      motif: motif.trim(),
+    };
+    try {
+      assertAjustementPayload(payload);
+    } catch (error) {
+      showError(error.message);
+      return;
+    }
     setSaving(true);
     try {
-      await createAjustementApi({
-        lotId: Number(lotId),
-        type,
-        quantite: Number(quantite),
-        motif: motif.trim(),
-      });
+      await createAjustementApi(payload);
       showSuccess('Ajustement enregistré.');
       setConfirmOpen(false);
       setQuantite(1);

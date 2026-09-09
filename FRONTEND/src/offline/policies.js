@@ -31,6 +31,7 @@ export const WRITE_POLICIES = [
   { method: 'DELETE', test: (path) => /\/api\/v1\/pharmacie\/receptions\/[^/]+$/.test(path), action: 'pharmacie.reception.delete', module: 'pharmacie', idFromPath: (path) => idFrom(path, /receptions\/([^/]+)$/) },
 
   { method: 'POST', test: (path) => path === '/api/v1/pharmacie/ajustements', action: 'pharmacie.ajustement.create', module: 'pharmacie' },
+  { method: 'PUT', test: (path) => /\/api\/v1\/pharmacie\/lots\/[^/]+$/.test(path), action: 'pharmacie.lot.update', module: 'pharmacie', idFromPath: (path) => idFrom(path, /lots\/([^/]+)$/) },
 
   { method: 'POST', test: (path) => path === '/api/v1/pharmacie/medicaments', action: 'pharmacie.medicament.create', module: 'pharmacie' },
   { method: 'PUT', test: (path) => /\/api\/v1\/pharmacie\/medicaments\/[^/]+$/.test(path), action: 'pharmacie.medicament.update', module: 'pharmacie', idFromPath: (path) => idFrom(path, /medicaments\/([^/]+)$/) },
@@ -85,6 +86,7 @@ export function namedListForAction(action = '') {
   if (action.startsWith('pharmacie.famille')) return 'pharmacie.familles';
   if (action.startsWith('pharmacie.fournisseur')) return 'pharmacie.fournisseurs';
   if (action.startsWith('pharmacie.ajustement')) return 'pharmacie.mouvements';
+  if (action.startsWith('pharmacie.lot')) return 'pharmacie.lots';
   if (action.startsWith('patient')) return 'patients';
   if (action.startsWith('clinique.visite')) return 'clinique.visites';
   if (action.startsWith('clinique.consultation')) return 'clinique.consultations';
