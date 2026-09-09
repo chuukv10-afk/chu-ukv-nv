@@ -23,6 +23,10 @@ registerLabels(PERMISSIONS.PATIENT);
 registerLabels(PERMISSIONS.ADMIN);
 
 PERMISSION_LABELS[PERMISSIONS.PHARMACIE.SYNC_CONFLICT_DELETE] = 'Hors-ligne — supprimer une écriture non synchronisée';
+PERMISSION_LABELS[PERMISSIONS.ADMIN.DATABASE_MANAGE] = 'Base de données — consulter';
+PERMISSION_LABELS[PERMISSIONS.ADMIN.DATABASE_EXPORT] = 'Base de données — exporter';
+PERMISSION_LABELS[PERMISSIONS.ADMIN.DATABASE_TRUNCATE] = 'Base de données — vider des tables';
+PERMISSION_LABELS[PERMISSIONS.ADMIN.DATABASE_IMPORT] = 'Base de données — importer SQL';
 PERMISSION_LABELS[PERMISSIONS.PHARMACIE.LOT_UPDATE] = 'Lot — modifier n° et péremption';
 
 function humanizePermissionCode(code) {

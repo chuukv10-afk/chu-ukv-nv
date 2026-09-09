@@ -461,20 +461,25 @@ export async function callApi(endpoint, method = 'GET', body = null) {
   }
 }
 
-async function fetchFile(endpoint) {
+async function fetchFile(endpoint, method = 'GET', body = null) {
   if (!isServerReachable()) {
     throw new Error('L’export nécessite une connexion au serveur.');
   }
 
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const options = { method, headers };
+  if (body && !(body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
 
   if (response.status === 401) {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
-      return fetchFile(endpoint);
+      return fetchFile(endpoint, method, body);
     }
     if (handleUnauthorizedApiResponse(response.status, endpoint)) {
       throw createSessionExpiredError();
@@ -494,8 +499,8 @@ async function fetchFile(endpoint) {
   return response;
 }
 
-export async function downloadFile(endpoint) {
-  const response = await fetchFile(endpoint);
+export async function downloadFile(endpoint, method = 'GET', body = null) {
+  const response = await fetchFile(endpoint, method, body);
   const blob = await response.blob();
   const disposition = response.headers.get('Content-Disposition') ?? '';
   const filenameMatch = disposition.match(/filename="([^"]+)"/i);

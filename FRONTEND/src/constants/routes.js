@@ -66,5 +66,6 @@ export const ROUTES = {
     ROLES: '/admin/roles',
     PERMISSIONS: '/admin/permissions',
     ROLE_PERMISSIONS: '/admin/role-permissions',
+    DATABASE: '/admin/base-de-donnees',
   },
 };

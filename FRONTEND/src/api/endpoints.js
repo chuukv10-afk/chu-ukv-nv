@@ -60,4 +60,5 @@ export const admin = {
   roles: '/api/v1/admin/roles',
   permissions: '/api/v1/admin/permissions',
   rolePermissions: '/api/v1/admin/role-permissions',
+  database: '/api/v1/admin/database',
 };

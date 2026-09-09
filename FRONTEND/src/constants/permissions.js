@@ -161,6 +161,10 @@ export const PERMISSIONS = {
     PERSONNEL_UPDATE: 'admin.personnel.update',
     PERSONNEL_DELETE: 'admin.personnel.delete',
     PERSONNEL_EXPORT: 'admin.personnel.export',
+    DATABASE_MANAGE: 'admin.database.manage',
+    DATABASE_EXPORT: 'admin.database.export',
+    DATABASE_TRUNCATE: 'admin.database.truncate',
+    DATABASE_IMPORT: 'admin.database.import',
   },
 };
 

@@ -25,6 +25,7 @@ import RolesPage from '../features/admin/roles/RolesPage.jsx';
 import PermissionsPage from '../features/admin/permissions/PermissionsPage.jsx';
 import RolePermissionsPage from '../features/admin/role-permissions/RolePermissionsPage.jsx';
 import PersonnelPage from '../features/admin/personnel/PersonnelPage.jsx';
+import DatabaseAdminPage from '../features/admin/database/DatabaseAdminPage.jsx';
 import GradesPage from '../features/referentiel/grades/GradesPage.jsx';
 import SpecialitesPage from '../features/referentiel/specialites/SpecialitesPage.jsx';
 import TypesExamenPage from '../features/referentiel/types-examen/TypesExamenPage.jsx';
@@ -444,6 +445,14 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.ADMIN.PERSONNEL_READ}>
                   <PersonnelPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.ADMIN.DATABASE}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.ADMIN.DATABASE_MANAGE}>
+                  <DatabaseAdminPage />
                 </PermissionGuard>
               )}
             />

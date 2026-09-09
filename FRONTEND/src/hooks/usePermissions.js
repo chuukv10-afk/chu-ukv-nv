@@ -1,6 +1,7 @@
 import { canAccessModule } from '../utils/permissions.js';
 import { ROLES } from '../constants/permissions.js';
 import { useAuth } from './useAuth.js';
+import { isDesktopApp } from '../offline/desktop.js';
 
 export function usePermissions() {
   const { permissions = [], roles = [], profile } = useAuth();
@@ -29,6 +30,10 @@ export function usePermissions() {
 
   const canSeeNavItem = (item) => {
     if (item.module && !canAccessModule(profile?.type, item.module)) {
+      return false;
+    }
+
+    if (item.onlineOnly && isDesktopApp()) {
       return false;
     }
 

@@ -25,6 +25,11 @@ final class AdminPermissions
     public const PERSONNEL_DELETE = 'admin.personnel.delete';
     public const PERSONNEL_EXPORT = 'admin.personnel.export';
 
+    public const DATABASE_MANAGE = 'admin.database.manage';
+    public const DATABASE_EXPORT = 'admin.database.export';
+    public const DATABASE_TRUNCATE = 'admin.database.truncate';
+    public const DATABASE_IMPORT = 'admin.database.import';
+
     /**
      * @return list<array{code: string, libelle: string, module: string}>
      */
@@ -55,6 +60,26 @@ final class AdminPermissions
                 [
                     'code' => self::ROLE_PERMISSION_DELETE,
                     'libelle' => 'Supprimer des affectations permissions/rôles',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::DATABASE_MANAGE,
+                    'libelle' => 'Consulter l\'administration de la base de données',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::DATABASE_EXPORT,
+                    'libelle' => 'Exporter des tables (SQL / Excel)',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::DATABASE_TRUNCATE,
+                    'libelle' => 'Vider des tables de la base',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::DATABASE_IMPORT,
+                    'libelle' => 'Importer un dump SQL',
                     'module' => Permission::MODULE_ADMIN,
                 ],
             ],

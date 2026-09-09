@@ -256,6 +256,13 @@ export const NAV_SECTIONS = [
         permission: PERMISSIONS.ADMIN.ROLE_PERMISSION_READ,
         icon: 'link',
       },
+      {
+        label: 'Base de données',
+        to: ROUTES.ADMIN.DATABASE,
+        permission: PERMISSIONS.ADMIN.DATABASE_MANAGE,
+        icon: 'database',
+        onlineOnly: true,
+      },
     ],
   },
 ];

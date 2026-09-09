@@ -49,6 +49,7 @@ import {
   Truck,
   UserCog,
   Users,
+  Database,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import logo from '../../assets/img/logo.jpg';
@@ -115,6 +116,7 @@ const NAV_ICONS = {
   shield: Shield,
   key: KeyRound,
   link: Link2,
+  database: Database,
 };
 
 function SidebarHeader({ collapsed }) {
