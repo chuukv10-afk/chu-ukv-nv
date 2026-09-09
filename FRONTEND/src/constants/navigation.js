@@ -182,6 +182,42 @@ export const NAV_SECTIONS = [
     ],
   },
   {
+    id: 'intendance',
+    title: 'Intendance',
+    items: [
+      {
+        label: 'Parc',
+        to: ROUTES.INTENDANCE.BIENS,
+        permission: PERMISSIONS.INTENDANCE.BIEN_READ,
+        icon: 'archive',
+      },
+      {
+        label: 'Identifier',
+        to: ROUTES.INTENDANCE.IDENTIFIER,
+        permission: PERMISSIONS.INTENDANCE.BIEN_READ,
+        icon: 'scan',
+      },
+      {
+        label: 'Types de bien',
+        to: ROUTES.INTENDANCE.TYPES,
+        permission: PERMISSIONS.INTENDANCE.TYPE_READ,
+        icon: 'layers',
+      },
+      {
+        label: 'Familles',
+        to: ROUTES.INTENDANCE.FAMILLES,
+        permission: PERMISSIONS.INTENDANCE.FAMILLE_READ,
+        icon: 'tags',
+      },
+      {
+        label: 'Locaux',
+        to: ROUTES.INTENDANCE.LOCAUX,
+        permission: PERMISSIONS.INTENDANCE.LOCAL_READ,
+        icon: 'door',
+      },
+    ],
+  },
+  {
     id: 'clinique',
     title: 'Clinique',
     module: 'CLINIQUE',

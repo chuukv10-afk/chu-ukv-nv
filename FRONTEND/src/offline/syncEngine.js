@@ -142,11 +142,12 @@ export async function pushOutbox() {
       continue;
     }
     results.push(result);
+    const clientId = result.clientId || item.clientId;
 
     if (result.status === 'ACCEPTED') {
       await rememberIdsFromResult(item, result);
-      await clearConflict(result.clientId);
-      await markOutboxStatus(result.clientId, 'synced', { serverId: result.entityId, result });
+      await clearConflict(clientId);
+      await markOutboxStatus(clientId, 'synced', { serverId: result.entityId, result });
     } else if (result.status === 'CONFLICT') {
       if (item.status === 'pending' && (item.action?.includes('vente') || item.action === 'pharmacie.demande_service.delivrer')) {
         await restoreLocalStock(item.payload?.lignes || []);
@@ -166,11 +167,20 @@ export async function pushOutbox() {
           await incrementLocalStock(ligne);
         }
       }
-      await markOutboxStatus(result.clientId, 'conflict', { result });
-      await addConflict(result.clientId, result.message || 'Conflit de synchronisation.', item.payload);
+      await markOutboxStatus(clientId, 'conflict', { result });
+      await addConflict(clientId, result.message || 'Conflit de synchronisation.', {
+        ...item.payload,
+        action: item.action,
+        optimistic: item.optimistic,
+      });
     } else {
-      await markOutboxStatus(result.clientId, 'rejected', { result });
-      await addConflict(result.clientId, result.message || 'Mutation rejetée.', result);
+      await markOutboxStatus(clientId, 'rejected', { result });
+      await addConflict(clientId, result.message || 'Mutation rejetée.', {
+        ...item.payload,
+        action: item.action,
+        optimistic: item.optimistic,
+        result,
+      });
     }
   }
 

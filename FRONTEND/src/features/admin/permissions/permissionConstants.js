@@ -5,6 +5,7 @@ export const PERMISSION_MODULES = [
   { value: 'ORGANISATION', label: 'Organisation' },
   { value: 'REFERENTIEL', label: 'Référentiel' },
   { value: 'PHARMACIE', label: 'Pharmacie' },
+  { value: 'INTENDANCE', label: 'Intendance' },
   { value: 'ADMIN', label: 'Administration' },
 ];
 

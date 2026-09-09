@@ -45,6 +45,14 @@ export const ROUTES = {
     STATISTIQUES: '/pharmacie/statistiques',
   },
 
+  INTENDANCE: {
+    BIENS: '/intendance/parc',
+    IDENTIFIER: '/intendance/identifier',
+    FAMILLES: '/intendance/familles',
+    TYPES: '/intendance/types',
+    LOCAUX: '/intendance/locaux',
+  },
+
   CLINIQUE: {
     EXAMENS: '/clinique/examens',
     DEMANDES_EXAMEN: '/clinique/demandes-examen',

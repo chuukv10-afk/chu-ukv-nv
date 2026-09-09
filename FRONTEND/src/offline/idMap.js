@@ -95,8 +95,31 @@ export async function resolvePayloadIds(payload) {
   if (Array.isArray(next.lignes)) {
     next.lignes = await Promise.all(next.lignes.map((ligne) => resolvePayloadIds(ligne)));
   }
+  if (!hasPositiveId(next.medicamentId) && next.medicament != null) {
+    next.medicamentId = coerceId('medicamentId', await resolveServerId(flattenEntityId(next.medicament)));
+  }
+  if (!hasPositiveId(next.lotId) && next.lot != null) {
+    next.lotId = coerceId('lotId', await resolveServerId(flattenEntityId(next.lot)));
+  }
   if (next.lotId != null && (isLocalId(next.lotId) || Number(next.lotId) <= 0 || Number.isNaN(Number(next.lotId)))) {
     next.lotId = null;
   }
   return next;
+}
+
+export function flattenEntityId(value) {
+  if (value == null || value === '') return value;
+  if (typeof value === 'object' && !Array.isArray(value) && value.id != null) {
+    return value.id;
+  }
+  return value;
+}
+
+function hasPositiveId(value) {
+  if (value == null || value === '') return false;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return numeric > 0;
+  }
+  return String(value).trim() !== '';
 }

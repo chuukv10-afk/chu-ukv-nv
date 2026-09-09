@@ -13,6 +13,7 @@ import {
 import {
   Activity,
   AlertTriangle,
+  Archive,
   ArrowLeftRight,
   Award,
   BarChart3,
@@ -39,6 +40,7 @@ import {
   PackagePlus,
   Pill,
   Receipt,
+  ScanLine,
   Wallet,
   Shield,
   ShieldCheck,
@@ -82,6 +84,8 @@ const SIDEBAR_SCROLL_SX = {
 
 const NAV_ICONS = {
   dashboard: LayoutDashboard,
+  archive: Archive,
+  scan: ScanLine,
   building: Building2,
   network: Network,
   bed: BedDouble,

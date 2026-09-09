@@ -38,7 +38,15 @@ const STATUS_CHIPS = {
 };
 
 function actionLabel(action) {
-  return ACTION_LABELS[action] || action || 'Opération';
+  return ACTION_LABELS[action] || action || 'Opération hors-ligne';
+}
+
+function humanizeMessage(message) {
+  if (!message) return 'Écriture refusée.';
+  return String(message)
+    .replace(/Object\([^)]+\)\./g, '')
+    .replace(/\s*\(code [0-9a-f-]{36}\)/gi, '')
+    .trim();
 }
 
 export default function ConflictPanel({ open, onClose }) {
@@ -49,15 +57,23 @@ export default function ConflictPanel({ open, onClose }) {
   const [pending, setPending] = useState(null);
 
   const reload = async () => {
-    setItems(await listUnsyncedMutations());
+    try {
+      setItems(await listUnsyncedMutations());
+    } catch {
+      setItems([]);
+    }
   };
 
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
-    listUnsyncedMutations().then((rows) => {
-      if (!cancelled) setItems(rows);
-    });
+    listUnsyncedMutations()
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
     return () => { cancelled = true; };
   }, [open]);
 
@@ -68,7 +84,7 @@ export default function ConflictPanel({ open, onClose }) {
       if (pending === 'all') {
         await discardAllUnsynced();
       } else {
-        await discardUnsynced(pending.clientId);
+        await discardUnsynced(pending.clientId, pending.conflictRecordId);
       }
       await reload();
       setPending(null);
@@ -110,7 +126,7 @@ export default function ConflictPanel({ open, onClose }) {
                   {items.map((item) => {
                     const status = STATUS_CHIPS[item.status] || STATUS_CHIPS.conflict;
                     return (
-                      <tr key={item.clientId || item.id}>
+                      <tr key={item.clientId || item.id || item.createdAt}>
                         <td>{formatDateTime(item.createdAt)}</td>
                         <td>
                           <Stack spacing={0.25}>
@@ -124,7 +140,9 @@ export default function ConflictPanel({ open, onClose }) {
                           <Chip size="sm" variant="soft" color={status.color}>{status.label}</Chip>
                         </td>
                         <td>
-                          <Typography level="body-xs">{item.message || '—'}</Typography>
+                          <Typography level="body-xs" sx={{ whiteSpace: 'pre-wrap' }}>
+                            {humanizeMessage(item.message)}
+                          </Typography>
                         </td>
                         {canDelete ? (
                           <td>

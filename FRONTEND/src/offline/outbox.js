@@ -38,7 +38,23 @@ function isFollowUpAction(action = '') {
 }
 
 async function listByStatus(statuses) {
-  return offlineDb.outbox.where('status').anyOf(statuses).sortBy('createdAt');
+  const wanted = new Set(statuses);
+  try {
+    const rows = await offlineDb.outbox.where('status').anyOf(statuses).sortBy('createdAt');
+    if (Array.isArray(rows)) {
+      return rows.filter(Boolean);
+    }
+  } catch {
+    // SQLite / Dexie : repli sur la liste complète.
+  }
+  try {
+    const all = await offlineDb.outbox.toArray();
+    return (Array.isArray(all) ? all : [])
+      .filter((row) => row && wanted.has(row.status))
+      .sort((left, right) => String(left.createdAt || '').localeCompare(String(right.createdAt || '')));
+  } catch {
+    return [];
+  }
 }
 
 function sameLocalEntity(row, localId) {
@@ -239,8 +255,20 @@ export async function markOutboxStatus(clientId, status, extra = {}) {
 }
 
 export async function clearConflict(clientId) {
-  const existing = await offlineDb.conflicts.where('clientId').equals(clientId).toArray();
-  await Promise.all(existing.map((row) => offlineDb.conflicts.delete(row.id)));
+  if (clientId) {
+    const existing = await offlineDb.conflicts.where('clientId').equals(clientId).toArray();
+    await Promise.all(existing.map((row) => offlineDb.conflicts.delete(row.id)));
+  }
+  if (clientId && String(clientId).startsWith('orphan-')) {
+    const numericId = Number(String(clientId).slice('orphan-'.length));
+    if (Number.isFinite(numericId) && numericId > 0) {
+      try {
+        await offlineDb.conflicts.delete(numericId);
+      } catch {
+        // déjà supprimé
+      }
+    }
+  }
 }
 
 export async function addConflict(clientId, message, payload) {
@@ -278,28 +306,61 @@ export async function listUnsyncedMutations() {
     listRetryableMutations(),
     listConflicts(),
   ]);
-  const byClient = Object.fromEntries(conflicts.map((item) => [item.clientId, item]));
-  return rows.map((row) => {
+  const byClient = Object.fromEntries(
+    conflicts
+      .filter((item) => item?.clientId)
+      .map((item) => [item.clientId, item]),
+  );
+  const listed = new Set();
+  const items = rows.filter(Boolean).map((row) => {
+    listed.add(row.clientId);
     const conflict = byClient[row.clientId];
     return {
       id: row.id,
       clientId: row.clientId,
-      createdAt: row.createdAt,
+      createdAt: row.createdAt || conflict?.createdAt,
       action: row.action,
       status: row.status,
-      payload: row.payload,
+      payload: row.payload || conflict?.payload,
       optimistic: row.optimistic,
+      conflictRecordId: conflict?.id ?? null,
       message: conflict?.message
         || (row.status === 'pending'
           ? 'En attente de synchronisation.'
           : row.result?.message || 'Écriture refusée.'),
     };
   });
+
+  for (const conflict of conflicts) {
+    if (!conflict || listed.has(conflict.clientId)) continue;
+    items.push({
+      id: conflict.id != null ? `conflict-${conflict.id}` : `conflict-${conflict.clientId || conflict.createdAt}`,
+      clientId: conflict.clientId || `orphan-${conflict.id || conflict.createdAt}`,
+      createdAt: conflict.createdAt,
+      action: conflict.payload?.action || conflict.payload?.optimistic?.action || '',
+      status: 'conflict',
+      payload: conflict.payload,
+      optimistic: conflict.payload?.optimistic || conflict.payload,
+      conflictRecordId: conflict.id ?? null,
+      message: conflict.message || 'Écriture refusée.',
+    });
+  }
+
+  return items;
 }
 
-export async function discardUnsynced(clientId) {
-  const row = await offlineDb.outbox.where('clientId').equals(clientId).first();
+export async function discardUnsynced(clientId, conflictRecordId = null) {
+  const row = clientId
+    ? await offlineDb.outbox.where('clientId').equals(clientId).first()
+    : null;
   await clearConflict(clientId);
+  if (conflictRecordId != null) {
+    try {
+      await offlineDb.conflicts.delete(conflictRecordId);
+    } catch {
+      // déjà supprimé
+    }
+  }
   if (!row) {
     await refreshOutboxCounts();
     return;
@@ -319,7 +380,7 @@ export async function discardUnsynced(clientId) {
 export async function discardAllUnsynced() {
   const rows = await listUnsyncedMutations();
   for (const row of rows) {
-    await discardUnsynced(row.clientId);
+    await discardUnsynced(row.clientId, row.conflictRecordId);
   }
 }
 

@@ -25,6 +25,7 @@ use App\DTO\Pharmacie\UpsertDemandeServiceInput;
 use App\DTO\Pharmacie\UpsertReceptionInput;
 use App\DTO\Pharmacie\UpsertVenteInput;
 use App\DTO\Pharmacie\VenteLigneInput;
+use App\Entity\Lot;
 use App\Entity\Personnel;
 use App\Entity\SyncMutation;
 use App\Exception\ConflictException;
@@ -785,6 +786,23 @@ final class SyncPushService
         return (string) $value;
     }
 
+    private function positiveIntId(mixed $value): int
+    {
+        if (is_array($value)) {
+            return $this->positiveIntId($value['id'] ?? 0);
+        }
+        if (is_int($value)) {
+            return $value > 0 ? $value : 0;
+        }
+        if (is_string($value) && ctype_digit(trim($value))) {
+            $id = (int) trim($value);
+
+            return $id > 0 ? $id : 0;
+        }
+
+        return 0;
+    }
+
     /**
      * @param array<string, mixed> $payload
      */
@@ -795,11 +813,15 @@ final class SyncPushService
             if (!is_array($ligne)) {
                 continue;
             }
-            $lotId = $ligne['lotId'] ?? null;
-            $resolvedLotId = null !== $lotId && '' !== $lotId && is_numeric($lotId) ? (int) $lotId : null;
+            $lotId = $this->positiveIntId($ligne['lotId'] ?? $ligne['lot'] ?? null);
+            $medicamentId = $this->positiveIntId($ligne['medicamentId'] ?? $ligne['medicament'] ?? null);
+            if ($medicamentId <= 0 && $lotId > 0) {
+                $lot = $this->entityManager->find(Lot::class, $lotId);
+                $medicamentId = (int) ($lot?->getMedicament()?->getId() ?? 0);
+            }
             $lignes[] = new VenteLigneInput(
-                medicamentId: (int) ($ligne['medicamentId'] ?? 0),
-                lotId: null !== $resolvedLotId && $resolvedLotId > 0 ? $resolvedLotId : null,
+                medicamentId: $medicamentId,
+                lotId: $lotId > 0 ? $lotId : null,
                 quantite: (int) ($ligne['quantite'] ?? 0),
             );
         }

@@ -32,6 +32,13 @@ export const pharmacie = {
   statistiques: '/api/v1/pharmacie/statistiques',
 };
 
+export const intendance = {
+  familles: '/api/v1/intendance/familles',
+  types: '/api/v1/intendance/types',
+  locaux: '/api/v1/intendance/locaux',
+  biens: '/api/v1/intendance/biens',
+};
+
 export const referentiel = {
   grades: '/api/v1/referentiel/grades',
   specialites: '/api/v1/referentiel/specialites',

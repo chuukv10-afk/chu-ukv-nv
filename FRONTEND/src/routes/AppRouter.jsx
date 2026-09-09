@@ -49,6 +49,11 @@ import AjustementsPage from '../features/pharmacie/ajustements/AjustementsPage.j
 import AlertesPage from '../features/pharmacie/alertes/AlertesPage.jsx';
 import RecettesPage from '../features/pharmacie/recettes/RecettesPage.jsx';
 import StatistiquesPage from '../features/pharmacie/statistiques/StatistiquesPage.jsx';
+import IntendanceBiensPage from '../features/intendance/biens/BiensPage.jsx';
+import IntendanceFamillesPage from '../features/intendance/familles/FamillesPage.jsx';
+import IntendanceTypesPage from '../features/intendance/types/TypesPage.jsx';
+import IntendanceLocauxPage from '../features/intendance/locaux/LocauxPage.jsx';
+import IntendanceIdentifierPage from '../features/intendance/identifier/IdentifierPage.jsx';
 import ConsultationDetailPage from '../features/clinique/consultations/ConsultationDetailPage.jsx';
 import TourDeSalleHubPage from '../features/clinique/tour-de-salle/TourDeSalleHubPage.jsx';
 import TourDeSalleFichePage from '../features/clinique/tour-de-salle/TourDeSalleFichePage.jsx';
@@ -413,6 +418,46 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.PHARMACIE.STATISTIQUE_READ}>
                   <StatistiquesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.INTENDANCE.BIENS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.INTENDANCE.BIEN_READ}>
+                  <IntendanceBiensPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.INTENDANCE.IDENTIFIER}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.INTENDANCE.BIEN_READ}>
+                  <IntendanceIdentifierPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.INTENDANCE.FAMILLES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.INTENDANCE.FAMILLE_READ}>
+                  <IntendanceFamillesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.INTENDANCE.TYPES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.INTENDANCE.TYPE_READ}>
+                  <IntendanceTypesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.INTENDANCE.LOCAUX}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.INTENDANCE.LOCAL_READ}>
+                  <IntendanceLocauxPage />
                 </PermissionGuard>
               )}
             />

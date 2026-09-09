@@ -123,6 +123,13 @@ function storeOp(getDatabase, store, op, args = []) {
       const row = db.prepare(`SELECT COUNT(*) AS n FROM kv_outbox WHERE ${column} = ?`).get(String(value));
       return Number(row?.n || 0);
     }
+    if (op === "toArray") {
+      return db
+        .prepare("SELECT id, data FROM kv_outbox ORDER BY createdAt ASC")
+        .all()
+        .map((row) => ({ ...parseRow(row), id: Number(row.id) }))
+        .filter((row) => row.id != null);
+    }
     if (op === "whereAnyOf") {
       const [field, values, sortField] = args;
       const column = assertField("outbox", field);

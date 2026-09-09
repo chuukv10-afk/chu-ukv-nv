@@ -10,6 +10,7 @@ use App\Security\Permission\AdminPermissions;
 use App\Security\Permission\CliniquePermissions;
 use App\Security\Permission\OrganisationPermissions;
 use App\Security\Permission\PatientPermissions;
+use App\Security\Permission\IntendancePermissions;
 use App\Security\Permission\PharmaciePermissions;
 use App\Security\Permission\ReferentielPermissions;
 use Doctrine\ORM\EntityManagerInterface;
@@ -39,6 +40,7 @@ final class PermissionProvisioner
             CliniquePermissions::allDefinitions(),
             PatientPermissions::allDefinitions(),
             PharmaciePermissions::allDefinitions(),
+            IntendancePermissions::allDefinitions(),
             AdminPermissions::allDefinitions(),
         );
 

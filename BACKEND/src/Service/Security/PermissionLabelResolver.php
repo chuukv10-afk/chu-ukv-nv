@@ -4,7 +4,9 @@ namespace App\Service\Security;
 
 use App\Security\Permission\AdminPermissions;
 use App\Security\Permission\CliniquePermissions;
+use App\Security\Permission\IntendancePermissions;
 use App\Security\Permission\OrganisationPermissions;
+use App\Security\Permission\PharmaciePermissions;
 use App\Security\Permission\ReferentielPermissions;
 
 final class PermissionLabelResolver
@@ -63,6 +65,8 @@ final class PermissionLabelResolver
             OrganisationPermissions::allDefinitions(),
             ReferentielPermissions::allDefinitions(),
             CliniquePermissions::allDefinitions(),
+            PharmaciePermissions::allDefinitions(),
+            IntendancePermissions::allDefinitions(),
             AdminPermissions::allDefinitions(),
         );
     }
