@@ -499,12 +499,43 @@ async function fetchFile(endpoint, method = 'GET', body = null) {
   return response;
 }
 
-export async function downloadFile(endpoint, method = 'GET', body = null) {
+function filenameFromDownloadResponse(response, fallbackFilename = 'export') {
+  const headerName = response.headers.get('X-Export-Filename');
+  if (headerName) {
+    return headerName.trim();
+  }
+
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const utf8Match = disposition.match(/filename\*=(?:UTF-8''|)([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].replace(/['"]/g, '').trim());
+    } catch {
+      // ignore malformed RFC 5987 value
+    }
+  }
+
+  const quotedMatch = disposition.match(/filename="([^"]+)"/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  const unquotedMatch = disposition.match(/filename=([^;]+)/i);
+  if (unquotedMatch?.[1]) {
+    return unquotedMatch[1].trim().replace(/^["']|["']$/g, '');
+  }
+
+  return fallbackFilename;
+}
+
+export async function downloadFile(endpoint, method = 'GET', body = null, fallbackFilename = 'export') {
   const response = await fetchFile(endpoint, method, body);
   const blob = await response.blob();
-  const disposition = response.headers.get('Content-Disposition') ?? '';
-  const filenameMatch = disposition.match(/filename="([^"]+)"/i);
-  const filename = filenameMatch?.[1] ?? 'export';
+  let filename = filenameFromDownloadResponse(response, fallbackFilename);
+
+  if (!/\.[A-Za-z0-9]+$/.test(filename) && /\.[A-Za-z0-9]+$/.test(fallbackFilename)) {
+    filename = `${filename}${fallbackFilename.slice(fallbackFilename.lastIndexOf('.'))}`;
+  }
 
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement('a');

@@ -8,7 +8,6 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
-use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -193,10 +192,15 @@ final class DatabaseAdminService
             if (false === $out) {
                 return;
             }
-            fwrite($out, "-- CHU UKV SQL export\n");
-            fwrite($out, '-- Database: ' . $this->databaseName() . "\n");
-            fwrite($out, '-- Generated at: ' . $stamp . "\n\n");
-            fwrite($out, "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\nSET FOREIGN_KEY_CHECKS = 0;\nSET NAMES utf8mb4;\n\n");
+            $database = $this->databaseName();
+            fwrite($out, "-- CHU UKV SQL Dump\n");
+            fwrite($out, "-- Generation Time: {$stamp}\n");
+            fwrite($out, "-- Database: `{$database}`\n\n");
+            fwrite($out, "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\n");
+            fwrite($out, "START TRANSACTION;\n");
+            fwrite($out, "SET time_zone = \"+00:00\";\n");
+            fwrite($out, "SET FOREIGN_KEY_CHECKS = 0;\n");
+            fwrite($out, "SET NAMES utf8mb4;\n\n");
 
             foreach ($tables as $table) {
                 $quoted = $quote($table);
@@ -216,16 +220,15 @@ final class DatabaseAdminService
             }
 
             fwrite($out, "SET FOREIGN_KEY_CHECKS = 1;\n");
+            fwrite($out, "COMMIT;\n");
             fclose($out);
         });
 
-        $response->headers->set('Content-Type', 'application/sql; charset=utf-8');
-        $response->headers->set(
-            'Content-Disposition',
-            HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_ATTACHMENT, $filename),
+        return $this->withDownloadHeaders(
+            $response,
+            $filename,
+            'application/sql; charset=utf-8',
         );
-
-        return $response;
     }
 
     /**
@@ -293,11 +296,24 @@ final class DatabaseAdminService
         $spreadsheet->disconnectWorksheets();
 
         $response = new Response($content === false ? '' : $content);
-        $response->headers->set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        return $this->withDownloadHeaders(
+            $response,
+            sprintf('chu-ukv-%s.xlsx', $stamp),
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        );
+    }
+
+    private function withDownloadHeaders(Response $response, string $filename, string $contentType): Response
+    {
+        $response->headers->set('Content-Type', $contentType);
         $response->headers->set(
             'Content-Disposition',
-            HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_ATTACHMENT, sprintf('chu-ukv-%s.xlsx', $stamp)),
+            sprintf('attachment; filename="%s"; filename*=UTF-8\'\'%s', $filename, rawurlencode($filename)),
         );
+        $response->headers->set('X-Export-Filename', $filename);
+        $response->headers->set('Access-Control-Expose-Headers', 'Content-Disposition, X-Export-Filename');
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
 
         return $response;
     }

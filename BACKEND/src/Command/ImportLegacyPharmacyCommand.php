@@ -35,11 +35,18 @@ final class ImportLegacyPharmacyCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $file = (string) ($input->getOption('file') ?: $this->defaultDumpPath());
+        $requested = $input->getOption('file');
+        $file = is_string($requested) && '' !== trim($requested)
+            ? trim($requested)
+            : ($this->findDumpPath() ?? $this->expectedDumpPath());
         $apply = (bool) $input->getOption('apply');
 
         if (!is_readable($file)) {
             $io->error(sprintf('Fichier introuvable : %s', $file));
+            $io->writeln('Le dump SQL n’est pas sur le serveur. Copiez-le, puis :');
+            $io->writeln('  php bin/console app:pharmacie:import-legacy-sigai --file=/chemin/vers/export_tables_2026-09-09-01-50-37.sql');
+            $io->writeln('Puis, après simulation OK :');
+            $io->writeln('  php bin/console app:pharmacie:import-legacy-sigai --file=/chemin/vers/export_tables_2026-09-09-01-50-37.sql --apply');
 
             return Command::FAILURE;
         }
@@ -95,7 +102,34 @@ final class ImportLegacyPharmacyCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function defaultDumpPath(): string
+    private function findDumpPath(): ?string
+    {
+        $filename = 'export_tables_2026-09-09-01-50-37.sql';
+        $dirs = array_unique(array_filter([
+            getcwd() ?: null,
+            $this->projectDir,
+            dirname($this->projectDir),
+            dirname($this->projectDir, 2),
+        ]));
+
+        foreach ($dirs as $dir) {
+            $path = $dir . DIRECTORY_SEPARATOR . $filename;
+            if (is_readable($path)) {
+                return $path;
+            }
+        }
+
+        foreach ($dirs as $dir) {
+            $matches = glob($dir . DIRECTORY_SEPARATOR . 'export_tables_*.sql') ?: [];
+            if ($matches !== []) {
+                return $matches[0];
+            }
+        }
+
+        return null;
+    }
+
+    private function expectedDumpPath(): string
     {
         return dirname($this->projectDir, 2) . DIRECTORY_SEPARATOR . 'export_tables_2026-09-09-01-50-37.sql';
     }
