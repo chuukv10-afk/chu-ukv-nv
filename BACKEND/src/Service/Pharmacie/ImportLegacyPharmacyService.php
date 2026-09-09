@@ -92,9 +92,10 @@ final class ImportLegacyPharmacyService
             throw new ConflictException('Aucun médicament trouvé dans le dump SIGAI.');
         }
 
-        $existingInit = $this->receptionRepository->findOneBy(['referenceExterne' => self::REF_VENDABLE]);
-        if (null !== $existingInit && !$dryRun) {
-            throw new ConflictException('Une réception de reprise existe déjà (REPRISE-SIGAI-2026-09-09). Import déjà fait.');
+        $existingVendable = $this->receptionRepository->findOneBy(['referenceExterne' => self::REF_VENDABLE]);
+        $existingPerime = $this->receptionRepository->findOneBy(['referenceExterne' => self::REF_PERIME]);
+        if (null !== $existingVendable && null !== $existingPerime && !$dryRun) {
+            throw new ConflictException('Une reprise SIGAI existe déjà (réceptions vendable et périmée). Import déjà fait.');
         }
 
         $warnings = [];
@@ -289,8 +290,9 @@ final class ImportLegacyPharmacyService
             }
 
             $expiryRaw = $row['expiration_date'] ?? null;
-            $expiry = is_string($expiryRaw) && '' !== $expiryRaw ? $expiryRaw : self::DEFAULT_PEREMPTION;
-            if (!is_string($expiryRaw) || '' === $expiryRaw) {
+            $expiry = $this->normalizeExpiry($expiryRaw);
+            if (null === $expiry) {
+                $expiry = self::DEFAULT_PEREMPTION;
                 $warnings[] = sprintf('%s : péremption absente, lot au %s.', $libelle, self::DEFAULT_PEREMPTION);
             }
             $prixAchat = $this->prix((string) ($row['reference_price'] ?? '0'));
@@ -323,8 +325,18 @@ final class ImportLegacyPharmacyService
             if (null === $reprise) {
                 throw new ConflictException('Fournisseur de reprise introuvable après création.');
             }
-            $this->creerReception(self::REF_VENDABLE, self::DATE_RECEPTION, $reprise, $lignesVendables);
-            $this->creerReception(self::REF_PERIME, self::DATE_RECEPTION_PERIME, $reprise, $lignesPerimes);
+            $this->creerReception(
+                self::REF_VENDABLE,
+                $this->dateReceptionSafe(self::DATE_RECEPTION, $lignesVendables),
+                $reprise,
+                $lignesVendables,
+            );
+            $this->creerReception(
+                self::REF_PERIME,
+                $this->dateReceptionSafe(self::DATE_RECEPTION_PERIME, $lignesPerimes),
+                $reprise,
+                $lignesPerimes,
+            );
         }
 
         $counts['warnings'] = $warnings;
@@ -370,6 +382,45 @@ final class ImportLegacyPharmacyService
             $inputs,
         ));
         $this->receptionService->valider((int) $reception->getId());
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lignes
+     */
+    private function dateReceptionSafe(string $fallback, array $lignes): string
+    {
+        $fallbackDate = \DateTimeImmutable::createFromFormat('Y-m-d', $fallback) ?: $this->stockService->today();
+        $fallbackDate = $fallbackDate->setTime(0, 0);
+        $minExpiry = null;
+        foreach ($lignes as $ligne) {
+            $parsed = \DateTimeImmutable::createFromFormat('Y-m-d', substr((string) $ligne['datePeremption'], 0, 10));
+            if (false === $parsed) {
+                continue;
+            }
+            $parsed = $parsed->setTime(0, 0);
+            if (null === $minExpiry || $parsed < $minExpiry) {
+                $minExpiry = $parsed;
+            }
+        }
+        if (null !== $minExpiry && $minExpiry <= $fallbackDate) {
+            return $minExpiry->modify('-1 day')->format('Y-m-d');
+        }
+
+        return $fallbackDate->format('Y-m-d');
+    }
+
+    private function normalizeExpiry(mixed $value): ?string
+    {
+        if (!is_string($value) && !is_numeric($value)) {
+            return null;
+        }
+        $raw = substr(trim((string) $value), 0, 10);
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $raw);
+        if (false === $date) {
+            return null;
+        }
+
+        return $date->format('Y-m-d');
     }
 
     private function medicamentCode(int $oldId): string
