@@ -1,16 +1,15 @@
-import { Box, Grid, Skeleton, Stack, Typography } from '@mui/joy';
+import { Alert, Box, Grid, Skeleton, Stack, Typography } from '@mui/joy';
 import { ClipboardList, FolderOpen, Network, Users } from 'lucide-react';
 import ActivityBarChart from '../../features/dashboard/components/ActivityBarChart.jsx';
 import ModuleDonutChart from '../../features/dashboard/components/ModuleDonutChart.jsx';
 import StatCard from '../../features/dashboard/components/StatCard.jsx';
-import {
-  MODULE_DISTRIBUTION,
-  useDashboardStats,
-  WEEKLY_ACTIVITY,
-} from '../../features/dashboard/useDashboardStats.js';
+import { useDashboardStats } from '../../features/dashboard/useDashboardStats.js';
 import { useAuth } from '../../hooks/useAuth.js';
+import { usePermissions } from '../../hooks/usePermissions.js';
+import { PERMISSIONS } from '../../constants/permissions.js';
 import { getDisplayName, getPersonnelTypeLabel } from '../../utils/profile.js';
 import { LOTRU_PRIMARY } from '../../theme/lotruPalette.js';
+import WelcomeHome from './WelcomeHome.jsx';
 
 const STAT_CONFIG = [
   {
@@ -43,24 +42,27 @@ const STAT_CONFIG = [
   },
 ];
 
-function formatStatValue(key, value) {
-  if (key === 'dossiersPatient' || key === 'personnel') {
-    return value.toLocaleString('fr-FR');
-  }
-
-  return String(value);
+function formatStatValue(value) {
+  return Number(value || 0).toLocaleString('fr-FR');
 }
 
 export default function DashboardPage() {
   const { profile, isMedical } = useAuth();
-  const { stats, trends, loading } = useDashboardStats();
+  const { isAdmin, hasPermission } = usePermissions();
+  const canViewDashboard = isAdmin || hasPermission(PERMISSIONS.ADMIN.DASHBOARD_VIEW);
+  const { stats, trends, trendLabels, weeklyActivity, moduleDistribution, loading, error } =
+    useDashboardStats(canViewDashboard);
   const firstName = profile?.prenom || getDisplayName(profile).split(' ')[0];
+
+  if (!canViewDashboard) {
+    return <WelcomeHome />;
+  }
 
   return (
     <Stack spacing={3}>
       <Box>
         <Typography level="h2" sx={{ fontWeight: 700, mb: 0.5 }}>
-          Overview
+          Tableau de bord
         </Typography>
         <Typography level="body-md" sx={{ color: 'neutral.500' }}>
           Bonjour {firstName} · {getPersonnelTypeLabel(profile?.type)}
@@ -68,6 +70,12 @@ export default function DashboardPage() {
           {isMedical ? ' · Accès clinique' : ''}
         </Typography>
       </Box>
+
+      {error ? (
+        <Alert color="danger" variant="soft">
+          {error}
+        </Alert>
+      ) : null}
 
       <Box
         sx={{
@@ -87,8 +95,9 @@ export default function DashboardPage() {
             <StatCard
               key={config.key}
               label={config.label}
-              value={formatStatValue(config.key, stats[config.key])}
+              value={formatStatValue(stats[config.key])}
               trend={trends[config.key]}
+              trendLabel={trendLabels[config.key]}
               icon={config.icon}
               iconBg={config.iconBg}
               iconColor={config.iconColor}
@@ -99,10 +108,18 @@ export default function DashboardPage() {
 
       <Grid container spacing={2}>
         <Grid xs={12} lg={8}>
-          <ActivityBarChart data={WEEKLY_ACTIVITY} />
+          {loading ? (
+            <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 'lg' }} />
+          ) : (
+            <ActivityBarChart data={weeklyActivity} />
+          )}
         </Grid>
         <Grid xs={12} lg={4}>
-          <ModuleDonutChart data={MODULE_DISTRIBUTION} totalLabel="Activité" />
+          {loading ? (
+            <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 'lg' }} />
+          ) : (
+            <ModuleDonutChart data={moduleDistribution} totalLabel="Activité" />
+          )}
         </Grid>
       </Grid>
     </Stack>

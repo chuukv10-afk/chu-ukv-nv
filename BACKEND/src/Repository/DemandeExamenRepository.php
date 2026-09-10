@@ -144,4 +144,28 @@ class DemandeExamenRepository extends ServiceEntityRepository
             ->andWhere('s.id IN (:scopeServiceIds)')
             ->setParameter('scopeServiceIds', $serviceIds);
     }
+
+    /**
+     * @param list<string> $excludedStatuts
+     */
+    public function countExcludingStatutsBetween(
+        array $excludedStatuts,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $toExclusive,
+    ): int {
+        $qb = $this->createQueryBuilder('d')
+            ->select('COUNT(d.id)')
+            ->andWhere('d.demandeAt >= :from')
+            ->andWhere('d.demandeAt < :to')
+            ->setParameter('from', $from)
+            ->setParameter('to', $toExclusive);
+
+        if ([] !== $excludedStatuts) {
+            $qb
+                ->andWhere('d.statut NOT IN (:excludedStatuts)')
+                ->setParameter('excludedStatuts', $excludedStatuts);
+        }
+
+        return (int) $qb->getQuery()->getSingleScalarResult();
+    }
 }

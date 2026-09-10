@@ -223,4 +223,14 @@ class PersonnelRepository extends ServiceEntityRepository
 
         $qb->andWhere('(' . implode(' OR ', $conditions) . ')');
     }
+
+    public function countActifs(): int
+    {
+        return (int) $this->createQueryBuilder('p')
+            ->select('COUNT(p.id)')
+            ->andWhere('p.status = :status')
+            ->setParameter('status', Personnel::STATUS_ACTIF)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

@@ -24,8 +24,9 @@ final class ChuPdfLayoutProvider
         string $orientation = 'landscape',
         ?string $closingDateLine = null,
         ?string $closingAuthor = null,
+        ?string $headerRightHtml = null,
     ): string {
-        $headerHtml = $this->renderHeader($orientation);
+        $headerHtml = $this->renderHeader($orientation, $headerRightHtml);
         $footerHtml = $this->renderFooter($orientation);
         $closingHtml = $this->renderClosingHtml($closingDateLine, $closingAuthor);
         $styles = $this->baseStyles($orientation);
@@ -112,12 +113,17 @@ HTML;
         );
     }
 
-    private function renderHeader(string $orientation = 'landscape'): string
+    private function renderHeader(string $orientation = 'landscape', ?string $headerRightHtml = null): string
     {
         $logo = $this->getLogoDataUri();
+        $hasRight = null !== $headerRightHtml && '' !== trim($headerRightHtml);
+        $aside = $hasRight
+            ? '<div class="chu-header-right">' . $headerRightHtml . '</div>'
+            : '';
 
         return <<<HTML
 <div class="chu-header-inner">
+    {$aside}
     <div class="chu-header-line chu-header-line-main">RÉPUBLIQUE DÉMOCRATIQUE DU CONGO</div>
     <div class="chu-header-line chu-header-line-ministry">MINISTÈRE DE L'ENSEIGNEMENT SUPÉRIEUR, UNIVERSITAIRE, RECHERCHE SCIENTIFIQUE ET INNOVATIONS</div>
     <div class="chu-header-line chu-header-line-university">UNIVERSITE PRESIDENT JOSEPH KASA-VUBU</div>
@@ -189,6 +195,30 @@ body {
 
 .chu-header-inner {
     text-align: center;
+    position: relative;
+}
+
+.chu-header-right {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 78px;
+    text-align: center;
+    z-index: 2;
+}
+
+.chu-header-right img {
+    width: 72px;
+    height: 72px;
+    display: block;
+    margin: 0 auto;
+}
+
+.chu-header-right .cap-qr-caption {
+    font-size: 6.5px;
+    color: #444;
+    line-height: 1.1;
+    margin-top: 1px;
 }
 
 .chu-header-line {

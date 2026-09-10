@@ -248,6 +248,13 @@ export const NAV_SECTIONS = [
         module: 'CLINIQUE',
         icon: 'calendar',
       },
+      {
+        label: 'Aptitude physique',
+        to: ROUTES.CLINIQUE.APTITUDES,
+        permission: PERMISSIONS.CLINIQUE.APTITUDE_READ,
+        module: 'CLINIQUE',
+        icon: 'heartbeat',
+      },
     ],
   },
   {

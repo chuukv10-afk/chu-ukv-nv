@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { fetchDashboardStatsApi } from './dashboardApi.js';
 
 const DEFAULT_STATS = {
   services: 0,
@@ -7,33 +8,74 @@ const DEFAULT_STATS = {
   consultationsJour: 0,
 };
 
-/** Données mock en attendant les endpoints agrégés backend */
-const MOCK_TRENDS = {
-  services: 8,
-  dossiersPatient: 24,
-  personnel: 5,
-  consultationsJour: 18,
-};
+const EMPTY_WEEK = [
+  { day: 'Lun', current: 0, previous: 0 },
+  { day: 'Mar', current: 0, previous: 0 },
+  { day: 'Mer', current: 0, previous: 0 },
+  { day: 'Jeu', current: 0, previous: 0 },
+  { day: 'Ven', current: 0, previous: 0 },
+  { day: 'Sam', current: 0, previous: 0 },
+  { day: 'Dim', current: 0, previous: 0 },
+];
 
-const MOCK_STATS = {
-  services: 42,
-  dossiersPatient: 1280,
-  personnel: 356,
-  consultationsJour: 87,
-};
+function readKpi(kpis, key) {
+  const item = kpis?.[key];
+  if (item && typeof item === 'object' && 'value' in item) {
+    return item;
+  }
 
-export function useDashboardStats() {
+  return { value: Number(item ?? 0), trend: null, trendLabel: null };
+}
+
+export function useDashboardStats(enabled = true) {
   const [stats, setStats] = useState(DEFAULT_STATS);
-  const [loading, setLoading] = useState(true);
+  const [trends, setTrends] = useState({});
+  const [trendLabels, setTrendLabels] = useState({});
+  const [weeklyActivity, setWeeklyActivity] = useState(EMPTY_WEEK);
+  const [moduleDistribution, setModuleDistribution] = useState([]);
+  const [loading, setLoading] = useState(Boolean(enabled));
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return undefined;
+    }
+
     let cancelled = false;
 
     const load = async () => {
+      setLoading(true);
+      setError('');
+
       try {
-        // TODO: brancher les endpoints agrégés (services, patients, personnel, consultations)
+        const data = await fetchDashboardStatsApi();
+        if (cancelled) {
+          return;
+        }
+
+        const kpis = data?.kpis ?? {};
+        const nextStats = { ...DEFAULT_STATS };
+        const nextTrends = {};
+        const nextLabels = {};
+
+        Object.keys(DEFAULT_STATS).forEach((key) => {
+          const kpi = readKpi(kpis, key);
+          nextStats[key] = Number(kpi.value ?? 0);
+          nextTrends[key] = kpi.trend ?? null;
+          nextLabels[key] = kpi.trendLabel ?? null;
+        });
+
+        setStats(nextStats);
+        setTrends(nextTrends);
+        setTrendLabels(nextLabels);
+        setWeeklyActivity(Array.isArray(data?.weeklyActivity) && data.weeklyActivity.length
+          ? data.weeklyActivity
+          : EMPTY_WEEK);
+        setModuleDistribution(Array.isArray(data?.moduleDistribution) ? data.moduleDistribution : []);
+      } catch (err) {
         if (!cancelled) {
-          setStats(MOCK_STATS);
+          setError(err.message || 'Impossible de charger le tableau de bord.');
         }
       } finally {
         if (!cancelled) {
@@ -47,24 +89,15 @@ export function useDashboardStats() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enabled]);
 
-  return { stats, trends: MOCK_TRENDS, loading };
+  return {
+    stats,
+    trends,
+    trendLabels,
+    weeklyActivity,
+    moduleDistribution,
+    loading,
+    error,
+  };
 }
-
-export const WEEKLY_ACTIVITY = [
-  { day: 'Lun', current: 64, previous: 52 },
-  { day: 'Mar', current: 72, previous: 58 },
-  { day: 'Mer', current: 81, previous: 65 },
-  { day: 'Jeu', current: 77, previous: 70 },
-  { day: 'Ven', current: 87, previous: 74 },
-  { day: 'Sam', current: 45, previous: 38 },
-  { day: 'Dim', current: 32, previous: 28 },
-];
-
-export const MODULE_DISTRIBUTION = [
-  { name: 'Patients', value: 42, color: '#6366f1' },
-  { name: 'Consultations', value: 28, color: '#D81B60' },
-  { name: 'Examens', value: 18, color: '#F4C430' },
-  { name: 'Personnel', value: 12, color: '#06AED4' },
-];

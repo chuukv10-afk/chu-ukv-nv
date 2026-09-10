@@ -96,4 +96,16 @@ class PatientRepository extends ServiceEntityRepository
                 ->setParameter('sexe', strtoupper(trim($sexe)));
         }
     }
+
+    public function countCreatedBetween(\DateTimeImmutable $from, \DateTimeImmutable $toExclusive): int
+    {
+        return (int) $this->createQueryBuilder('p')
+            ->select('COUNT(p.id)')
+            ->andWhere('p.createdAt >= :from')
+            ->andWhere('p.createdAt < :to')
+            ->setParameter('from', $from)
+            ->setParameter('to', $toExclusive)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

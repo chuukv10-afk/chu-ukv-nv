@@ -58,6 +58,8 @@ import ConsultationDetailPage from '../features/clinique/consultations/Consultat
 import TourDeSalleHubPage from '../features/clinique/tour-de-salle/TourDeSalleHubPage.jsx';
 import TourDeSalleFichePage from '../features/clinique/tour-de-salle/TourDeSalleFichePage.jsx';
 import DemandesExamenPage from '../features/clinique/demandes-examen/DemandesExamenPage.jsx';
+import AptitudesPage from '../features/clinique/aptitude/AptitudesPage.jsx';
+import AptitudeFormPage from '../features/clinique/aptitude/AptitudeFormPage.jsx';
 import { PermissionGuard } from '../components/auth/PermissionGuard.jsx';
 import { PERMISSIONS } from '../constants/permissions.js';
 import { fetchMe } from '../features/auth/authService.js';
@@ -166,6 +168,30 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.CLINIQUE.VISITE_READ}>
                   <VisitesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.CLINIQUE.APTITUDE_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.CLINIQUE.APTITUDE_CREATE}>
+                  <AptitudeFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.CLINIQUE.APTITUDE_DETAIL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.CLINIQUE.APTITUDE_READ}>
+                  <AptitudeFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.CLINIQUE.APTITUDES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.CLINIQUE.APTITUDE_READ}>
+                  <AptitudesPage />
                 </PermissionGuard>
               )}
             />

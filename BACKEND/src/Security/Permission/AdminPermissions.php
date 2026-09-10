@@ -30,6 +30,8 @@ final class AdminPermissions
     public const DATABASE_TRUNCATE = 'admin.database.truncate';
     public const DATABASE_IMPORT = 'admin.database.import';
 
+    public const DASHBOARD_VIEW = 'admin.dashboard.view';
+
     /**
      * @return list<array{code: string, libelle: string, module: string}>
      */
@@ -80,6 +82,11 @@ final class AdminPermissions
                 [
                     'code' => self::DATABASE_IMPORT,
                     'libelle' => 'Importer un dump SQL',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::DASHBOARD_VIEW,
+                    'libelle' => 'Consulter le tableau de bord institutionnel',
                     'module' => Permission::MODULE_ADMIN,
                 ],
             ],

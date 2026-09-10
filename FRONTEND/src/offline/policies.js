@@ -73,7 +73,9 @@ export function shouldBypassCache(endpoint) {
   const path = normalizePath(endpoint);
   return isAuthBypassEndpoint(endpoint)
     || path.startsWith('/api/v1/admin')
+    || path === '/api/v1/dashboard'
     || path.includes('/export')
+    || path.includes('/pdf')
     || path.includes('/fiches-stock');
 }
 

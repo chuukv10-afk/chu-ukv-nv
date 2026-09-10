@@ -44,6 +44,13 @@ final class CliniquePermissions
     public const DEMANDE_EXAMEN_SAISIE_RESULTAT = 'clinique.demande_examen.saisie_resultat';
     public const DEMANDE_EXAMEN_VALIDATE = 'clinique.demande_examen.validate';
 
+    public const APTITUDE_READ = 'clinique.aptitude.read';
+    public const APTITUDE_CREATE = 'clinique.aptitude.create';
+    public const APTITUDE_UPDATE = 'clinique.aptitude.update';
+    public const APTITUDE_DELETE = 'clinique.aptitude.delete';
+    public const APTITUDE_SIGN = 'clinique.aptitude.sign';
+    public const APTITUDE_EXPORT = 'clinique.aptitude.export';
+
     /**
      * @return list<array{code: string, libelle: string, module: string}>
      */
@@ -126,6 +133,19 @@ final class CliniquePermissions
                 [
                     'code' => self::DEMANDE_EXAMEN_VALIDATE,
                     'libelle' => 'Valider le résultat d\'une demande d\'examen',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+            ],
+            self::crud('aptitude', 'certificat d\'aptitude physique', 'les certificats d\'aptitude physique'),
+            [
+                [
+                    'code' => self::APTITUDE_SIGN,
+                    'libelle' => 'Signer un certificat d\'aptitude physique',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_EXPORT,
+                    'libelle' => 'Exporter / imprimer un certificat d\'aptitude physique',
                     'module' => Permission::MODULE_CLINIQUE,
                 ],
             ],

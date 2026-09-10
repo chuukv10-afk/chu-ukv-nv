@@ -315,4 +315,21 @@ class VisiteRepository extends ServiceEntityRepository
 
         return $qb->getQuery()->getResult();
     }
+
+    public function countExcludingStatutBetween(
+        string $excludedStatut,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $toExclusive,
+    ): int {
+        return (int) $this->createQueryBuilder('v')
+            ->select('COUNT(v.id)')
+            ->andWhere('v.enterAt >= :from')
+            ->andWhere('v.enterAt < :to')
+            ->andWhere('v.statut != :excludedStatut')
+            ->setParameter('from', $from)
+            ->setParameter('to', $toExclusive)
+            ->setParameter('excludedStatut', $excludedStatut)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

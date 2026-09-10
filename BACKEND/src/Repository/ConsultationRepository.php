@@ -155,6 +155,57 @@ class ConsultationRepository extends ServiceEntityRepository
         return $qb;
     }
 
+    public function countExcludingStatutBetween(
+        string $excludedStatut,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $toExclusive,
+    ): int {
+        return (int) $this->createQueryBuilder('c')
+            ->select('COUNT(c.id)')
+            ->andWhere('c.consultedAt >= :from')
+            ->andWhere('c.consultedAt < :to')
+            ->andWhere('c.statut != :excludedStatut')
+            ->setParameter('from', $from)
+            ->setParameter('to', $toExclusive)
+            ->setParameter('excludedStatut', $excludedStatut)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function countExcludingStatutGroupedByDay(
+        string $excludedStatut,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $toExclusive,
+    ): array {
+        $rows = $this->getEntityManager()->getConnection()->fetchAllAssociative(
+            'SELECT DATE(consulted_at) AS day_key, COUNT(id) AS total
+             FROM consultation
+             WHERE consulted_at >= :from
+               AND consulted_at < :to
+               AND statut != :excludedStatut
+             GROUP BY DATE(consulted_at)',
+            [
+                'from' => $from->format('Y-m-d H:i:s'),
+                'to' => $toExclusive->format('Y-m-d H:i:s'),
+                'excludedStatut' => $excludedStatut,
+            ],
+        );
+
+        $map = [];
+        foreach ($rows as $row) {
+            $raw = $row['day_key'];
+            $key = $raw instanceof \DateTimeInterface
+                ? $raw->format('Y-m-d')
+                : substr((string) $raw, 0, 10);
+            $map[$key] = (int) $row['total'];
+        }
+
+        return $map;
+    }
+
     private function applyAccessScope(QueryBuilder $qb, ?PersonnelAccessScope $accessScope): void
     {
         if (null === $accessScope || $accessScope->unrestricted) {

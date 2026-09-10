@@ -55,10 +55,15 @@ export const clinique = {
   consultations: '/api/v1/clinique/consultations',
   diagnostics: '/api/v1/clinique/diagnostics',
   demandesExamen: '/api/v1/clinique/demandes-examen',
+  aptitudes: '/api/v1/clinique/aptitudes',
 };
 
 export const patient = {
   list: '/api/v1/patients',
+};
+
+export const dashboard = {
+  stats: '/api/v1/dashboard',
 };
 
 export const admin = {

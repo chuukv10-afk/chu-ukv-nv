@@ -97,6 +97,7 @@ const NAV_ICONS = {
   file: FileText,
   microscope: Microscope,
   heartPulse: HeartPulse,
+  heartbeat: HeartPulse,
   activity: Activity,
   messageSquare: MessageSquare,
   pill: Pill,

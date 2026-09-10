@@ -1,8 +1,14 @@
+import { TrendingDown, TrendingUp } from 'lucide-react';
 import { Box, Card, CardContent, Stack, Typography } from '@mui/joy';
-import { TrendingUp } from 'lucide-react';
-import { LOTRU_LAYOUT } from '../../../theme/lotruPalette.js';
+import { LOTRU_DANGER, LOTRU_LAYOUT, LOTRU_NEUTRAL } from '../../../theme/lotruPalette.js';
 
-export default function StatCard({ label, value, trend, icon: Icon, iconBg, iconColor }) {
+export default function StatCard({ label, value, trend, trendLabel, icon: Icon, iconBg, iconColor }) {
+  const showTrend = trend !== null && trend !== undefined && trendLabel;
+  const isUp = Number(trend) > 0;
+  const isDown = Number(trend) < 0;
+  const TrendIcon = isDown ? TrendingDown : TrendingUp;
+  const trendColor = isDown ? LOTRU_DANGER[500] : isUp ? LOTRU_LAYOUT.trendUp : LOTRU_NEUTRAL[500];
+
   return (
     <Card variant="outlined" sx={{ height: '100%' }}>
       <CardContent>
@@ -14,11 +20,12 @@ export default function StatCard({ label, value, trend, icon: Icon, iconBg, icon
             <Typography level="h2" sx={{ fontWeight: 700, fontSize: '1.75rem' }}>
               {value}
             </Typography>
-            {trend !== undefined ? (
+            {showTrend ? (
               <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 1.5 }}>
-                <TrendingUp size={14} color={LOTRU_LAYOUT.trendUp} />
-                <Typography level="body-xs" sx={{ color: LOTRU_LAYOUT.trendUp, fontWeight: 600 }}>
-                  {trend}% vs 7 derniers jours
+                {isUp || isDown ? <TrendIcon size={14} color={trendColor} /> : null}
+                <Typography level="body-xs" sx={{ color: trendColor, fontWeight: 600 }}>
+                  {isUp ? '+' : ''}
+                  {trend}% {trendLabel}
                 </Typography>
               </Stack>
             ) : null}
