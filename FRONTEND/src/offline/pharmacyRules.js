@@ -1,3 +1,4 @@
+import { DATE_STOCK_OUVERTURE } from '../features/pharmacie/ventes/venteConstants.js';
 import { readCache, readNamedCache } from './cache.js';
 
 const VENTE_MODES = ['ESPECES', 'MOBILE'];
@@ -145,6 +146,38 @@ export function assertVentePayload(payload = {}) {
   }
 
   payload.lignes = assertLignesMedicaments(payload.lignes || []);
+  assertVenteAnterieure(payload);
+}
+
+function todayIsoLocal() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function assertVenteAnterieure(payload = {}) {
+  const raw = text(payload.dateVente).slice(0, 10);
+  if (!raw) {
+    return;
+  }
+  const day = assertIsoDate(
+    raw,
+    'Indiquez la date réelle de la vente.',
+    'Date de vente invalide (format AAAA-MM-JJ).',
+  );
+  if (day >= todayIsoLocal()) {
+    throw fail('La date d\'une vente antérieure doit être antérieure à aujourd\'hui.');
+  }
+  if (day < DATE_STOCK_OUVERTURE) {
+    throw fail('La date ne peut pas précéder le stock d\'ouverture du 28/08/2026.');
+  }
+  for (const ligne of payload.lignes || []) {
+    if (ligne.prixUnitaire == null || ligne.prixUnitaire === '') {
+      continue;
+    }
+    assertPrix(ligne.prixUnitaire, 'Le prix du jour est invalide.');
+  }
 }
 
 export function assertReceptionPayload(payload = {}) {
@@ -274,14 +307,19 @@ async function hydrateFromCache(action, payload) {
         next.lignes = cached.lignes || [];
       }
       next.lignes = normalizeDocumentLignes(next.lignes);
-      if (!next.dateVente) next.dateVente = cached.dateVente || cached.createdAt;
+      if (!next.dateVente) {
+        const cachedDay = String(cached.dateVente || '').slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(cachedDay) && cachedDay < todayIsoLocal()) {
+          next.dateVente = cachedDay;
+        }
+      }
     }
   }
   if (action.startsWith('pharmacie.reception.') && isPresentId(next.id) && (!next.lignes || next.lignes.length === 0)) {
     const cached = await loadEntity('/api/v1/pharmacie/receptions', next.id);
     if (cached) {
       if (!isPresentId(next.fournisseurId)) next.fournisseurId = cached.fournisseurId;
-      if (!next.dateReception) next.dateReception = cached.dateReception;
+      if (!next.dateReception) next.dateReception = String(cached.dateReception || '').slice(0, 10) || undefined;
       if (next.referenceExterne == null) next.referenceExterne = cached.referenceExterne;
       next.lignes = normalizeDocumentLignes(cached.lignes || []);
     }

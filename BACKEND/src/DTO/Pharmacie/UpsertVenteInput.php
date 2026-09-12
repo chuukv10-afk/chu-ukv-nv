@@ -30,8 +30,26 @@ final class UpsertVenteInput
         #[Assert\Length(max: 10)]
         public ?string $dateVente = null,
     ) {
-        if ('' === $this->dateVente) {
-            $this->dateVente = null;
+        $this->dateVente = self::toDateOnly($this->dateVente);
+    }
+
+    public static function toDateOnly(?string $value): ?string
+    {
+        if (null === $value) {
+            return null;
+        }
+        $value = trim($value);
+        if ('' === $value) {
+            return null;
+        }
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})/', $value, $matches)) {
+            return $matches[1];
+        }
+
+        try {
+            return (new \DateTimeImmutable($value))->format('Y-m-d');
+        } catch (\Exception) {
+            return $value;
         }
     }
 }

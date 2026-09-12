@@ -493,7 +493,8 @@ final class VenteService
 
     private function parseDateVente(string $value): \DateTimeImmutable
     {
-        $date = \DateTimeImmutable::createFromFormat('Y-m-d', trim($value), new \DateTimeZone(self::TIMEZONE));
+        $day = UpsertVenteInput::toDateOnly($value);
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $day, new \DateTimeZone(self::TIMEZONE));
         if (false === $date) {
             throw new ConflictException('Date de vente invalide.');
         }

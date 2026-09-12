@@ -7,6 +7,29 @@ import { rememberIdMapping, resolvePayloadIds, isLocalId } from './idMap.js';
 import { addConflict, clearConflict, listPendingMutations, markOutboxStatus, refreshOutboxCounts, requeueUnblockedMutations } from './outbox.js';
 import { canPushMutation, sortMutationsForPush } from './outboxOrder.js';
 import { decrementLocalStock, incrementLocalStock, makeLocalLotId, replaceStockSnapshot, restoreLocalStock } from './stockLocal.js';
+import { toDateOnly } from '../features/pharmacie/ventes/venteConstants.js';
+
+function todayLocalIso() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function sanitizeSyncDates(payload = {}) {
+  const next = { ...payload };
+  const dateVente = toDateOnly(next.dateVente);
+  const dateReception = toDateOnly(next.dateReception);
+  if (dateVente && dateVente < todayLocalIso()) next.dateVente = dateVente;
+  else delete next.dateVente;
+  if (dateReception) next.dateReception = dateReception;
+  if (Array.isArray(next.lignes)) {
+    next.lignes = next.lignes.map((ligne) => {
+      if (!ligne || typeof ligne !== 'object') return ligne;
+      const datePeremption = toDateOnly(ligne.datePeremption);
+      return datePeremption ? { ...ligne, datePeremption } : ligne;
+    });
+  }
+  return next;
+}
 
 async function authorizedJson(endpoint, method, body) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -127,7 +150,7 @@ export async function pushOutbox() {
     }
 
     const item = queue.splice(index, 1)[0];
-    const payload = await resolvePayloadIds(item.payload || {});
+    const payload = sanitizeSyncDates(await resolvePayloadIds(item.payload || {}));
     const response = await authorizedJson(auth.syncPush, 'POST', {
       mutations: [{
         clientId: item.clientId,

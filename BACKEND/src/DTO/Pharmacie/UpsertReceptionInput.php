@@ -21,5 +21,14 @@ final class UpsertReceptionInput
         #[Assert\Count(min: 1, minMessage: 'Ajoutez au moins une ligne.')]
         public array $lignes = [],
     ) {
+        $normalized = UpsertVenteInput::toDateOnly($this->dateReception);
+        $this->dateReception = $normalized ?? $this->dateReception;
+        if (is_array($this->lignes)) {
+            foreach ($this->lignes as $ligne) {
+                if (is_object($ligne) && isset($ligne->datePeremption)) {
+                    $ligne->datePeremption = UpsertVenteInput::toDateOnly((string) $ligne->datePeremption) ?? $ligne->datePeremption;
+                }
+            }
+        }
     }
 }

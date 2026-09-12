@@ -16,6 +16,7 @@ import { fetchLotsVendablesApi } from '../lots/lotsApi.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
 import MedicamentAutocomplete from '../shared/MedicamentAutocomplete.jsx';
 import { entityId, formatDate, formatPatientName, formatPrix, isSameCalendarDay, todayIso } from '../shared/format.js';
+import { isDesktopApp } from '../../../offline/desktop.js';
 import { toSyncId } from '../../../offline/idMap.js';
 import { assertVentePayload } from '../../../offline/pharmacyRules.js';
 import { printVenteTicket } from './printVenteTicket.js';
@@ -87,7 +88,8 @@ export default function VenteFormPage() {
   const canValider = hasPermission(PERMISSIONS.PHARMACIE.VENTE_VALIDER);
   const canSaisirAnterieure = hasPermission(PERMISSIONS.PHARMACIE.VENTE_SAISIE_ANTERIEURE);
   const [anterieure, setAnterieure] = useState(location.pathname.includes('/anterieures'));
-  const offlineCaisse = !anterieure && (!online || !serverReachable || canUseOfflineCaisse());
+  const desktop = isDesktopApp();
+  const offlineCaisse = desktop || (!anterieure && (!online || !serverReachable || canUseOfflineCaisse()));
   const canAnnulerJ = hasPermission(PERMISSIONS.PHARMACIE.VENTE_ANNULER);
   const canAnnulerHorsJ = hasPermission(PERMISSIONS.PHARMACIE.VENTE_ANNULER_HORS_DELAI);
 
@@ -263,8 +265,8 @@ export default function VenteFormPage() {
       setError('Indiquez la date réelle de la vente.');
       return false;
     }
-    if (!online || !serverReachable) {
-      setError('La saisie antérieure nécessite une connexion au serveur.');
+    if (!desktop && (!online || !serverReachable)) {
+      setError('La saisie antérieure nécessite une connexion au serveur, ou le poste bureau.');
       return false;
     }
     return true;
@@ -330,7 +332,9 @@ export default function VenteFormPage() {
         const validated = await completeVenteOfflineApi(payload);
         setVente(validated);
         setConfirmAction(null);
-        showSuccess('Vente encaissée hors-ligne. Elle sera synchronisée au retour du serveur.');
+        showSuccess(anterieure
+          ? 'Vente antérieure enregistrée sur ce poste. Elle sera synchronisée avec le serveur.'
+          : 'Vente encaissée hors-ligne. Elle sera synchronisée au retour du serveur.');
         printVenteTicket(validated);
         return;
       }
@@ -402,7 +406,9 @@ export default function VenteFormPage() {
                 </Typography>
                 <Typography level="body-md" sx={{ color: 'neutral.500' }}>
                   {anterieure
-                    ? 'Rattrapage : indiquez la date réelle et le prix pratiqué ce jour-là. Le stock actuel sera décrémenté.'
+                    ? (desktop
+                      ? 'Rattrapage bureau : date réelle et prix du jour. Enregistré en local, synchronisé dès que le serveur répond.'
+                      : 'Rattrapage : indiquez la date réelle et le prix pratiqué ce jour-là. Le stock actuel sera décrémenté.')
                     : 'Paiement immédiat. Un lot par ligne ; FEFO si aucun lot n’est choisi.'}
                 </Typography>
               </Box>
@@ -711,7 +717,9 @@ export default function VenteFormPage() {
         open={confirmAction === 'valider'}
         title="Encaisser la vente"
         message={anterieure
-          ? 'Cette vente sera enregistrée à la date et aux prix saisis. Le stock actuel sera décrémenté.'
+          ? (desktop
+            ? 'Date et prix du jour : enregistrés sur ce poste. Le stock local est décrémenté ; la synchro suivra.'
+            : 'Cette vente sera enregistrée à la date et aux prix saisis. Le stock actuel sera décrémenté.')
           : offlineCaisse
             ? 'La vente sera encaissée localement. Le serveur rejouera le FEFO à la reconnexion.'
             : 'Le stock sera décrémenté (FEFO si aucun lot n’est choisi).'}

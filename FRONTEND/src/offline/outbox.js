@@ -114,6 +114,8 @@ export async function enqueueMutation({
   createdByTelephone = '',
 }) {
   const nextPayload = { ...(payload || {}) };
+  if (nextPayload.dateVente) nextPayload.dateVente = String(nextPayload.dateVente).slice(0, 10);
+  if (nextPayload.dateReception) nextPayload.dateReception = String(nextPayload.dateReception).slice(0, 10);
   if (isCreateAction(action) && (nextPayload.id == null || nextPayload.id === '')) {
     nextPayload.id = optimistic?.id || createLocalEntityId(kindFromAction(action));
   }
@@ -213,15 +215,37 @@ export async function listRetryableMutations() {
 export async function requeueUnblockedMutations(resolvePayload) {
   const blocked = await listByStatus(['conflict', 'rejected']);
   for (const row of blocked) {
-    if (!isFollowUpAction(row.action)) continue;
     const payload = typeof resolvePayload === 'function'
       ? await resolvePayload(row.payload || {})
       : row.payload || {};
     const resolvedId = payload.id;
-    if (resolvedId == null || isLocalId(resolvedId)) continue;
+    const followUpNeedsServerId = isFollowUpAction(row.action);
+    if (followUpNeedsServerId && (resolvedId == null || isLocalId(resolvedId))) {
+      continue;
+    }
     await clearConflict(row.clientId);
     await offlineDb.outbox.update(row.id, { status: 'pending', payload: { ...row.payload, ...payload } });
   }
+}
+
+export async function retryUnsynced(clientId) {
+  if (!clientId) return false;
+  const row = await offlineDb.outbox.where('clientId').equals(clientId).first();
+  if (!row) return false;
+  await clearConflict(clientId);
+  await offlineDb.outbox.update(row.id, { status: 'pending' });
+  await refreshOutboxCounts();
+  return true;
+}
+
+export async function retryAllUnsynced() {
+  const rows = await listByStatus(['conflict', 'rejected']);
+  for (const row of rows) {
+    await clearConflict(row.clientId);
+    await offlineDb.outbox.update(row.id, { status: 'pending' });
+  }
+  await refreshOutboxCounts();
+  return rows.length;
 }
 
 export async function findPendingByLocalId(localId) {

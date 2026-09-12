@@ -761,7 +761,7 @@ final class SyncPushService
 
         return new UpsertReceptionInput(
             fournisseurId: (int) ($payload['fournisseurId'] ?? 0),
-            dateReception: (string) ($payload['dateReception'] ?? ''),
+            dateReception: UpsertVenteInput::toDateOnly((string) ($payload['dateReception'] ?? '')) ?? '',
             referenceExterne: $this->strOrNull($payload['referenceExterne'] ?? null),
             lignes: $lignes,
         );
@@ -834,7 +834,7 @@ final class SyncPushService
             visiteId: isset($payload['visiteId']) ? (int) $payload['visiteId'] : null,
             modePaiement: (string) ($payload['modePaiement'] ?? 'ESPECES'),
             lignes: $lignes,
-            dateVente: isset($payload['dateVente']) ? (string) $payload['dateVente'] : null,
+            dateVente: UpsertVenteInput::toDateOnly(isset($payload['dateVente']) ? (string) $payload['dateVente'] : null),
         );
     }
 

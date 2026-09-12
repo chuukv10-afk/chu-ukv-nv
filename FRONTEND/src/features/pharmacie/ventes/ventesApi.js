@@ -10,6 +10,7 @@ import { assertPharmacyWrite } from '../../../offline/pharmacyRules.js';
 import { decrementLocalStock } from '../../../offline/stockLocal.js';
 import { priceVenteLignes } from '../../../offline/ventePricing.js';
 import { isServerReachable } from '../../../offline/connectivity.js';
+import { isHistoriqueDate, toDateVenteIso } from './venteConstants.js';
 import { buildQueryString, paginatedResult, unwrapData } from '../shared/pharmacieApi.js';
 
 export async function fetchVentesApi(params = {}) {
@@ -48,8 +49,10 @@ export async function deleteVenteApi(id) {
 
 export async function completeVenteOfflineApi(payload) {
   const checked = await assertPharmacyWrite('pharmacie.vente.complete', payload);
+  if (checked.dateVente) checked.dateVente = String(checked.dateVente).slice(0, 10);
   await decrementLocalStock(checked.lignes || []);
   const now = new Date().toISOString();
+  const dateVente = toDateVenteIso(checked.dateVente, now);
   const priced = await priceVenteLignes(checked.lignes || []);
   return enqueueMutation({
     action: 'pharmacie.vente.complete',
@@ -67,7 +70,8 @@ export async function completeVenteOfflineApi(payload) {
       modePaiement: checked.modePaiement,
       lignes: priced.lignes,
       montantTotal: priced.montantTotal,
-      dateVente: now,
+      dateVente,
+      historique: isHistoriqueDate(dateVente),
       createdAt: now,
     },
   });

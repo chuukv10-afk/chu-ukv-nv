@@ -13,7 +13,8 @@ export async function priceVenteLignes(lignes = []) {
   const byId = new Map(medicaments.map((item) => [String(item.id), item]));
   const priced = lignes.map((ligne) => {
     const medicament = byId.get(String(ligne.medicamentId));
-    const prix = Number(medicament?.prixVente ?? ligne.prixUnitaire ?? 0);
+    const override = ligne.prixUnitaire !== undefined && ligne.prixUnitaire !== null && ligne.prixUnitaire !== '';
+    const prix = Number(override ? ligne.prixUnitaire : (medicament?.prixVente ?? 0));
     const quantite = Number(ligne.quantite || 0);
     const prixTotal = prix * quantite;
     return {

@@ -2,6 +2,7 @@
 
 namespace App\Service\Pharmacie;
 
+use App\DTO\Pharmacie\UpsertVenteInput;
 use App\Entity\Lot;
 use App\Entity\Medicament;
 use App\Entity\MouvementStock;
@@ -193,7 +194,8 @@ final class StockService
 
     public function parseDate(string $value, string $label): \DateTimeImmutable
     {
-        $date = \DateTimeImmutable::createFromFormat('Y-m-d', trim($value));
+        $day = UpsertVenteInput::toDateOnly($value) ?? trim($value);
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $day);
         if (false === $date) {
             throw new ConflictException($label . ' invalide (format AAAA-MM-JJ).');
         }

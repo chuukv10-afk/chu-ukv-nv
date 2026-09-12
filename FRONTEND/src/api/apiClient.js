@@ -16,6 +16,7 @@ import { assertPharmacyWrite } from '../offline/pharmacyRules.js';
 import { adjustLocalLot, decrementLocalStock, incrementLocalStock, restoreLocalStock, updateLocalLotMeta } from '../offline/stockLocal.js';
 import { priceVenteLignes } from '../offline/ventePricing.js';
 import { runSyncCycle } from '../offline/syncEngine.js';
+import { isHistoriqueDate, toDateVenteIso } from '../features/pharmacie/ventes/venteConstants.js';
 
 let refreshPromise = null;
 
@@ -261,6 +262,7 @@ async function buildOptimistic(action, payload) {
   if (action.startsWith('pharmacie.vente')) {
     const validated = action.includes('valider') || action.includes('complete');
     const now = new Date().toISOString();
+    const dateVente = toDateVenteIso(payload.dateVente, now);
     const priced = await priceVenteLignes(payload.lignes || []);
     return {
       id: payload.id,
@@ -269,10 +271,12 @@ async function buildOptimistic(action, payload) {
       clientType: payload.clientType,
       clientNom: payload.clientNom,
       patientId: payload.patientId,
+      visiteId: payload.visiteId,
       modePaiement: payload.modePaiement,
       lignes: priced.lignes,
       montantTotal: priced.montantTotal,
-      dateVente: now,
+      dateVente,
+      historique: isHistoriqueDate(dateVente),
       createdAt: now,
     };
   }
@@ -308,7 +312,7 @@ async function buildOptimistic(action, payload) {
       numero: 'OFF-REC',
       statut: action.endsWith('.valider') ? 'VALIDEE' : 'BROUILLON',
       createdAt: now,
-      dateReception: payload.dateReception || now,
+      dateReception: (payload.dateReception || now).toString().slice(0, 10),
       fournisseurId: payload.fournisseurId,
       referenceExterne: payload.referenceExterne,
       lignes: payload.lignes || [],

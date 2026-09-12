@@ -31,7 +31,7 @@ function movementLine(row, index, type, sens, ligne, extra, medicamentsById) {
     documentType: extra.documentType,
     documentId: row.optimistic?.id ?? row.payload?.id,
     motif: extra.motif || '',
-    createdAt: row.optimistic?.createdAt || row.createdAt,
+    createdAt: extra.createdAt || row.optimistic?.dateVente || row.optimistic?.createdAt || row.createdAt,
     pendingSync: true,
     medicamentId: ligne.medicamentId ?? extra.medicamentId,
     medicament: medicamentRef({ ...ligne, medicamentId: ligne.medicamentId ?? extra.medicamentId }, medicamentsById),
@@ -58,6 +58,7 @@ export function movementsFromOutboxRow(row, medicamentsById = new Map()) {
   if (action === 'pharmacie.vente.complete' || action === 'pharmacie.vente.create_and_valider' || action === 'pharmacie.vente.valider') {
     return lignes.map((ligne, index) => movementLine(row, index, 'SORTIE_VENTE', 'SORTIE', ligne, {
       documentType: 'VENTE',
+      createdAt: optimistic.dateVente || payload.dateVente,
     }, medicamentsById));
   }
 

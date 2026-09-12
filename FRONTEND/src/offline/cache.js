@@ -193,7 +193,7 @@ async function applyMissingVenteMontants(items) {
     const lignes = Array.isArray(item.lignes) ? item.lignes : [];
     if (lignes.length === 0) return item;
     const montantTotal = lignes.reduce((sum, ligne) => {
-      const prix = Number(byId.get(String(ligne.medicamentId))?.prixVente ?? ligne.prixUnitaire ?? 0);
+      const prix = Number(ligne.prixUnitaire ?? byId.get(String(ligne.medicamentId))?.prixVente ?? 0);
       return sum + prix * Number(ligne.quantite || 0);
     }, 0);
     return montantTotal > 0 ? { ...item, montantTotal: String(montantTotal) } : item;

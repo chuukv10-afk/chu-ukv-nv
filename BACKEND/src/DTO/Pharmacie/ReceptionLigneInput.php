@@ -25,5 +25,9 @@ final class ReceptionLigneInput
 
         public ?string $prixVente = null,
     ) {
+        $normalized = UpsertVenteInput::toDateOnly($this->datePeremption);
+        if (null !== $normalized) {
+            $this->datePeremption = $normalized;
+        }
     }
 }
