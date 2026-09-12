@@ -393,6 +393,10 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
+     * Rôles Symfony uniquement (ROLE_ADMIN, …). Les permissions métier
+     * ne doivent pas entrer dans le JWT : Lexik les sérialise dans le Bearer
+     * et nginx refuse alors /api/v1/me (400 Request Header Or Cookie Too Large).
+     *
      * @return list<string>
      */
     public function getRoles(): array
@@ -406,13 +410,33 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
             }
 
             $symfonyRoles[] = self::buildSymfonyRoleCode((string) $role->getCode());
-
-            foreach ($role->getPermissions() as $permission) {
-                $symfonyRoles[] = (string) $permission->getCode();
-            }
         }
 
         return array_values(array_unique($symfonyRoles));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getPermissionCodes(): array
+    {
+        $codes = [];
+
+        foreach ($this->roleAssignments as $assignment) {
+            $role = $assignment->getRole();
+            if (null === $role) {
+                continue;
+            }
+
+            foreach ($role->getPermissions() as $permission) {
+                $code = strtolower(trim((string) $permission->getCode()));
+                if ('' !== $code) {
+                    $codes[] = $code;
+                }
+            }
+        }
+
+        return array_values(array_unique($codes));
     }
 
     public static function buildSymfonyRoleCode(string $code): string

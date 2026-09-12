@@ -19,7 +19,15 @@ import { runSyncCycle } from '../offline/syncEngine.js';
 
 let refreshPromise = null;
 
-function getAuthHeaders(body) {
+function isOversizedClientHeader(response) {
+  if (response.status !== 400) {
+    return false;
+  }
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  return contentType.includes('text/html') || contentType.includes('text/plain') || contentType === '';
+}
+
+function getAuthHeaders(body, endpoint = '') {
   const headers = {};
 
   if (!(body instanceof FormData)) {
@@ -27,7 +35,7 @@ function getAuthHeaders(body) {
   }
 
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (token) {
+  if (token && !isAuthBypassEndpoint(endpoint)) {
     headers.Authorization = `Bearer ${token}`;
   }
 
@@ -101,7 +109,7 @@ async function tryRefreshToken() {
 async function networkFetch(endpoint, method, body, allowRefresh = true) {
   const options = {
     method,
-    headers: getAuthHeaders(body),
+    headers: getAuthHeaders(body, endpoint),
   };
 
   if (body) {
@@ -110,6 +118,13 @@ async function networkFetch(endpoint, method, body, allowRefresh = true) {
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
   setConnectivityPatch({ online: true, serverReachable: true });
+
+  if (response.status === 400 && isOversizedClientHeader(response)) {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    if (handleUnauthorizedApiResponse(401, endpoint)) {
+      throw createSessionExpiredError();
+    }
+  }
 
   if (response.status === 401 && allowRefresh && !isAuthBypassEndpoint(endpoint)) {
     const refreshed = await tryRefreshToken();

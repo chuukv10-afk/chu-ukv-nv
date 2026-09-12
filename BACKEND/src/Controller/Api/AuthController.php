@@ -39,10 +39,7 @@ final class AuthController extends AbstractController
                 'type' => $personnel->getType(),
                 'status' => $personnel->getStatus(),
                 'roles' => $personnel->getRoles(),
-                'permissions' => array_values(array_filter(
-                    $personnel->getRoles(),
-                    static fn (string $code): bool => str_contains($code, '.') && !str_starts_with($code, 'ROLE_'),
-                )),
+                'permissions' => $personnel->getPermissionCodes(),
                 'roleAssignments' => $personnel->getRoleAssignmentSummary(),
                 'service' => $personnel->getService()?->getLibelle(),
                 'grade' => $personnel->getGrade()?->getLibelle(),
