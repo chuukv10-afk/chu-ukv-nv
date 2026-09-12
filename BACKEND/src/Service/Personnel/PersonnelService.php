@@ -51,6 +51,7 @@ final class PersonnelService
         private readonly PermissionChecker $permissionChecker,
         private readonly Security $security,
         private readonly PersonnelAvatarService $avatarService,
+        private readonly PersonnelSignatureService $signatureService,
         private readonly PersonnelExportService $exportService,
     ) {
     }
@@ -251,6 +252,7 @@ final class PersonnelService
         $personnel = $this->getById($id);
         $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_DELETE);
         $this->avatarService->delete($personnel);
+        $this->signatureService->delete($personnel);
         $personnel->setStatus(Personnel::STATUS_SUPPRIME);
         $this->eM->flush();
     }
@@ -293,6 +295,46 @@ final class PersonnelService
         $personnel = $this->getById($id);
 
         return $this->avatarService->resolveMimeType($personnel);
+    }
+
+    public function uploadSignature(string $id, UploadedFile $file): Personnel
+    {
+        $personnel = $this->getById($id);
+        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->signatureService->upload($personnel, $file);
+
+        try {
+            $this->eM->flush();
+        } catch (\Throwable) {
+            $this->signatureService->delete($personnel);
+            throw new ConflictException('Impossible d\'enregistrer la signature.');
+        }
+
+        return $personnel;
+    }
+
+    public function deleteSignature(string $id): Personnel
+    {
+        $personnel = $this->getById($id);
+        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->signatureService->delete($personnel);
+        $this->eM->flush();
+
+        return $personnel;
+    }
+
+    public function resolveSignaturePath(string $id): ?string
+    {
+        $personnel = $this->getById($id);
+
+        return $this->signatureService->resolvePath($personnel);
+    }
+
+    public function resolveSignatureMimeType(string $id): ?string
+    {
+        $personnel = $this->getById($id);
+
+        return $this->signatureService->resolveMimeType($personnel);
     }
 
     /**
@@ -342,6 +384,7 @@ final class PersonnelService
             'lieuNaissance' => $personnel->getLieuNaissance(),
             'cnome' => $personnel->getCnome(),
             'avatarUrl' => $this->avatarService->buildAvatarUrl($personnel),
+            'signatureUrl' => $this->signatureService->buildSignatureUrl($personnel),
             'grade' => null !== $grade ? [
                 'id' => $grade->getId(),
                 'code' => $grade->getCode(),

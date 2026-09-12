@@ -823,6 +823,7 @@ final class SyncPushService
                 medicamentId: $medicamentId,
                 lotId: $lotId > 0 ? $lotId : null,
                 quantite: (int) ($ligne['quantite'] ?? 0),
+                prixUnitaire: $ligne['prixUnitaire'] ?? null,
             );
         }
 
@@ -833,6 +834,7 @@ final class SyncPushService
             visiteId: isset($payload['visiteId']) ? (int) $payload['visiteId'] : null,
             modePaiement: (string) ($payload['modePaiement'] ?? 'ESPECES'),
             lignes: $lignes,
+            dateVente: isset($payload['dateVente']) ? (string) $payload['dateVente'] : null,
         );
     }
 

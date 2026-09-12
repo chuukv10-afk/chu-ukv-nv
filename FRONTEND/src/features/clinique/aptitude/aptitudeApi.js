@@ -4,9 +4,10 @@ import {
   callApiGet,
   callApiPost,
   callApiPut,
+  downloadFile,
   openFileInBrowser,
 } from '../../../api/apiClient.js';
-import { exportResourceApi } from '../../../utils/exportApi.js';
+import { buildExportQueryString, exportResourceApi } from '../../../utils/exportApi.js';
 
 function unwrapData(response) {
   return response?.data ?? response;
@@ -41,6 +42,38 @@ export async function fetchAptitudeServicesApi() {
   const response = await callApiGet(`${clinique.aptitudes}/lookups/services`);
   const data = unwrapData(response);
   return Array.isArray(data) ? data : [];
+}
+
+export async function fetchAptitudeFilieresApi() {
+  const response = await callApiGet(`${clinique.aptitudes}/lookups/filieres`);
+  const data = unwrapData(response);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchAptitudeStatsApi(params = {}) {
+  const response = await callApiGet(`${clinique.aptitudes}/stats${buildQueryString(params)}`);
+  const data = unwrapData(response);
+  return {
+    filters: data?.filters ?? {},
+    totals: {
+      total: data?.totals?.total ?? 0,
+      apte: data?.totals?.apte ?? 0,
+      inapte: data?.totals?.inapte ?? 0,
+      brouillon: data?.totals?.brouillon ?? 0,
+      signe: data?.totals?.signe ?? 0,
+      annule: data?.totals?.annule ?? 0,
+    },
+    byFiliere: Array.isArray(data?.byFiliere) ? data.byFiliere : [],
+  };
+}
+
+export async function exportAptitudeStatsApi(format, params = {}) {
+  const url = `${clinique.aptitudes}/stats/export${buildExportQueryString(params, format)}`;
+  if (format === 'pdf') {
+    await openFileInBrowser(url);
+    return;
+  }
+  await downloadFile(url);
 }
 
 export async function createAptitudeApi(payload) {

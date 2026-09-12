@@ -3,9 +3,11 @@
 namespace App\Service\Clinique;
 
 use App\Entity\CertificatAptitude;
+use App\Entity\Personnel;
 use App\Exception\ConflictException;
 use App\Service\Export\ChuPdfLayoutProvider;
 use App\Service\Export\PdfExportService;
+use App\Service\Personnel\PersonnelSignatureService;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\ErrorCorrectionLevel;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,6 +17,7 @@ final class AptitudePdfService
     public function __construct(
         private readonly ChuPdfLayoutProvider $layoutProvider,
         private readonly PdfExportService $pdfExportService,
+        private readonly PersonnelSignatureService $signatureService,
     ) {
     }
 
@@ -90,6 +93,7 @@ final class AptitudePdfService
     &nbsp; {$this->box($certificat->getMotif() === CertificatAptitude::MOTIF_AUTRE)} Autre
     {$this->e($certificat->getMotifAutre() ? ' (' . $certificat->getMotifAutre() . ')' : '')}
 </p>
+{$this->filiereLine($certificat)}
 
 <h2 class="cap-section">II. Indice de masse corporelle (IMC)</h2>
 <table class="cap-grid">
@@ -183,7 +187,7 @@ final class AptitudePdfService
     &nbsp; à exercer les activités liées au motif de la consultation mentionné en Section I.
 </p>
 <p class="cap-date">{$dateLine}</p>
-<p class="cap-sign">Le Médecin Examinateur<br>(Nom, Signature et Cachet)<br><strong>{$doctor}</strong></p>
+<p class="cap-sign">Le Médecin Examinateur<br>(Nom, Signature et Cachet)<br>{$this->signatureImage($certificat)}<strong>{$doctor}</strong></p>
 <p class="cap-note">Valable trois (03) mois à compter de la date de signature. Nul et de nul effet sans le cachet officiel, la signature du médecin et le code QR d'authentification.</p>
 <style>
 h1.report-title { margin: 28px 0 10px; font-size: 16px; color: #111; }
@@ -197,6 +201,7 @@ p { margin: 2px 0; }
 .cap-verdict { font-size: 12px; margin: 6px 0; }
 .cap-date { text-align: right; margin-top: 24px; }
 .cap-sign { text-align: right; margin-top: 10px; }
+.cap-signature-img { display: block; max-height: 58px; max-width: 170px; margin: 6px 0 4px auto; }
 .cap-note { font-size: 8px; font-style: italic; color: #444; margin-top: 8px; }
 .cap-watermark {
     position: fixed; top: 42%; left: 8%; font-size: 64px; color: #c00; opacity: 0.18;
@@ -270,6 +275,21 @@ HTML;
         };
     }
 
+    private function signatureImage(CertificatAptitude $certificat): string
+    {
+        $doctor = $certificat->getSignePar();
+        if (!$doctor instanceof Personnel) {
+            return '';
+        }
+
+        $dataUri = $this->signatureService->toDataUri($doctor);
+        if (null === $dataUri) {
+            return '';
+        }
+
+        return '<img class="cap-signature-img" src="' . $dataUri . '" alt="Signature" /><br>';
+    }
+
     private function doctorName(CertificatAptitude $certificat): string
     {
         $doctor = $certificat->getSignePar();
@@ -283,6 +303,20 @@ HTML;
             $doctor->getNom() ?? '',
             $doctor->getPostNom() ?? '',
         ));
+    }
+
+    private function filiereLine(CertificatAptitude $certificat): string
+    {
+        if (CertificatAptitude::MOTIF_ADMISSION_UKV !== $certificat->getMotif()) {
+            return '';
+        }
+
+        $filiere = $certificat->getFiliere();
+        $label = null !== $filiere
+            ? trim(sprintf('%s — %s', $filiere->getCode() ?? '', $filiere->getLibelle() ?? ''))
+            : '—';
+
+        return '<p><strong>Filière :</strong> ' . $this->e($label) . '</p>';
     }
 
     private function box(bool $on): string

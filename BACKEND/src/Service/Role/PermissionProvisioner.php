@@ -81,7 +81,7 @@ final class PermissionProvisioner
 
             $adminRole->addPermission($permission);
 
-            if (str_ends_with($definition['code'], '.read')) {
+            if (str_ends_with($definition['code'], '.read') || self::isPersonnelSelfService($definition['code'])) {
                 $personnelRole->addPermission($permission);
             }
         }
@@ -142,6 +142,11 @@ final class PermissionProvisioner
                 }
             }
         }
+    }
+
+    private static function isPersonnelSelfService(string $code): bool
+    {
+        return AdminPermissions::SIGNATURE_UPDATE === $code;
     }
 
     /**

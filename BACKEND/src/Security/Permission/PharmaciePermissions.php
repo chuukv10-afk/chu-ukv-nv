@@ -47,6 +47,7 @@ final class PharmaciePermissions
     public const VENTE_VALIDER = 'pharmacie.vente.valider';
     public const VENTE_ANNULER = 'pharmacie.vente.annuler';
     public const VENTE_ANNULER_HORS_DELAI = 'pharmacie.vente.annuler_hors_delai';
+    public const VENTE_SAISIE_ANTERIEURE = 'pharmacie.vente.saisie_anterieure';
 
     public const DEMANDE_SERVICE_READ = 'pharmacie.demande_service.read';
     public const DEMANDE_SERVICE_CREATE = 'pharmacie.demande_service.create';
@@ -123,6 +124,11 @@ final class PharmaciePermissions
                 [
                     'code' => self::VENTE_ANNULER_HORS_DELAI,
                     'libelle' => 'Annuler une vente après le jour J',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::VENTE_SAISIE_ANTERIEURE,
+                    'libelle' => 'Enregistrer une vente antérieure (date et prix du jour)',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
             ],

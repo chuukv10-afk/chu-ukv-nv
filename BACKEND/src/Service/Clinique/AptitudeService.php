@@ -3,16 +3,20 @@
 namespace App\Service\Clinique;
 
 use App\DTO\Clinique\AptitudeListQuery;
+use App\DTO\Clinique\AptitudeStatsQuery;
 use App\DTO\Clinique\UpsertAptitudeInput;
 use App\DTO\Common\PaginatedResult;
 use App\Entity\CertificatAptitude;
+use App\Entity\Filiere;
 use App\Entity\Personnel;
 use App\Entity\Service;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
 use App\Repository\CertificatAptitudeRepository;
+use App\Repository\FiliereRepository;
 use App\Repository\ServiceRepository;
 use App\Service\Patient\PatientService;
+use App\Service\Referentiel\FiliereService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
@@ -26,6 +30,8 @@ final class AptitudeService
         private readonly EntityManagerInterface $entityManager,
         private readonly CertificatAptitudeRepository $repository,
         private readonly ServiceRepository $serviceRepository,
+        private readonly FiliereRepository $filiereRepository,
+        private readonly FiliereService $filiereService,
         private readonly PatientService $patientService,
         private readonly ValidatorInterface $validator,
         private readonly Security $security,
@@ -44,6 +50,8 @@ final class AptitudeService
             $query->verdict,
             $query->motif,
             $query->serviceId,
+            $query->filiereId,
+            $query->sansFiliere,
         );
 
         return new PaginatedResult(
@@ -67,6 +75,8 @@ final class AptitudeService
             $query->verdict,
             $query->motif,
             $query->serviceId,
+            $query->filiereId,
+            $query->sansFiliere,
         );
 
         $rows = [];
@@ -79,6 +89,7 @@ final class AptitudeService
                 $item->getSexe(),
                 $item->getService()?->getLibelle(),
                 $this->motifLabel($item),
+                $this->filiereLabel($item),
                 $item->getVerdict(),
                 $item->getStatut(),
                 $item->getSigneAt()?->format('d/m/Y'),
@@ -95,7 +106,7 @@ final class AptitudeService
      */
     public function exportHeaders(): array
     {
-        return ['N°', 'Numéro', 'Candidat', 'Sexe', 'Service', 'Motif', 'Verdict', 'Statut', 'Signé le', 'Valable jusqu\'au'];
+        return ['N°', 'Numéro', 'Candidat', 'Sexe', 'Service', 'Motif', 'Filière', 'Verdict', 'Statut', 'Signé le', 'Valable jusqu\'au'];
     }
 
     /** @return list<array{id: int, code: string, libelle: string}> */
@@ -108,6 +119,12 @@ final class AptitudeService
             'code' => $service->getCode(),
             'libelle' => $service->getLibelle(),
         ], $services);
+    }
+
+    /** @return list<array{id: int, code: string, libelle: string}> */
+    public function listFilieres(): array
+    {
+        return $this->filiereService->listLookup();
     }
 
     /** @return array<string, mixed> */
@@ -231,6 +248,7 @@ final class AptitudeService
             'sexe' => $certificat->getSexe(),
             'motif' => $certificat->getMotif(),
             'motifLabel' => $this->motifLabel($certificat),
+            'filiere' => $this->serializeFiliere($certificat->getFiliere()),
             'verdict' => $certificat->getVerdict(),
             'verdictPropose' => $certificat->getVerdictPropose(),
             'service' => $this->serializeService($certificat->getService()),
@@ -330,6 +348,7 @@ final class AptitudeService
             ->setAdresse($this->blankToNull($input->adresse))
             ->setMotif($input->motif)
             ->setMotifAutre(CertificatAptitude::MOTIF_AUTRE === $input->motif ? $this->blankToNull($input->motifAutre) : null)
+            ->setFiliere($this->resolveFiliere($input))
             ->setPoidsKg($this->toDecimal($poids))
             ->setTailleM($this->toDecimal($taille))
             ->setPerimetreThoraciqueCm($this->toDecimal($perimetre))
@@ -369,6 +388,9 @@ final class AptitudeService
         if (null === $certificat->getVerdict()) {
             $missing[] = 'verdict';
         }
+        if (CertificatAptitude::MOTIF_ADMISSION_UKV === $certificat->getMotif() && !$certificat->getFiliere() instanceof Filiere) {
+            $missing[] = 'filière';
+        }
 
         if ([] !== $missing) {
             throw new ConflictException('Complétez le certificat avant signature : ' . implode(', ', $missing) . '.');
@@ -382,6 +404,126 @@ final class AptitudeService
         }
     }
 
+    /** @return array<string, mixed> */
+    public function stats(AptitudeStatsQuery $query): array
+    {
+        $this->assertValid($query);
+        $rows = $this->repository->countByFiliere($query->annee, $query->statut, $query->verdict, $query->motif);
+        $byId = [];
+        $sansFiliere = $this->emptyStatRow(null, null, 'Non renseignée');
+
+        foreach ($rows as $row) {
+            $id = null !== $row['filiereId'] && '' !== (string) $row['filiereId']
+                ? (int) $row['filiereId']
+                : null;
+            $stat = [
+                'filiereId' => $id,
+                'code' => $row['filiereCode'] ?? null,
+                'libelle' => $row['filiereLibelle'] ?? 'Non renseignée',
+                'total' => (int) $row['total'],
+                'apte' => (int) $row['apte'],
+                'inapte' => (int) $row['inapte'],
+                'brouillon' => (int) $row['brouillon'],
+                'signe' => (int) $row['signe'],
+                'annule' => (int) $row['annule'],
+            ];
+            if (null === $id) {
+                $sansFiliere = $stat;
+            } else {
+                $byId[$id] = $stat;
+            }
+        }
+
+        $expandAll = null === $query->motif || CertificatAptitude::MOTIF_ADMISSION_UKV === $query->motif;
+        $items = [];
+        if ($expandAll) {
+            foreach ($this->filiereRepository->findAllOrdered() as $filiere) {
+                $id = (int) $filiere->getId();
+                $items[] = $byId[$id] ?? $this->emptyStatRow($id, $filiere->getCode(), $filiere->getLibelle());
+            }
+        } else {
+            $items = array_values($byId);
+        }
+        if ($sansFiliere['total'] > 0) {
+            $items[] = $sansFiliere;
+        }
+
+        $totals = ['total' => 0, 'apte' => 0, 'inapte' => 0, 'brouillon' => 0, 'signe' => 0, 'annule' => 0];
+        foreach ($items as $item) {
+            foreach (array_keys($totals) as $key) {
+                $totals[$key] += $item[$key];
+            }
+        }
+
+        return [
+            'filters' => [
+                'annee' => $query->annee,
+                'statut' => $query->statut,
+                'verdict' => $query->verdict,
+                'motif' => $query->motif,
+            ],
+            'totals' => $totals,
+            'byFiliere' => $items,
+        ];
+    }
+
+    /**
+     * @return list<list<string|null>>
+     */
+    public function buildStatsExportRows(AptitudeStatsQuery $query): array
+    {
+        $stats = $this->stats($query);
+        $rows = [];
+        $index = 1;
+        foreach ($stats['byFiliere'] as $item) {
+            $rows[] = [
+                (string) $index,
+                $item['code'] ?? '—',
+                $item['libelle'],
+                (string) $item['total'],
+                (string) $item['apte'],
+                (string) $item['inapte'],
+                (string) $item['brouillon'],
+                (string) $item['signe'],
+                (string) $item['annule'],
+            ];
+            ++$index;
+        }
+        $totals = $stats['totals'];
+        $rows[] = [
+            '',
+            '',
+            'Total',
+            (string) $totals['total'],
+            (string) $totals['apte'],
+            (string) $totals['inapte'],
+            (string) $totals['brouillon'],
+            (string) $totals['signe'],
+            (string) $totals['annule'],
+        ];
+
+        return $rows;
+    }
+
+    /** @return list<string> */
+    public function statsExportHeaders(): array
+    {
+        return ['N°', 'Code', 'Filière', 'Total', 'APTE', 'INAPTE', 'Brouillon', 'Signé', 'Annulé'];
+    }
+
+    public function statsExportTitle(AptitudeStatsQuery $query): string
+    {
+        $parts = ['Statistiques aptitude physique'];
+        if (CertificatAptitude::MOTIF_ADMISSION_UKV === $query->motif) {
+            $parts[] = 'Admission UKV';
+        }
+        if (null !== $query->annee) {
+            $parts[] = (string) $query->annee;
+        }
+
+        return implode(' — ', $parts);
+    }
+
     private function motifLabel(CertificatAptitude $certificat): string
     {
         return match ($certificat->getMotif()) {
@@ -390,6 +532,65 @@ final class AptitudeService
             CertificatAptitude::MOTIF_AUTRE => $certificat->getMotifAutre() ?: 'Autre',
             default => $certificat->getMotif(),
         };
+    }
+
+    private function filiereLabel(CertificatAptitude $certificat): string
+    {
+        $filiere = $certificat->getFiliere();
+        if (!$filiere instanceof Filiere) {
+            return CertificatAptitude::MOTIF_ADMISSION_UKV === $certificat->getMotif() ? 'Non renseignée' : '—';
+        }
+
+        return trim(sprintf('%s — %s', $filiere->getCode() ?? '', $filiere->getLibelle() ?? ''));
+    }
+
+    private function resolveFiliere(UpsertAptitudeInput $input): ?Filiere
+    {
+        if (CertificatAptitude::MOTIF_ADMISSION_UKV !== $input->motif) {
+            return null;
+        }
+        if (null === $input->filiereId) {
+            return null;
+        }
+
+        $filiere = $this->filiereRepository->find($input->filiereId);
+        if (!$filiere instanceof Filiere) {
+            throw new NotFoundException('Filière non trouvée.');
+        }
+
+        return $filiere;
+    }
+
+    /** @return array{id: int, code: string, libelle: string}|null */
+    private function serializeFiliere(?Filiere $filiere): ?array
+    {
+        if (!$filiere instanceof Filiere) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $filiere->getId(),
+            'code' => (string) $filiere->getCode(),
+            'libelle' => (string) $filiere->getLibelle(),
+        ];
+    }
+
+    /**
+     * @return array{filiereId: int|null, code: string|null, libelle: string, total: int, apte: int, inapte: int, brouillon: int, signe: int, annule: int}
+     */
+    private function emptyStatRow(?int $id, ?string $code, string $libelle): array
+    {
+        return [
+            'filiereId' => $id,
+            'code' => $code,
+            'libelle' => $libelle,
+            'total' => 0,
+            'apte' => 0,
+            'inapte' => 0,
+            'brouillon' => 0,
+            'signe' => 0,
+            'annule' => 0,
+        ];
     }
 
     /** @return array{id: int, code: string, libelle: string}|null */

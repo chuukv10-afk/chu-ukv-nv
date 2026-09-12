@@ -43,6 +43,8 @@ import {
   fetchPersonnelsApi,
   updatePersonnelApi,
   uploadPersonnelAvatarApi,
+  uploadPersonnelSignatureApi,
+  deletePersonnelSignatureApi,
 } from './personnelApi.js';
 
 const EMPTY_PAGINATION = {
@@ -175,6 +177,7 @@ export default function PersonnelPage() {
         specialiteIds: detail.specialiteIds ?? [],
         roleAssignments: detail.roleAssignments ?? [],
         avatarUrl: detail.avatarUrl ?? null,
+        signatureUrl: detail.signatureUrl ?? null,
       });
     } catch (error) {
       setFormError(error.message || 'Impossible de charger le personnel.');
@@ -196,6 +199,9 @@ export default function PersonnelPage() {
         if (avatarOptions.avatarFile) {
           await uploadPersonnelAvatarApi(created.id, avatarOptions.avatarFile);
         }
+        if (avatarOptions.signatureFile) {
+          await uploadPersonnelSignatureApi(created.id, avatarOptions.signatureFile);
+        }
         showSuccess('Personnel créé avec succès.');
         setPage(1);
       } else {
@@ -207,6 +213,11 @@ export default function PersonnelPage() {
           await uploadPersonnelAvatarApi(editingPersonnel.id, avatarOptions.avatarFile);
         } else if (avatarOptions.removeAvatar) {
           await deletePersonnelAvatarApi(editingPersonnel.id);
+        }
+        if (avatarOptions.signatureFile) {
+          await uploadPersonnelSignatureApi(editingPersonnel.id, avatarOptions.signatureFile);
+        } else if (avatarOptions.removeSignature) {
+          await deletePersonnelSignatureApi(editingPersonnel.id);
         }
 
         showSuccess('Personnel mis à jour avec succès.');

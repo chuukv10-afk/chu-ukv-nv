@@ -14,6 +14,8 @@ import {
   Typography,
 } from '@mui/joy';
 import { Bell, ChevronDown, ChevronRight, LogOut, Menu as MenuIcon, Search, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../constants/routes.js';
 import LogoutConfirmModal from '../auth/LogoutConfirmModal.jsx';
 import AuthAvatar from '../ui/AuthAvatar.jsx';
 import { LAYOUT } from '../../constants/layout.js';
@@ -30,7 +32,7 @@ import {
 } from '../../utils/profile.js';
 import RoleAssignmentLabel from '../common/RoleAssignmentLabel.jsx';
 
-function ProfileMenu({ profile, displayName, personnelLabel, roleAssignments, onLogout }) {
+function ProfileMenu({ profile, displayName, personnelLabel, roleAssignments, onLogout, onProfile }) {
   const metaLine = [profile?.matricule, profile?.grade || 'Personnel'].filter(Boolean).join(' · ');
 
   return (
@@ -95,7 +97,7 @@ function ProfileMenu({ profile, displayName, personnelLabel, roleAssignments, on
 
       <Divider sx={{ my: 0.5 }} />
 
-      <MenuItem sx={{ gap: 1 }}>
+      <MenuItem sx={{ gap: 1 }} onClick={onProfile}>
         <ListItemDecorator sx={{ minInlineSize: 24 }}>
           <User size={18} />
         </ListItemDecorator>
@@ -114,6 +116,7 @@ function ProfileMenu({ profile, displayName, personnelLabel, roleAssignments, on
 
 export default function Header() {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const sidebarCollapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
   const { profile } = useAuth();
   const { title, section } = usePageMeta();
@@ -240,6 +243,7 @@ export default function Header() {
                 personnelLabel={personnelLabel}
                 roleAssignments={roleAssignments}
                 onLogout={requestLogout}
+                onProfile={() => navigate(ROUTES.PROFILE)}
               />
             </Dropdown>
           </Stack>

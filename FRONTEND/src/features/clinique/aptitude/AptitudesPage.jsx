@@ -24,6 +24,7 @@ import {
 import {
   deleteAptitudeApi,
   exportAptitudesApi,
+  fetchAptitudeFilieresApi,
   fetchAptitudeServicesApi,
   fetchAptitudesApi,
   openAptitudePdfApi,
@@ -46,6 +47,7 @@ export default function AptitudesPage() {
 
   const [items, setItems] = useState([]);
   const [services, setServices] = useState([]);
+  const [filieres, setFilieres] = useState([]);
   const [pagination, setPagination] = useState(EMPTY_PAGINATION);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -56,6 +58,7 @@ export default function AptitudesPage() {
   const [verdict, setVerdict] = useState('');
   const [motif, setMotif] = useState('');
   const [serviceId, setServiceId] = useState('');
+  const [filiereId, setFiliereId] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_APTITUDE_PAGE_SIZE);
   const [exportLoading, setExportLoading] = useState(null);
@@ -71,6 +74,7 @@ export default function AptitudesPage() {
 
   useEffect(() => {
     fetchAptitudeServicesApi().then(setServices).catch(() => setServices([]));
+    fetchAptitudeFilieresApi().then(setFilieres).catch(() => setFilieres([]));
   }, []);
 
   useEffect(() => {
@@ -78,7 +82,7 @@ export default function AptitudesPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, annee, statut, verdict, motif, serviceId, limit]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, limit]);
 
   const filters = useMemo(() => ({
     search: debouncedSearch || undefined,
@@ -87,7 +91,9 @@ export default function AptitudesPage() {
     verdict: verdict || undefined,
     motif: motif || undefined,
     serviceId: serviceId || undefined,
-  }), [debouncedSearch, annee, statut, verdict, motif, serviceId]);
+    filiereId: filiereId && filiereId !== 'none' ? filiereId : undefined,
+    sansFiliere: filiereId === 'none' ? true : undefined,
+  }), [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -153,6 +159,9 @@ export default function AptitudesPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button variant="outlined" onClick={() => navigate(ROUTES.CLINIQUE.APTITUDE_STATS)}>
+            Statistiques
+          </Button>
           {canExport ? <ExportButtons onExport={handleExport} loading={exportLoading} /> : null}
           {canCreate ? (
             <Button
@@ -195,6 +204,11 @@ export default function AptitudesPage() {
             <Option value="">Tous</Option>
             {services.map((s) => <Option key={s.id} value={String(s.id)}>{s.libelle}</Option>)}
           </Select>
+          <Select placeholder="Filière" value={filiereId} onChange={(_, v) => setFiliereId(v ?? '')} sx={{ minWidth: 200 }}>
+            <Option value="">Toutes</Option>
+            <Option value="none">Non renseignée</Option>
+            {filieres.map((f) => <Option key={f.id} value={String(f.id)}>{f.code} — {f.libelle}</Option>)}
+          </Select>
         </Stack>
       </Card>
 
@@ -210,6 +224,7 @@ export default function AptitudesPage() {
               <th>Candidat</th>
               <th>Service</th>
               <th>Motif</th>
+              <th>Filière</th>
               <th>Verdict</th>
               <th>Statut</th>
               <th>Signé le</th>
@@ -218,9 +233,9 @@ export default function AptitudesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ color: LOTRU_NEUTRAL[500] }}>Chargement…</td></tr>
+              <tr><td colSpan={9} style={{ color: LOTRU_NEUTRAL[500] }}>Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} style={{ color: LOTRU_NEUTRAL[500] }}>Aucun certificat.</td></tr>
+              <tr><td colSpan={9} style={{ color: LOTRU_NEUTRAL[500] }}>Aucun certificat.</td></tr>
             ) : items.map((item) => (
               <tr key={item.id}>
                 <td>{item.numero || '—'}</td>
@@ -230,6 +245,7 @@ export default function AptitudesPage() {
                 </td>
                 <td>{item.service?.libelle || '—'}</td>
                 <td>{item.motifLabel || '—'}</td>
+                <td>{item.filiere?.libelle || (item.motif === 'ADMISSION_UKV' ? 'Non renseignée' : '—')}</td>
                 <td>
                   {item.verdict ? (
                     <Chip size="sm" color={item.verdict === 'APTE' ? 'success' : 'danger'} variant="soft">

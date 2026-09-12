@@ -51,6 +51,29 @@ final class StockService
         return $quantite > 0 && $this->isVendable($lot) && $lot->getQuantiteRestante() >= $quantite;
     }
 
+    public function canSortirHistorique(Lot $lot, int $quantite): bool
+    {
+        return $quantite > 0
+            && Lot::STATUT_BLOQUE !== $lot->getStatut()
+            && $lot->getQuantiteRestante() >= $quantite;
+    }
+
+    public function resolveFefoHistorique(Medicament $medicament, int $quantite): Lot
+    {
+        foreach ($this->lotRepository->findAvecReste($medicament) as $lot) {
+            if ($this->canSortirHistorique($lot, $quantite)) {
+                return $lot;
+            }
+        }
+
+        throw new ConflictException(sprintf(
+            'Stock insuffisant pour « %s » (besoin %d, reste %d).',
+            $medicament->getLibelle(),
+            $quantite,
+            $this->lotRepository->stockRestant($medicament),
+        ));
+    }
+
     public function stockDisponible(Medicament $medicament): int
     {
         return $this->lotRepository->stockDisponible($medicament, $this->today());
@@ -104,6 +127,7 @@ final class StockService
         string $documentType,
         int $documentId,
         bool $requireVendable = true,
+        ?\DateTimeImmutable $effectiveAt = null,
     ): MouvementStock {
         if ($quantite <= 0) {
             throw new ConflictException('La quantité du mouvement doit être positive.');
@@ -129,7 +153,7 @@ final class StockService
         $lot->setQuantiteRestante($lot->getQuantiteRestante() - $quantite);
         $this->refreshStatut($lot);
 
-        return $this->record($lot, $quantite, MouvementStock::SENS_SORTIE, $type, $documentType, $documentId);
+        return $this->record($lot, $quantite, MouvementStock::SENS_SORTIE, $type, $documentType, $documentId, $effectiveAt);
     }
 
     private function record(
@@ -139,6 +163,7 @@ final class StockService
         string $type,
         string $documentType,
         int $documentId,
+        ?\DateTimeImmutable $effectiveAt = null,
     ): MouvementStock {
         $mouvement = (new MouvementStock())
             ->setLot($lot)
@@ -147,6 +172,9 @@ final class StockService
             ->setType($type)
             ->setDocumentType($documentType)
             ->setDocumentId($documentId);
+        if (null !== $effectiveAt) {
+            $mouvement->setCreatedAt($effectiveAt);
+        }
 
         $this->entityManager->persist($mouvement);
 

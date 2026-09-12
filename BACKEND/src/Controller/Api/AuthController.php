@@ -4,6 +4,7 @@ namespace App\Controller\Api;
 
 use App\Entity\Personnel;
 use App\Service\Personnel\PersonnelAvatarService;
+use App\Service\Personnel\PersonnelSignatureService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
@@ -16,6 +17,7 @@ final class AuthController extends AbstractController
 {
     public function __construct(
         private readonly PersonnelAvatarService $avatarService,
+        private readonly PersonnelSignatureService $signatureService,
     ) {
     }
 
@@ -45,6 +47,7 @@ final class AuthController extends AbstractController
                 'service' => $personnel->getService()?->getLibelle(),
                 'grade' => $personnel->getGrade()?->getLibelle(),
                 'avatarUrl' => $this->avatarService->buildAvatarUrl($personnel),
+                'signatureUrl' => $this->signatureService->buildSignatureUrl($personnel),
             ],
         ]);
     }

@@ -26,6 +26,12 @@ final class UpsertVenteInput
         #[Assert\Valid]
         #[Assert\Count(min: 1, minMessage: 'Ajoutez au moins une ligne.')]
         public array $lignes = [],
+
+        #[Assert\Length(max: 10)]
+        public ?string $dateVente = null,
     ) {
+        if ('' === $this->dateVente) {
+            $this->dateVente = null;
+        }
     }
 }

@@ -80,6 +80,38 @@ class LotRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * Lots avec reste, y compris périmés (saisie antérieure). Exclut les lots bloqués.
+     *
+     * @return list<Lot>
+     */
+    public function findAvecReste(Medicament $medicament): array
+    {
+        return $this->createQueryBuilder('l')
+            ->andWhere('l.medicament = :medicament')
+            ->andWhere('l.statut != :bloque')
+            ->andWhere('l.quantiteRestante > 0')
+            ->setParameter('medicament', $medicament)
+            ->setParameter('bloque', Lot::STATUT_BLOQUE)
+            ->orderBy('l.datePeremption', 'ASC')
+            ->addOrderBy('l.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function stockRestant(Medicament $medicament): int
+    {
+        return (int) $this->createQueryBuilder('l')
+            ->select('COALESCE(SUM(l.quantiteRestante), 0)')
+            ->andWhere('l.medicament = :medicament')
+            ->andWhere('l.statut != :bloque')
+            ->andWhere('l.quantiteRestante > 0')
+            ->setParameter('medicament', $medicament)
+            ->setParameter('bloque', Lot::STATUT_BLOQUE)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     public function stockDisponible(Medicament $medicament, \DateTimeImmutable $today): int
     {
         return (int) $this->createQueryBuilder('l')

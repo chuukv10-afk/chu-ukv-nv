@@ -25,6 +25,9 @@ final class AdminPermissions
     public const PERSONNEL_DELETE = 'admin.personnel.delete';
     public const PERSONNEL_EXPORT = 'admin.personnel.export';
 
+    public const SIGNATURE_READ = 'admin.signature.read';
+    public const SIGNATURE_UPDATE = 'admin.signature.update';
+
     public const DATABASE_MANAGE = 'admin.database.manage';
     public const DATABASE_EXPORT = 'admin.database.export';
     public const DATABASE_TRUNCATE = 'admin.database.truncate';
@@ -87,6 +90,16 @@ final class AdminPermissions
                 [
                     'code' => self::DASHBOARD_VIEW,
                     'libelle' => 'Consulter le tableau de bord institutionnel',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::SIGNATURE_READ,
+                    'libelle' => 'Consulter une signature manuscrite',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::SIGNATURE_UPDATE,
+                    'libelle' => 'Lier ou remplacer sa signature manuscrite',
                     'module' => Permission::MODULE_ADMIN,
                 ],
             ],

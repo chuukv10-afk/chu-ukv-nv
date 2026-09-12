@@ -2,6 +2,7 @@ export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',
   DASHBOARD: '/dashboard',
+  PROFILE: '/mon-profil',
   ACCESS_DENIED: '/acces-refuse',
   NOT_FOUND: '*',
 
@@ -15,6 +16,7 @@ export const ROUTES = {
 
   REFERENTIEL: {
     GRADES: '/referentiel/grades',
+    FILIERES: '/referentiel/filieres',
     SPECIALITES: '/referentiel/specialites',
     TYPES_EXAMEN: '/referentiel/types-examen',
     TYPES_ANTECEDENT: '/referentiel/types-antecedent',
@@ -34,6 +36,7 @@ export const ROUTES = {
     MOUVEMENTS: '/pharmacie/mouvements',
     VENTES: '/pharmacie/ventes',
     VENTE_NEW: '/pharmacie/ventes/nouveau',
+    VENTE_ANTERIEURE_NEW: '/pharmacie/ventes/anterieures/nouveau',
     VENTE_DETAIL: '/pharmacie/ventes/:id',
     DEMANDES_SERVICE: '/pharmacie/demandes-service',
     DEMANDE_SERVICE_NEW: '/pharmacie/demandes-service/nouveau',
@@ -64,6 +67,7 @@ export const ROUTES = {
     TOUR_DE_SALLE_FICHE: '/clinique/consultations/:id/tour/:fiche',
     APTITUDES: '/clinique/aptitudes',
     APTITUDE_NEW: '/clinique/aptitudes/nouveau',
+    APTITUDE_STATS: '/clinique/aptitudes/statistiques',
     APTITUDE_DETAIL: '/clinique/aptitudes/:id',
   },
 

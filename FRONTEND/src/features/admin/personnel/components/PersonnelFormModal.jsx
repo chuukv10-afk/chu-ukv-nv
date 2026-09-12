@@ -88,6 +88,9 @@ export default function PersonnelFormModal({
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState('');
+  const [signatureFile, setSignatureFile] = useState(null);
+  const [signaturePreview, setSignaturePreview] = useState(null);
+  const [removeSignature, setRemoveSignature] = useState(false);
 
   const loadLookups = useCallback(async () => {
     setLookupsLoading(true);
@@ -109,6 +112,9 @@ export default function PersonnelFormModal({
       setRemoveAvatar(false);
       setAvatarError('');
       setAvatarPreview(null);
+      setSignatureFile(null);
+      setRemoveSignature(false);
+      setSignaturePreview(null);
       loadLookups();
 
       if (initialValues?.avatarUrl) {
@@ -117,6 +123,13 @@ export default function PersonnelFormModal({
             if (url) setAvatarPreview(url);
           })
           .catch(() => setAvatarPreview(null));
+      }
+      if (initialValues?.signatureUrl) {
+        fetchAuthenticatedAvatarUrl(initialValues.signatureUrl)
+          .then((url) => {
+            if (url) setSignaturePreview(url);
+          })
+          .catch(() => setSignaturePreview(null));
       }
     }
   }, [open, initialValues, isEdit, loadLookups]);
@@ -188,6 +201,33 @@ export default function PersonnelFormModal({
     setAvatarError('');
   };
 
+  const handleSignatureChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+    const validationError = validateAvatarFile(file);
+    if (validationError) {
+      setAvatarError(validationError.replace('photo', 'signature'));
+      return;
+    }
+    try {
+      setSignatureFile(file);
+      setSignaturePreview(await readFilePreview(file));
+      setRemoveSignature(false);
+      setAvatarError('');
+    } catch (err) {
+      setAvatarError(err.message || 'Impossible de charger la signature.');
+    }
+  };
+
+  const handleRemoveSignature = () => {
+    setSignatureFile(null);
+    setSignaturePreview(null);
+    setRemoveSignature(true);
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
 
@@ -222,6 +262,8 @@ export default function PersonnelFormModal({
     onSubmit(payload, {
       avatarFile,
       removeAvatar,
+      signatureFile,
+      removeSignature,
     });
   };
 
@@ -321,6 +363,46 @@ export default function PersonnelFormModal({
                   </Stack>
                   <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
                     JPG, PNG ou WebP — 2 Mo maximum. La photo sera enregistrée avec le formulaire.
+                  </Typography>
+                </Stack>
+              </Stack>
+
+              <Typography level="title-sm" sx={{ fontWeight: 700 }}>Signature manuscrite</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
+                <Box
+                  sx={{
+                    width: 160,
+                    height: 72,
+                    border: '1px dashed',
+                    borderColor: 'neutral.300',
+                    borderRadius: 'md',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'background.level1',
+                    p: 1,
+                  }}
+                >
+                  {signaturePreview && !removeSignature ? (
+                    <Box component="img" src={signaturePreview} alt="Signature" sx={{ maxHeight: 56, maxWidth: '100%' }} />
+                  ) : (
+                    <Typography level="body-xs" sx={{ color: 'neutral.400' }}>Aucune</Typography>
+                  )}
+                </Box>
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button component="label" size="sm" variant="outlined" disabled={isBusy}>
+                      Choisir une signature
+                      <input hidden type="file" accept={AVATAR_ACCEPT} onChange={handleSignatureChange} disabled={isBusy} />
+                    </Button>
+                    {(signaturePreview || (!removeSignature && initialValues?.signatureUrl)) ? (
+                      <Button size="sm" variant="plain" color="danger" startDecorator={<X size={16} />} onClick={handleRemoveSignature} disabled={isBusy}>
+                        Supprimer
+                      </Button>
+                    ) : null}
+                  </Stack>
+                  <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                    JPG, PNG ou WebP — 2 Mo. Insérée sur les documents signés par cet agent.
                   </Typography>
                 </Stack>
               </Stack>

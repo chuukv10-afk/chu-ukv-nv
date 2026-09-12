@@ -14,6 +14,11 @@ final class VenteLigneInput
 
         #[Assert\Positive(message: 'La quantité doit être supérieure à 0.')]
         public int $quantite = 0,
+
+        public mixed $prixUnitaire = null,
     ) {
+        if ('' === $this->prixUnitaire) {
+            $this->prixUnitaire = null;
+        }
     }
 }

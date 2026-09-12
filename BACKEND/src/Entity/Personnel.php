@@ -63,6 +63,9 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $avatarFilename = null;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $signatureFilename = null;
+
     #[ORM\ManyToOne(inversedBy: 'personnels')]
     private ?Grade $grade = null;
 
@@ -252,6 +255,18 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
     public function setAvatarFilename(?string $avatarFilename): static
     {
         $this->avatarFilename = $avatarFilename;
+
+        return $this;
+    }
+
+    public function getSignatureFilename(): ?string
+    {
+        return $this->signatureFilename;
+    }
+
+    public function setSignatureFilename(?string $signatureFilename): static
+    {
+        $this->signatureFilename = $signatureFilename;
 
         return $this;
     }

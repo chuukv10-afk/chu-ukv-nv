@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Box, Button, Card, Chip, FormControl, FormHelperText, FormLabel, IconButton, Input, Modal, ModalDialog,
   Option, Select, Stack, Typography,
@@ -15,11 +15,12 @@ import { fetchPatientsApi } from '../../patient/patients/patientsApi.js';
 import { fetchLotsVendablesApi } from '../lots/lotsApi.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
 import MedicamentAutocomplete from '../shared/MedicamentAutocomplete.jsx';
-import { entityId, formatDate, formatPatientName, formatPrix, isSameCalendarDay } from '../shared/format.js';
+import { entityId, formatDate, formatPatientName, formatPrix, isSameCalendarDay, todayIso } from '../shared/format.js';
 import { toSyncId } from '../../../offline/idMap.js';
 import { assertVentePayload } from '../../../offline/pharmacyRules.js';
 import { printVenteTicket } from './printVenteTicket.js';
 import {
+  DATE_STOCK_OUVERTURE,
   EMPTY_VENTE_LIGNE,
   VENTE_CLIENT_TYPES,
   VENTE_MODES_PAIEMENT,
@@ -41,7 +42,20 @@ import {
   fetchVisitesHospitaliseesApi,
 } from './ventesApi.js';
 
-function toPayload(form) {
+function dateOnly(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function yesterdayIso() {
+  const today = todayIso();
+  const date = new Date(`${today}T00:00:00`);
+  date.setDate(date.getDate() - 1);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function toPayload(form, anterieure) {
   const hospitalise = form.clientType === 'HOSPITALISE';
   return {
     clientType: hospitalise ? 'PATIENT' : form.clientType,
@@ -49,10 +63,12 @@ function toPayload(form) {
     clientNom: form.clientType === 'PASSANT' ? form.clientNom.trim() : null,
     visiteId: hospitalise ? toSyncId(form.visiteId) : null,
     modePaiement: form.modePaiement,
+    dateVente: anterieure ? (form.dateVente || null) : null,
     lignes: form.lignes.map((ligne) => ({
       medicamentId: toSyncId(ligne.medicamentId),
       lotId: toSyncId(ligne.lotId),
       quantite: Number(ligne.quantite),
+      prixUnitaire: anterieure && ligne.prixUnitaire !== '' ? Number(ligne.prixUnitaire) : undefined,
     })),
   };
 }
@@ -60,15 +76,18 @@ function toPayload(form) {
 export default function VenteFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
   const { serverReachable, online } = useOffline();
-  const offlineCaisse = !online || !serverReachable || canUseOfflineCaisse();
   const isNew = !id;
   const canCreate = hasPermission(PERMISSIONS.PHARMACIE.VENTE_CREATE);
   const canUpdate = hasPermission(PERMISSIONS.PHARMACIE.VENTE_UPDATE);
   const canDelete = hasPermission(PERMISSIONS.PHARMACIE.VENTE_DELETE);
   const canValider = hasPermission(PERMISSIONS.PHARMACIE.VENTE_VALIDER);
+  const canSaisirAnterieure = hasPermission(PERMISSIONS.PHARMACIE.VENTE_SAISIE_ANTERIEURE);
+  const [anterieure, setAnterieure] = useState(location.pathname.includes('/anterieures'));
+  const offlineCaisse = !anterieure && (!online || !serverReachable || canUseOfflineCaisse());
   const canAnnulerJ = hasPermission(PERMISSIONS.PHARMACIE.VENTE_ANNULER);
   const canAnnulerHorsJ = hasPermission(PERMISSIONS.PHARMACIE.VENTE_ANNULER_HORS_DELAI);
 
@@ -102,7 +121,7 @@ export default function VenteFormPage() {
 
   const estimatedTotal = form.lignes.reduce((sum, ligne) => {
     const medicament = medicamentMap[String(ligne.medicamentId)];
-    const prix = Number(medicament?.prixVente ?? 0);
+    const prix = Number(anterieure && ligne.prixUnitaire !== '' ? ligne.prixUnitaire : (medicament?.prixVente ?? 0));
     const qty = Number(ligne.quantite) || 0;
     return sum + prix * qty;
   }, 0);
@@ -135,17 +154,23 @@ export default function VenteFormPage() {
           });
           return [...map.values()];
         });
+        const loadedDate = dateOnly(data.dateVente);
+        if (data.historique || (loadedDate && loadedDate < todayIso())) {
+          setAnterieure(true);
+        }
         setForm({
           clientType: data.origine === 'HOSPITALISE' ? 'HOSPITALISE' : (data.clientType ?? 'PASSANT'),
           patientId: entityId(data.patientId),
           clientNom: data.clientNom ?? '',
           visiteId: data.visiteId ? String(data.visiteId) : '',
           modePaiement: data.modePaiement ?? 'ESPECES',
+          dateVente: loadedDate,
           lignes: (data.lignes ?? []).length
             ? data.lignes.map((ligne) => ({
               medicamentId: ligne.medicamentId ? String(ligne.medicamentId) : '',
               lotId: ligne.lotId ? String(ligne.lotId) : '',
               quantite: ligne.quantite ?? 1,
+              prixUnitaire: ligne.prixUnitaire ?? '',
             }))
             : [{ ...EMPTY_VENTE_LIGNE }],
         });
@@ -226,12 +251,34 @@ export default function VenteFormPage() {
     }));
   };
 
+  const assertAnterieure = () => {
+    if (!anterieure) {
+      return true;
+    }
+    if (!canSaisirAnterieure) {
+      setError('Permission requise pour une vente antérieure.');
+      return false;
+    }
+    if (!form.dateVente) {
+      setError('Indiquez la date réelle de la vente.');
+      return false;
+    }
+    if (!online || !serverReachable) {
+      setError('La saisie antérieure nécessite une connexion au serveur.');
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
     if (form.clientType === 'HOSPITALISE' && !form.visiteId) {
       setError('Sélectionnez une visite hospitalisée.');
       return;
     }
-    const payload = toPayload(form);
+    if (!assertAnterieure()) {
+      return;
+    }
+    const payload = toPayload(form, anterieure);
     try {
       assertVentePayload(payload);
     } catch (err) {
@@ -263,7 +310,11 @@ export default function VenteFormPage() {
       setConfirmAction(null);
       return;
     }
-    const payload = toPayload(form);
+    if (!assertAnterieure()) {
+      setConfirmAction(null);
+      return;
+    }
+    const payload = toPayload(form, anterieure);
     try {
       assertVentePayload(payload);
     } catch (err) {
@@ -347,16 +398,21 @@ export default function VenteFormPage() {
               <ShoppingCart size={24} color={LOTRU_PRIMARY[600]} />
               <Box>
                 <Typography level="h2" sx={{ fontWeight: 700 }}>
-                  {isNew ? 'Nouvelle vente' : vente?.numero ?? 'Vente'}
+                  {isNew ? (anterieure ? 'Vente antérieure' : 'Nouvelle vente') : vente?.numero ?? 'Vente'}
                 </Typography>
                 <Typography level="body-md" sx={{ color: 'neutral.500' }}>
-                  Paiement immédiat. Un lot par ligne ; FEFO si aucun lot n’est choisi.
+                  {anterieure
+                    ? 'Rattrapage : indiquez la date réelle et le prix pratiqué ce jour-là. Le stock actuel sera décrémenté.'
+                    : 'Paiement immédiat. Un lot par ligne ; FEFO si aucun lot n’est choisi.'}
                 </Typography>
               </Box>
               {vente?.statut ? (
                 <Chip size="sm" variant="soft" color={VENTE_STATUT_COLORS[vente.statut] ?? 'neutral'}>
                   {VENTE_STATUT_LABELS[vente.statut] ?? vente.statut}
                 </Chip>
+              ) : null}
+              {anterieure ? (
+                <Chip size="sm" variant="soft" color="warning">Antérieure</Chip>
               ) : null}
             </Stack>
           </Stack>
@@ -405,6 +461,19 @@ export default function VenteFormPage() {
           <>
             <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2.5 }}>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                {anterieure ? (
+                  <FormControl required sx={{ minWidth: 180 }}>
+                    <FormLabel>Date réelle de la vente</FormLabel>
+                    <Input
+                      type="date"
+                      value={form.dateVente}
+                      onChange={(e) => setField('dateVente', e.target.value)}
+                      disabled={readOnly || saving}
+                      slotProps={{ input: { min: DATE_STOCK_OUVERTURE, max: yesterdayIso() } }}
+                    />
+                    <FormHelperText>Entre le 28/08/2026 et hier.</FormHelperText>
+                  </FormControl>
+                ) : null}
                 <FormControl required sx={{ minWidth: 180 }}>
                   <FormLabel>Client</FormLabel>
                   <Select
@@ -552,7 +621,10 @@ export default function VenteFormPage() {
                 {form.lignes.map((ligne, index) => {
                   const medicament = medicamentMap[String(ligne.medicamentId)];
                   const lots = lotsByMedicament[ligne.medicamentId] ?? [];
-                  const lineTotal = (Number(medicament?.prixVente ?? 0) * (Number(ligne.quantite) || 0));
+                  const unitPrice = anterieure && ligne.prixUnitaire !== ''
+                    ? Number(ligne.prixUnitaire)
+                    : Number(medicament?.prixVente ?? 0);
+                  const lineTotal = unitPrice * (Number(ligne.quantite) || 0);
                   return (
                     <Stack key={`vente-ligne-${index}`} direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems={{ lg: 'flex-end' }}>
                       <FormControl required sx={{ flex: 1.8 }}>
@@ -561,7 +633,22 @@ export default function VenteFormPage() {
                           options={medicaments}
                           valueId={ligne.medicamentId}
                           disabled={readOnly || saving}
-                          onSelect={(medicament) => setLigne(index, 'medicamentId', medicament ? String(medicament.id) : '')}
+                          onSelect={(medicament) => {
+                            setForm((current) => ({
+                              ...current,
+                              lignes: current.lignes.map((item, i) => {
+                                if (i !== index) return item;
+                                return {
+                                  ...item,
+                                  medicamentId: medicament ? String(medicament.id) : '',
+                                  lotId: '',
+                                  prixUnitaire: anterieure && medicament
+                                    ? String(medicament.prixVente ?? '')
+                                    : item.prixUnitaire,
+                                };
+                              }),
+                            }));
+                          }}
                         />
                       </FormControl>
                       <FormControl sx={{ flex: 1.2 }}>
@@ -590,6 +677,18 @@ export default function VenteFormPage() {
                           slotProps={{ input: { min: 1 } }}
                         />
                       </FormControl>
+                      {anterieure ? (
+                        <FormControl required sx={{ width: { lg: 140 } }}>
+                          <FormLabel>Prix du jour</FormLabel>
+                          <Input
+                            type="number"
+                            value={ligne.prixUnitaire}
+                            onChange={(e) => setLigne(index, 'prixUnitaire', e.target.value)}
+                            disabled={readOnly || saving}
+                            slotProps={{ input: { min: 0, step: '0.01' } }}
+                          />
+                        </FormControl>
+                      ) : null}
                       <Typography level="body-sm" sx={{ minWidth: 110, pb: 1 }}>{formatPrix(lineTotal)}</Typography>
                       {!readOnly ? (
                         <IconButton variant="plain" color="danger" onClick={() => removeLigne(index)} disabled={saving || form.lignes.length === 1}>
@@ -611,9 +710,11 @@ export default function VenteFormPage() {
       <ConfirmModal
         open={confirmAction === 'valider'}
         title="Encaisser la vente"
-        message={offlineCaisse
-          ? 'La vente sera encaissée localement. Le serveur rejouera le FEFO à la reconnexion.'
-          : 'Le stock sera décrémenté (FEFO si aucun lot n’est choisi).'}
+        message={anterieure
+          ? 'Cette vente sera enregistrée à la date et aux prix saisis. Le stock actuel sera décrémenté.'
+          : offlineCaisse
+            ? 'La vente sera encaissée localement. Le serveur rejouera le FEFO à la reconnexion.'
+            : 'Le stock sera décrémenté (FEFO si aucun lot n’est choisi).'}
         confirmLabel="Encaisser"
         color="success"
         loading={confirmLoading}

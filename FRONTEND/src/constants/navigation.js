@@ -60,6 +60,12 @@ export const NAV_SECTIONS = [
         icon: 'award',
       },
       {
+        label: 'Filières UKV',
+        to: ROUTES.REFERENTIEL.FILIERES,
+        permission: PERMISSIONS.REFERENTIEL.FILIERE_READ,
+        icon: 'graduation',
+      },
+      {
         label: 'Spécialités',
         to: ROUTES.REFERENTIEL.SPECIALITES,
         permission: PERMISSIONS.REFERENTIEL.SPECIALITE_READ,
@@ -141,6 +147,12 @@ export const NAV_SECTIONS = [
         label: 'Ventes',
         to: ROUTES.PHARMACIE.VENTES,
         permission: PERMISSIONS.PHARMACIE.VENTE_READ,
+        icon: 'cart',
+      },
+      {
+        label: 'Ventes antérieures',
+        to: ROUTES.PHARMACIE.VENTE_ANTERIEURE_NEW,
+        permission: PERMISSIONS.PHARMACIE.VENTE_SAISIE_ANTERIEURE,
         icon: 'cart',
       },
       {
@@ -254,6 +266,13 @@ export const NAV_SECTIONS = [
         permission: PERMISSIONS.CLINIQUE.APTITUDE_READ,
         module: 'CLINIQUE',
         icon: 'heartbeat',
+      },
+      {
+        label: 'Statistique Aptitude Physique',
+        to: ROUTES.CLINIQUE.APTITUDE_STATS,
+        permission: PERMISSIONS.CLINIQUE.APTITUDE_READ,
+        module: 'CLINIQUE',
+        icon: 'chart',
       },
     ],
   },

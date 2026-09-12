@@ -5,6 +5,7 @@ namespace App\Controller\Api\Clinique;
 use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Clinique\AptitudeListQuery;
+use App\DTO\Clinique\AptitudeStatsQuery;
 use App\DTO\Clinique\UpsertAptitudeInput;
 use App\Security\Permission\CliniquePermissions;
 use App\Service\Clinique\AptitudePdfService;
@@ -62,6 +63,9 @@ final class AptitudesController extends AbstractController
             'Certificats d\'aptitude physique',
             'certificats-aptitude',
             'Aucun certificat trouvé pour les filtres sélectionnés.',
+            [],
+            [],
+            'landscape',
         );
     }
 
@@ -70,6 +74,41 @@ final class AptitudesController extends AbstractController
     public function services(): JsonResponse
     {
         return $this->apiSuccess($this->aptitudeService->listServices(), 'Services récupérés avec succès.');
+    }
+
+    #[Route('/lookups/filieres', name: 'api_clinique_aptitudes_filieres', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_READ)]
+    public function filieres(): JsonResponse
+    {
+        return $this->apiSuccess($this->aptitudeService->listFilieres(), 'Filières récupérées avec succès.');
+    }
+
+    #[Route('/stats', name: 'api_clinique_aptitudes_stats', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_READ)]
+    public function stats(#[MapQueryString] AptitudeStatsQuery $query = new AptitudeStatsQuery()): JsonResponse
+    {
+        return $this->apiSuccess($this->aptitudeService->stats($query), 'Statistiques aptitude récupérées avec succès.');
+    }
+
+    #[Route('/stats/export', name: 'api_clinique_aptitudes_stats_export', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_EXPORT)]
+    public function statsExport(
+        Request $request,
+        TableExportService $tableExportService,
+        #[MapQueryString] AptitudeStatsQuery $query = new AptitudeStatsQuery(),
+    ): Response {
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            $this->aptitudeService->statsExportHeaders(),
+            $this->aptitudeService->buildStatsExportRows($query),
+            $this->aptitudeService->statsExportTitle($query),
+            'statistiques-aptitude',
+            'Aucune statistique à exporter pour les filtres sélectionnés.',
+            [],
+            [],
+            'landscape',
+        );
     }
 
     #[Route('/meta', name: 'api_clinique_aptitudes_meta', methods: ['GET'])]

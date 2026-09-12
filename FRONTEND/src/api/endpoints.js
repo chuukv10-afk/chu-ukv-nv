@@ -1,6 +1,7 @@
 export const auth = {
   login: '/api/v1/login',
   me: '/api/v1/me',
+  meSignature: '/api/v1/me/signature',
   health: '/api/v1/health',
   refresh: '/api/v1/token/refresh',
   syncPull: '/api/v1/sync/pull',
@@ -41,6 +42,7 @@ export const intendance = {
 
 export const referentiel = {
   grades: '/api/v1/referentiel/grades',
+  filieres: '/api/v1/referentiel/filieres',
   specialites: '/api/v1/referentiel/specialites',
   typesExamen: '/api/v1/referentiel/types-examen',
   typesAntecedent: '/api/v1/referentiel/types-antecedent',

@@ -52,6 +52,9 @@ final class UpsertAptitudeInput
         #[Assert\Length(max: 150)]
         public ?string $motifAutre = null,
 
+        #[Assert\Positive(message: 'La filière est invalide.')]
+        public ?int $filiereId = null,
+
         public mixed $poidsKg = null,
 
         public mixed $tailleM = null,
@@ -88,6 +91,9 @@ final class UpsertAptitudeInput
         }
         if ('' === $this->motifAutre) {
             $this->motifAutre = null;
+        }
+        if (null !== $this->filiereId && $this->filiereId <= 0) {
+            $this->filiereId = null;
         }
         if ('' === $this->imcClasse) {
             $this->imcClasse = null;

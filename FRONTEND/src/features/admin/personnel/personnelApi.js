@@ -76,6 +76,18 @@ export async function deletePersonnelAvatarApi(id) {
   return unwrapData(response);
 }
 
+export async function uploadPersonnelSignatureApi(id, file) {
+  const formData = new FormData();
+  formData.append('signature', file);
+  const response = await callApiPost(`${admin.personnels}/${id}/signature`, formData);
+  return unwrapData(response);
+}
+
+export async function deletePersonnelSignatureApi(id) {
+  const response = await callApiDelete(`${admin.personnels}/${id}/signature`);
+  return unwrapData(response);
+}
+
 export async function exportPersonnelsApi(format, params = {}) {
   const query = buildQueryString({ ...params, format });
   const endpoint = `${admin.personnels}/export${query}`;

@@ -139,6 +139,61 @@ final class PersonnelController extends AbstractController
         );
     }
 
+    #[Route('/{id}/signature', name: 'api_admin_personnels_signature_show', methods: ['GET'])]
+    public function showSignature(string $id, #[CurrentUser] ?Personnel $viewer): Response
+    {
+        $personnel = $this->personnelService->getById($id);
+        $this->assertCanViewAvatar($personnel, $viewer);
+
+        $path = $this->personnelService->resolveSignaturePath($id);
+        if (null === $path) {
+            throw new NotFoundHttpException('Signature non trouvée.');
+        }
+
+        $response = new BinaryFileResponse($path);
+        $mimeType = $this->personnelService->resolveSignatureMimeType($id);
+        if (null !== $mimeType) {
+            $response->headers->set('Content-Type', $mimeType);
+        }
+
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
+    }
+
+    #[Route('/{id}/signature', name: 'api_admin_personnels_signature_upload', methods: ['POST'])]
+    #[IsGranted(AdminPermissions::PERSONNEL_UPDATE)]
+    public function uploadSignature(string $id, Request $request): JsonResponse
+    {
+        $personnel = $this->personnelService->getById($id);
+        $this->denyAccessUnlessGranted(AdminPermissions::PERSONNEL_UPDATE, $personnel);
+
+        /** @var UploadedFile|null $file */
+        $file = $request->files->get('signature');
+        if (!$file instanceof UploadedFile) {
+            throw new BadRequestHttpException('Aucun fichier signature fourni.');
+        }
+
+        return $this->apiSuccess(
+            $this->personnelService->serialize($this->personnelService->uploadSignature($id, $file)),
+            'Signature mise à jour avec succès.',
+        );
+    }
+
+    #[Route('/{id}/signature', name: 'api_admin_personnels_signature_delete', methods: ['DELETE'])]
+    #[IsGranted(AdminPermissions::PERSONNEL_UPDATE)]
+    public function deleteSignature(string $id): JsonResponse
+    {
+        $personnel = $this->personnelService->getById($id);
+        $this->denyAccessUnlessGranted(AdminPermissions::PERSONNEL_UPDATE, $personnel);
+
+        return $this->apiSuccess(
+            $this->personnelService->serialize($this->personnelService->deleteSignature($id)),
+            'Signature supprimée avec succès.',
+        );
+    }
+
     #[Route('/{id}', name: 'api_admin_personnels_show', methods: ['GET'])]
     #[IsGranted(AdminPermissions::PERSONNEL_READ)]
     public function show(string $id): JsonResponse

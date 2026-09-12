@@ -109,6 +109,10 @@ class CertificatAptitude implements BlameableInterface
     #[ORM\Column(length: 150, nullable: true)]
     private ?string $motifAutre = null;
 
+    #[ORM\ManyToOne(inversedBy: 'certificats')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Filiere $filiere = null;
+
     #[ORM\Column(type: Types::DECIMAL, precision: 6, scale: 2, nullable: true)]
     private ?string $poidsKg = null;
 
@@ -450,6 +454,18 @@ class CertificatAptitude implements BlameableInterface
     public function setMotifAutre(?string $motifAutre): static
     {
         $this->motifAutre = $motifAutre;
+
+        return $this;
+    }
+
+    public function getFiliere(): ?Filiere
+    {
+        return $this->filiere;
+    }
+
+    public function setFiliere(?Filiere $filiere): static
+    {
+        $this->filiere = $filiere;
 
         return $this;
     }

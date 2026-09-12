@@ -27,6 +27,7 @@ import RolePermissionsPage from '../features/admin/role-permissions/RolePermissi
 import PersonnelPage from '../features/admin/personnel/PersonnelPage.jsx';
 import DatabaseAdminPage from '../features/admin/database/DatabaseAdminPage.jsx';
 import GradesPage from '../features/referentiel/grades/GradesPage.jsx';
+import FilieresPage from '../features/referentiel/filieres/FilieresPage.jsx';
 import SpecialitesPage from '../features/referentiel/specialites/SpecialitesPage.jsx';
 import TypesExamenPage from '../features/referentiel/types-examen/TypesExamenPage.jsx';
 import TypesAntecedentPage from '../features/referentiel/types-antecedent/TypesAntecedentPage.jsx';
@@ -60,6 +61,8 @@ import TourDeSalleFichePage from '../features/clinique/tour-de-salle/TourDeSalle
 import DemandesExamenPage from '../features/clinique/demandes-examen/DemandesExamenPage.jsx';
 import AptitudesPage from '../features/clinique/aptitude/AptitudesPage.jsx';
 import AptitudeFormPage from '../features/clinique/aptitude/AptitudeFormPage.jsx';
+import AptitudeStatsPage from '../features/clinique/aptitude/AptitudeStatsPage.jsx';
+import ProfilePage from '../features/profile/ProfilePage.jsx';
 import { PermissionGuard } from '../components/auth/PermissionGuard.jsx';
 import { PERMISSIONS } from '../constants/permissions.js';
 import { fetchMe } from '../features/auth/authService.js';
@@ -99,6 +102,14 @@ export default function AppRouter() {
         <Route element={<RequireAuth />}>
           <Route element={<AppLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
+            <Route
+              path={ROUTES.PROFILE}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.ADMIN.SIGNATURE_READ}>
+                  <ProfilePage />
+                </PermissionGuard>
+              )}
+            />
             <Route
               path={ROUTES.ORGANISATION.DEPARTEMENTS}
               element={(
@@ -168,6 +179,14 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.CLINIQUE.VISITE_READ}>
                   <VisitesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.CLINIQUE.APTITUDE_STATS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.CLINIQUE.APTITUDE_READ}>
+                  <AptitudeStatsPage />
                 </PermissionGuard>
               )}
             />
@@ -244,6 +263,14 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.REFERENTIEL.GRADE_READ}>
                   <GradesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.REFERENTIEL.FILIERES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.REFERENTIEL.FILIERE_READ}>
+                  <FilieresPage />
                 </PermissionGuard>
               )}
             />
@@ -356,6 +383,14 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.PHARMACIE.MOUVEMENT_READ}>
                   <MouvementsPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.VENTE_ANTERIEURE_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.VENTE_SAISIE_ANTERIEURE}>
+                  <VenteFormPage />
                 </PermissionGuard>
               )}
             />

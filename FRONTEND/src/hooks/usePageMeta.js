@@ -27,6 +27,10 @@ export function usePageMeta() {
       return { path: ROUTES.DASHBOARD, title: 'Tableau de bord', section: 'Général' };
     }
 
+    if (pathname === ROUTES.PROFILE) {
+      return { path: ROUTES.PROFILE, title: 'Mon profil', section: 'Compte' };
+    }
+
     return { path: pathname, title: 'CHU UKV', section: 'Application' };
   }, [pathname]);
 }

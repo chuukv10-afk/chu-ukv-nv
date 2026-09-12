@@ -32,7 +32,10 @@ export const EMPTY_VENTE_LIGNE = {
   medicamentId: '',
   lotId: '',
   quantite: 1,
+  prixUnitaire: '',
 };
+
+export const DATE_STOCK_OUVERTURE = '2026-08-28';
 
 export function emptyVenteForm() {
   return {
@@ -41,6 +44,7 @@ export function emptyVenteForm() {
     clientNom: '',
     visiteId: '',
     modePaiement: 'ESPECES',
+    dateVente: '',
     lignes: [{ ...EMPTY_VENTE_LIGNE }],
   };
 }

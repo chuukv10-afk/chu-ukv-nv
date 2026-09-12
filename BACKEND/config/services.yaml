@@ -8,6 +8,7 @@
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
     personnel_avatar_dir: '%kernel.project_dir%/var/uploads/personnel'
+    personnel_signature_dir: '%kernel.project_dir%/var/uploads/personnel/signatures'
     chu_pdf_assets_dir: '%kernel.project_dir%/assets/export/chu'
 
 services:
@@ -24,6 +25,10 @@ services:
     App\Service\Personnel\PersonnelAvatarService:
         arguments:
             $uploadDir: '%personnel_avatar_dir%'
+
+    App\Service\Personnel\PersonnelSignatureService:
+        arguments:
+            $uploadDir: '%personnel_signature_dir%'
 
     App\Service\Export\ChuPdfLayoutProvider:
         arguments:

@@ -28,6 +28,7 @@ import {
   createAptitudeApi,
   deleteAptitudeApi,
   fetchAptitudeApi,
+  fetchAptitudeFilieresApi,
   fetchAptitudeServicesApi,
   openAptitudePdfApi,
   signerAptitudeApi,
@@ -48,6 +49,7 @@ function toPayload(form) {
     adresse: form.adresse.trim() || null,
     motif: form.motif,
     motifAutre: form.motif === 'AUTRE' ? (form.motifAutre.trim() || null) : null,
+    filiereId: form.motif === 'ADMISSION_UKV' && form.filiereId ? Number(form.filiereId) : null,
     poidsKg: form.poidsKg === '' ? null : Number(form.poidsKg),
     tailleM: form.tailleM === '' ? null : Number(form.tailleM),
     perimetreThoraciqueCm: form.perimetreThoraciqueCm === '' ? null : Number(form.perimetreThoraciqueCm),
@@ -87,6 +89,7 @@ export default function AptitudeFormPage() {
   const [form, setForm] = useState(emptyAptitudeForm);
   const [detail, setDetail] = useState(null);
   const [services, setServices] = useState([]);
+  const [filieres, setFilieres] = useState([]);
   const [patientOptions, setPatientOptions] = useState([]);
   const [patientQuery, setPatientQuery] = useState('');
   const [loading, setLoading] = useState(!isNew);
@@ -131,6 +134,7 @@ export default function AptitudeFormPage() {
 
   useEffect(() => {
     fetchAptitudeServicesApi().then(setServices).catch(() => setServices([]));
+    fetchAptitudeFilieresApi().then(setFilieres).catch(() => setFilieres([]));
   }, []);
 
   useEffect(() => {
@@ -357,13 +361,41 @@ export default function AptitudeFormPage() {
             <FormLabel>Motif de l’examen</FormLabel>
             <RadioGroup
               value={form.motif}
-              onChange={(e) => setField('motif', e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setForm((prev) => ({
+                  ...prev,
+                  motif: next,
+                  filiereId: next === 'ADMISSION_UKV' ? prev.filiereId : '',
+                  motifAutre: next === 'AUTRE' ? prev.motifAutre : '',
+                }));
+              }}
             >
               {APTITUDE_MOTIFS.map((m) => (
                 <Radio key={m.value} value={m.value} label={m.label} disabled={locked} />
               ))}
             </RadioGroup>
           </FormControl>
+          {form.motif === 'ADMISSION_UKV' ? (
+            <FormControl required>
+              <FormLabel>Filière UKV</FormLabel>
+              <Select
+                placeholder={filieres.length ? 'Choisir une filière' : 'Aucune filière enregistrée'}
+                value={form.filiereId}
+                disabled={locked}
+                onChange={(_, v) => setField('filiereId', v ?? '')}
+              >
+                {filieres.map((f) => (
+                  <Option key={f.id} value={String(f.id)}>{f.code} — {f.libelle}</Option>
+                ))}
+              </Select>
+              {!locked && filieres.length === 0 ? (
+                <Typography level="body-xs" sx={{ color: 'warning.600', mt: 0.5 }}>
+                  Aucune filière n’est encore enregistrée. Un administrateur doit les créer dans Référentiel → Filières UKV.
+                </Typography>
+              ) : null}
+            </FormControl>
+          ) : null}
           {form.motif === 'AUTRE' ? (
             <FormControl>
               <FormLabel>Préciser le motif</FormLabel>
@@ -505,7 +537,17 @@ export default function AptitudeFormPage() {
           </Button>
         ) : null}
         {canSign && detail?.statut === 'BROUILLON' ? (
-          <Button color="success" startDecorator={<Stamp size={16} />} onClick={() => setConfirmAction('signer')}>
+          <Button
+            color="success"
+            startDecorator={<Stamp size={16} />}
+            onClick={() => {
+              if (form.motif === 'ADMISSION_UKV' && !form.filiereId) {
+                setError('Sélectionnez une filière avant de signer une admission UKV.');
+                return;
+              }
+              setConfirmAction('signer');
+            }}
+          >
             Signer
           </Button>
         ) : null}

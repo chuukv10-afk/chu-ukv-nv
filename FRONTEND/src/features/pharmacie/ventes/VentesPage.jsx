@@ -11,15 +11,22 @@ import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
-import { formatDateTime, formatPatientName, formatPrix } from '../shared/format.js';
+import { formatDateTime, formatPatientName, formatPrix, todayIso } from '../shared/format.js';
 import { PERIOD_OPTIONS, resolvePeriodRange } from '../shared/period.js';
 import {
+  DATE_STOCK_OUVERTURE,
   DEFAULT_VENTE_PAGE_SIZE,
   VENTE_PAGE_SIZE_OPTIONS,
   VENTE_STATUT_COLORS,
   VENTE_STATUT_LABELS,
   VENTE_STATUTS,
 } from './venteConstants.js';
+
+const VENTE_PERIOD_OPTIONS = [
+  ...PERIOD_OPTIONS.slice(0, -1),
+  { value: 'since_ouverture', label: 'Depuis le 28/08' },
+  PERIOD_OPTIONS[PERIOD_OPTIONS.length - 1],
+];
 import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { deleteVenteApi, fetchVenteApi, fetchVentesApi } from './ventesApi.js';
 import { printVenteTicket } from './printVenteTicket.js';
@@ -46,6 +53,7 @@ export default function VentesPage() {
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
   const canCreate = hasPermission(PERMISSIONS.PHARMACIE.VENTE_CREATE);
+  const canSaisirAnterieure = hasPermission(PERMISSIONS.PHARMACIE.VENTE_SAISIE_ANTERIEURE);
   const canDelete = hasPermission(PERMISSIONS.PHARMACIE.VENTE_DELETE);
 
   const [items, setItems] = useState([]);
@@ -74,7 +82,9 @@ export default function VentesPage() {
     setLoading(true);
     setListError('');
     try {
-      const range = resolvePeriodRange(period, customFrom, customTo);
+      const range = period === 'since_ouverture'
+        ? { dateFrom: DATE_STOCK_OUVERTURE, dateTo: todayIso() }
+        : resolvePeriodRange(period, customFrom, customTo);
       const result = await fetchVentesApi({
         page: targetPage,
         limit,
@@ -128,14 +138,28 @@ export default function VentesPage() {
               <Typography level="h2" sx={{ fontWeight: 700 }}>Ventes caisse</Typography>
               <Typography level="body-md" sx={{ color: 'neutral.500' }}>
                 Passant ou patient, paiement immédiat, sortie FEFO.
+                {canSaisirAnterieure
+                  ? ' Les ventes antérieures n’apparaissent pas dans « Aujourd’hui » : choisissez Ce mois, Cette année ou Depuis le 28/08.'
+                  : ''}
               </Typography>
             </Box>
           </Stack>
-          {canCreate ? (
-            <Button startDecorator={<Plus size={16} />} onClick={() => navigate(ROUTES.PHARMACIE.VENTE_NEW)}>
-              Nouvelle vente
-            </Button>
-          ) : null}
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {canSaisirAnterieure ? (
+              <Button
+                variant="outlined"
+                startDecorator={<Plus size={16} />}
+                onClick={() => navigate(ROUTES.PHARMACIE.VENTE_ANTERIEURE_NEW)}
+              >
+                Vente antérieure
+              </Button>
+            ) : null}
+            {canCreate ? (
+              <Button startDecorator={<Plus size={16} />} onClick={() => navigate(ROUTES.PHARMACIE.VENTE_NEW)}>
+                Nouvelle vente
+              </Button>
+            ) : null}
+          </Stack>
         </Stack>
 
         <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2 }}>
@@ -164,7 +188,7 @@ export default function VentesPage() {
                 onChange={(_, value) => setPeriod(value ?? 'today')}
                 sx={{ minWidth: 200 }}
               >
-                {PERIOD_OPTIONS.map((item) => (
+                {VENTE_PERIOD_OPTIONS.map((item) => (
                   <Option key={item.value} value={item.value}>{item.label}</Option>
                 ))}
               </Select>
@@ -222,6 +246,9 @@ export default function VentesPage() {
                       <Chip size="sm" variant="soft" color={VENTE_STATUT_COLORS[item.statut] ?? 'neutral'}>
                         {VENTE_STATUT_LABELS[item.statut] ?? item.statut}
                       </Chip>
+                      {item.historique ? (
+                        <Chip size="sm" variant="soft" color="warning">Antérieure</Chip>
+                      ) : null}
                       <PendingSyncChip show={item.pendingSync} />
                     </Stack>
                   </td>

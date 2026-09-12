@@ -29,6 +29,9 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class VenteService
 {
+    private const TIMEZONE = 'Africa/Kinshasa';
+    private const DATE_STOCK_OUVERTURE = '2026-08-28';
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly VenteRepository $venteRepository,
@@ -65,8 +68,9 @@ final class VenteService
     public function create(UpsertVenteInput $input): Vente
     {
         $this->assertValid($input);
+        $dateHistorique = $this->resolveDateHistorique($input);
         $vente = (new Vente())
-            ->setNumero($this->nextNumero())
+            ->setNumero($this->nextNumero($dateHistorique))
             ->setStatut(Vente::STATUT_BROUILLON)
             ->setCreatedAt(new \DateTimeImmutable());
         $this->apply($vente, $input);
@@ -115,6 +119,7 @@ final class VenteService
         $sortieType = Vente::ORIGINE_HOSPITALISE === $vente->getOrigine()
             ? MouvementStock::TYPE_SORTIE_HOSPITALISE
             : MouvementStock::TYPE_SORTIE_VENTE;
+        $historique = $this->isHistorique($vente);
 
         $total = 0.0;
         foreach ($vente->getLignes() as $ligne) {
@@ -123,7 +128,11 @@ final class VenteService
             if (null !== $lot && $lot->getMedicament()?->getId() !== $medicament?->getId()) {
                 $lot = null;
             }
-            if (null === $lot || !$this->stockService->canSortir($lot, $ligne->getQuantite())) {
+            if ($historique) {
+                if (null === $lot || !$this->stockService->canSortirHistorique($lot, $ligne->getQuantite())) {
+                    $lot = $this->stockService->resolveFefoHistorique($medicament, $ligne->getQuantite());
+                }
+            } elseif (null === $lot || !$this->stockService->canSortir($lot, $ligne->getQuantite())) {
                 $lot = $this->stockService->resolveFefo($medicament, $ligne->getQuantite());
             }
             $ligne->setLot($lot);
@@ -134,17 +143,28 @@ final class VenteService
                 $sortieType,
                 MouvementStock::DOC_VENTE,
                 (int) $vente->getId(),
+                requireVendable: !$historique,
+                effectiveAt: $historique ? $this->effectiveAt($vente->getDateVente()) : null,
             );
 
-            $prix = $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+            if ($historique) {
+                $prix = $this->stockService->normalizePrix((string) $ligne->getPrixUnitaire());
+            } else {
+                $prix = $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+                $ligne->setPrixUnitaire($prix);
+            }
             $ligneTotal = round((float) $prix * $ligne->getQuantite(), 4);
-            $ligne->setPrixUnitaire($prix)->setPrixTotal(number_format($ligneTotal, 4, '.', ''));
+            $ligne->setPrixTotal(number_format($ligneTotal, 4, '.', ''));
             $total += $ligneTotal;
         }
 
+        $dateVente = $historique
+            ? ($vente->getDateVente() ?? $this->now())
+            : $this->now();
+
         $vente
             ->setStatut(Vente::STATUT_VALIDEE)
-            ->setDateVente(new \DateTimeImmutable())
+            ->setDateVente($dateVente)
             ->setMontantTotal(number_format($total, 4, '.', ''));
         $this->entityManager->flush();
 
@@ -243,6 +263,7 @@ final class VenteService
             'lignesCount' => $vente->getLignes()->count(),
             'motifAnnulation' => $vente->getMotifAnnulation(),
             'annuleAt' => $vente->getAnnuleAt()?->format(\DateTimeInterface::ATOM),
+            'historique' => $this->isHistorique($vente),
             'origine' => $vente->getOrigine(),
             'visiteId' => $visite?->getId(),
             'visite' => $visite ? [
@@ -349,7 +370,7 @@ final class VenteService
                 }
             }
 
-            $prix = $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+            $prix = $this->resolveLignePrix($medicament, $ligneInput->prixUnitaire, $this->isSaisieAnterieure($input));
             $ligneTotal = round((float) $prix * $ligneInput->quantite, 4);
             $total += $ligneTotal;
 
@@ -362,6 +383,7 @@ final class VenteService
             $vente->addLigne($ligne);
         }
         $vente->setMontantTotal(number_format($total, 4, '.', ''));
+        $vente->setDateVente($this->resolveDateHistorique($input));
     }
 
     private function assertVisiteHospitalisee(Vente $vente): void
@@ -426,11 +448,88 @@ final class VenteService
         return $medicament;
     }
 
-    private function nextNumero(): string
+    private function nextNumero(?\DateTimeImmutable $date = null): string
     {
-        $prefix = 'VTE-' . (new \DateTimeImmutable())->format('Ymd') . '-';
+        $prefix = 'VTE-' . ($date ?? $this->now())->format('Ymd') . '-';
 
         return $prefix . str_pad((string) ($this->venteRepository->countNumeroPrefix($prefix) + 1), 4, '0', STR_PAD_LEFT);
+    }
+
+    private function resolveDateHistorique(UpsertVenteInput $input): ?\DateTimeImmutable
+    {
+        if (!$this->isSaisieAnterieure($input)) {
+            return null;
+        }
+
+        $this->assertCanSaisirAnterieure();
+        $date = $this->parseDateVente((string) $input->dateVente);
+        $today = $this->today()->format('Y-m-d');
+        $min = self::DATE_STOCK_OUVERTURE;
+        $day = $date->format('Y-m-d');
+        if ($day >= $today) {
+            throw new ConflictException('La date d\'une vente antérieure doit être antérieure à aujourd\'hui.');
+        }
+        if ($day < $min) {
+            throw new ConflictException('La date ne peut pas précéder le stock d\'ouverture du 28/08/2026.');
+        }
+
+        return $date;
+    }
+
+    private function isSaisieAnterieure(UpsertVenteInput $input): bool
+    {
+        return null !== $input->dateVente && '' !== trim($input->dateVente);
+    }
+
+    private function isHistorique(Vente $vente): bool
+    {
+        $dateVente = $vente->getDateVente();
+        if (!$dateVente instanceof \DateTimeImmutable) {
+            return false;
+        }
+
+        return $dateVente->format('Y-m-d') < $this->today()->format('Y-m-d');
+    }
+
+    private function parseDateVente(string $value): \DateTimeImmutable
+    {
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', trim($value), new \DateTimeZone(self::TIMEZONE));
+        if (false === $date) {
+            throw new ConflictException('Date de vente invalide.');
+        }
+
+        return $date->setTime(12, 0);
+    }
+
+    private function resolveLignePrix(Medicament $medicament, mixed $override, bool $autoriserPrixSaisi): string
+    {
+        if ($autoriserPrixSaisi && null !== $override && '' !== $override) {
+            return $this->stockService->normalizePrix((string) $override);
+        }
+
+        return $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+    }
+
+    private function assertCanSaisirAnterieure(): void
+    {
+        if (!$this->security->isGranted(PharmaciePermissions::VENTE_SAISIE_ANTERIEURE)) {
+            throw new AccessDeniedHttpException('Permission requise pour enregistrer une vente antérieure.');
+        }
+    }
+
+    private function effectiveAt(?\DateTimeImmutable $date): \DateTimeImmutable
+    {
+        return $date instanceof \DateTimeImmutable ? $date : $this->now();
+    }
+
+    private function now(): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable('now', new \DateTimeZone(self::TIMEZONE));
+    }
+
+    private function today(): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable('today', new \DateTimeZone(self::TIMEZONE));
     }
 
     /**
@@ -450,6 +549,7 @@ final class VenteService
                 (int) ($ligne['medicamentId'] ?? 0),
                 null !== $lotId && '' !== $lotId ? (int) $lotId : null,
                 (int) ($ligne['quantite'] ?? 0),
+                $ligne['prixUnitaire'] ?? null,
             );
         }
 
