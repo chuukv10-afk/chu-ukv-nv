@@ -114,7 +114,11 @@ export async function enqueueMutation({
   createdByTelephone = '',
 }) {
   const nextPayload = { ...(payload || {}) };
-  if (nextPayload.dateVente) nextPayload.dateVente = String(nextPayload.dateVente).slice(0, 10);
+  if (nextPayload.historique || nextPayload.saisieAnterieure) {
+    if (nextPayload.dateVente) nextPayload.dateVente = String(nextPayload.dateVente).slice(0, 10);
+  } else {
+    delete nextPayload.dateVente;
+  }
   if (nextPayload.dateReception) nextPayload.dateReception = String(nextPayload.dateReception).slice(0, 10);
   if (isCreateAction(action) && (nextPayload.id == null || nextPayload.id === '')) {
     nextPayload.id = optimistic?.id || createLocalEntityId(kindFromAction(action));

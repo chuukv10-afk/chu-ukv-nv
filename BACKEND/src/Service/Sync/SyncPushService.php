@@ -42,6 +42,7 @@ use App\Service\Pharmacie\LotService;
 use App\Service\Pharmacie\MedicamentService;
 use App\Service\Pharmacie\ReceptionService;
 use App\Service\Pharmacie\UniteMedicamentService;
+use App\Util\CalendarDate;
 use App\Service\Pharmacie\VenteService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -834,8 +835,28 @@ final class SyncPushService
             visiteId: isset($payload['visiteId']) ? (int) $payload['visiteId'] : null,
             modePaiement: (string) ($payload['modePaiement'] ?? 'ESPECES'),
             lignes: $lignes,
-            dateVente: UpsertVenteInput::toDateOnly(isset($payload['dateVente']) ? (string) $payload['dateVente'] : null),
+            dateVente: $this->syncDateVente($payload),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    /**
+     * Le .exe envoie dateVente en ISO (T12:00:00 ou …Z). Une vente du jour
+     * n'est pas une saisie antérieure : on ne garde que les jours déjà passés à Kinshasa.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function syncDateVente(array $payload): ?string
+    {
+        $raw = $payload['dateVente'] ?? $payload['optimistic']['dateVente'] ?? null;
+        $day = UpsertVenteInput::toDateOnly(null !== $raw ? (string) $raw : null);
+        if (null === $day) {
+            return null;
+        }
+
+        return $day < CalendarDate::today() ? $day : null;
     }
 
     private function moduleFromAction(string $action): string

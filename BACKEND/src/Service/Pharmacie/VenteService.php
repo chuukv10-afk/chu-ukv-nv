@@ -461,15 +461,12 @@ final class VenteService
             return null;
         }
 
-        $this->assertCanSaisirAnterieure();
-        $date = $this->parseDateVente((string) $input->dateVente);
-        $today = $this->today()->format('Y-m-d');
-        $min = self::DATE_STOCK_OUVERTURE;
-        $day = $date->format('Y-m-d');
-        if ($day >= $today) {
-            throw new ConflictException('La date d\'une vente antérieure doit être antérieure à aujourd\'hui.');
+        if (!$this->security->isGranted(PharmaciePermissions::VENTE_SAISIE_ANTERIEURE)) {
+            return null;
         }
-        if ($day < $min) {
+
+        $date = $this->parseDateVente((string) $input->dateVente);
+        if ($date->format('Y-m-d') < self::DATE_STOCK_OUVERTURE) {
             throw new ConflictException('La date ne peut pas précéder le stock d\'ouverture du 28/08/2026.');
         }
 
@@ -478,7 +475,12 @@ final class VenteService
 
     private function isSaisieAnterieure(UpsertVenteInput $input): bool
     {
-        return null !== $input->dateVente && '' !== trim($input->dateVente);
+        $day = UpsertVenteInput::toDateOnly($input->dateVente);
+        if (null === $day) {
+            return false;
+        }
+
+        return $day < $this->today()->format('Y-m-d');
     }
 
     private function isHistorique(Vente $vente): bool

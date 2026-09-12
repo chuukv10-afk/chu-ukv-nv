@@ -1,6 +1,9 @@
-import { API_BASE_URL } from '../constants/apiConfig.js';
-import { AUTH_TOKEN_KEY } from '../constants/apiConfig.js';
+import { API_BASE_URL, AUTH_TOKEN_KEY } from '../constants/apiConfig.js';
 import { auth } from '../api/endpoints.js';
+import {
+  createSessionExpiredError,
+  handleUnauthorizedApiResponse,
+} from '../features/auth/authSession.js';
 import { isServerReachable, pingServer, setConnectivityPatch } from './connectivity.js';
 import { writeCache, writeNamedCache } from './cache.js';
 import { rememberIdMapping, resolvePayloadIds, isLocalId } from './idMap.js';
@@ -14,12 +17,28 @@ function todayLocalIso() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
+function localCalendarDay(value) {
+  if (!value) return null;
+  const raw = String(value);
+  if (raw.includes('T')) {
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+  }
+  return toDateOnly(raw);
+}
+
 function sanitizeSyncDates(payload = {}) {
   const next = { ...payload };
-  const dateVente = toDateOnly(next.dateVente);
+  const dateVente = localCalendarDay(next.dateVente);
   const dateReception = toDateOnly(next.dateReception);
-  if (dateVente && dateVente < todayLocalIso()) next.dateVente = dateVente;
-  else delete next.dateVente;
+  const explicitHistorique = Boolean(next.historique || next.saisieAnterieure);
+  if (explicitHistorique && dateVente && dateVente < todayLocalIso()) {
+    next.dateVente = dateVente;
+  } else {
+    delete next.dateVente;
+  }
   if (dateReception) next.dateReception = dateReception;
   if (Array.isArray(next.lignes)) {
     next.lignes = next.lignes.map((ligne) => {
@@ -41,7 +60,19 @@ async function authorizedJson(endpoint, method, body) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const payload = await response.json().catch(() => ({}));
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const payload = contentType.includes('application/json')
+    ? await response.json().catch(() => ({}))
+    : {};
+  if (response.status === 400 && !contentType.includes('application/json')) {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    handleUnauthorizedApiResponse(401, endpoint);
+    throw createSessionExpiredError();
+  }
+  if (response.status === 401) {
+    handleUnauthorizedApiResponse(401, endpoint);
+    throw createSessionExpiredError();
+  }
   if (!response.ok) {
     const error = new Error(payload?.message || 'Synchronisation impossible.');
     error.status = response.status;
