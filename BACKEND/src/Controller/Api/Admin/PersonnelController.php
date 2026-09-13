@@ -10,8 +10,8 @@ use App\Entity\Personnel;
 use App\Security\Permission\AdminPermissions;
 use App\Service\Personnel\PersonnelService;
 use App\Service\Personnel\PersonnelExportService;
+use App\Service\Storage\StoredFileResponse;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -90,21 +90,12 @@ final class PersonnelController extends AbstractController
         $personnel = $this->personnelService->getById($id);
         $this->assertCanViewAvatar($personnel, $viewer);
 
-        $path = $this->personnelService->resolveAvatarPath($id);
-        if (null === $path) {
+        $file = $this->personnelService->readAvatar($id);
+        if (null === $file) {
             throw new NotFoundHttpException('Avatar non trouvé.');
         }
 
-        $response = new BinaryFileResponse($path);
-        $mimeType = $this->personnelService->resolveAvatarMimeType($id);
-        if (null !== $mimeType) {
-            $response->headers->set('Content-Type', $mimeType);
-        }
-
-        $response->setPrivate();
-        $response->headers->addCacheControlDirective('no-store');
-
-        return $response;
+        return StoredFileResponse::create($file);
     }
 
     #[Route('/{id}/avatar', name: 'api_admin_personnels_avatar_upload', methods: ['POST'])]
@@ -145,21 +136,12 @@ final class PersonnelController extends AbstractController
         $personnel = $this->personnelService->getById($id);
         $this->assertCanViewAvatar($personnel, $viewer);
 
-        $path = $this->personnelService->resolveSignaturePath($id);
-        if (null === $path) {
+        $file = $this->personnelService->readSignature($id);
+        if (null === $file) {
             throw new NotFoundHttpException('Signature non trouvée.');
         }
 
-        $response = new BinaryFileResponse($path);
-        $mimeType = $this->personnelService->resolveSignatureMimeType($id);
-        if (null !== $mimeType) {
-            $response->headers->set('Content-Type', $mimeType);
-        }
-
-        $response->setPrivate();
-        $response->headers->addCacheControlDirective('no-store');
-
-        return $response;
+        return StoredFileResponse::create($file);
     }
 
     #[Route('/{id}/signature', name: 'api_admin_personnels_signature_upload', methods: ['POST'])]

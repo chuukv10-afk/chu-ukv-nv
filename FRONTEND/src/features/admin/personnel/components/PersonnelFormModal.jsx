@@ -362,7 +362,7 @@ export default function PersonnelFormModal({
                     ) : null}
                   </Stack>
                   <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                    JPG, PNG ou WebP — 2 Mo maximum. La photo sera enregistrée avec le formulaire.
+                    JPG, PNG ou WebP — 8 Mo maximum. La photo sera enregistrée avec le formulaire.
                   </Typography>
                 </Stack>
               </Stack>
@@ -402,7 +402,7 @@ export default function PersonnelFormModal({
                     ) : null}
                   </Stack>
                   <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                    JPG, PNG ou WebP — 2 Mo. Insérée sur les documents signés par cet agent.
+                    JPG, PNG ou WebP — 8 Mo. Insérée sur les documents signés par cet agent.
                   </Typography>
                 </Stack>
               </Stack>

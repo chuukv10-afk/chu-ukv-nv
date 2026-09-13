@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 use App\Tests\Pharmacie\DemandePaiementRulesTest;
 use App\Tests\Pharmacie\LotSortieRulesTest;
 use App\Tests\Pharmacie\VenteAnterieureRulesTest;
+use App\Tests\Storage\ObjectStorageTest;
 use App\Tests\Util\CalendarDateTest;
 
 $suites = [
@@ -14,6 +15,7 @@ $suites = [
     'stock FEFO / historique' => LotSortieRulesTest::run(),
     'vente antérieure / permission / prix' => VenteAnterieureRulesTest::run(),
     'encaissement partiel service' => DemandePaiementRulesTest::run(),
+    'stockage local / S3 fallback' => ObjectStorageTest::run(),
 ];
 
 $failed = 0;

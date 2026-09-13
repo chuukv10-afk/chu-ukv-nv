@@ -4,7 +4,7 @@ import { handleUnauthorizedApiResponse } from '../features/auth/authSession.js';
 const avatarBlobCache = new Map();
 
 export const AVATAR_ACCEPT = 'image/jpeg,image/png,image/webp';
-export const AVATAR_MAX_SIZE_BYTES = 2 * 1024 * 1024;
+export const AVATAR_MAX_SIZE_BYTES = 8 * 1024 * 1024;
 
 export function validateAvatarFile(file) {
   if (!file) {
@@ -16,7 +16,7 @@ export function validateAvatarFile(file) {
   }
 
   if (file.size > AVATAR_MAX_SIZE_BYTES) {
-    return 'La photo ne doit pas dépasser 2 Mo.';
+    return 'La photo ne doit pas dépasser 8 Mo.';
   }
 
   return null;

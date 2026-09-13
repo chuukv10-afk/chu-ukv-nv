@@ -3,13 +3,15 @@
 namespace App\Service\Personnel;
 
 use App\Entity\Personnel;
+use App\Service\Storage\ObjectStorage;
+use App\Service\Storage\StoredFile;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Uid\Uuid;
 
 final class PersonnelAvatarService
 {
-    private const MAX_SIZE_BYTES = 2_097_152;
+    public const MAX_SIZE_BYTES = 8_388_608;
     private const ALLOWED_MIME_TYPES = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
@@ -17,7 +19,7 @@ final class PersonnelAvatarService
     ];
 
     public function __construct(
-        private readonly string $uploadDir,
+        private readonly ObjectStorage $objectStorage,
     ) {
     }
 
@@ -30,17 +32,21 @@ final class PersonnelAvatarService
             throw new BadRequestHttpException('Impossible d\'enregistrer l\'avatar avant la création du personnel.');
         }
 
-        $extension = self::ALLOWED_MIME_TYPES[$file->getMimeType() ?? ''] ?? null;
+        $mimeType = $file->getMimeType() ?? '';
+        $extension = self::ALLOWED_MIME_TYPES[$mimeType] ?? null;
         if (null === $extension) {
             throw new BadRequestHttpException('Format d\'image non supporté. Utilisez JPG, PNG ou WebP.');
         }
 
-        $this->ensureUploadDirectoryExists();
+        $contents = file_get_contents($file->getPathname());
+        if (false === $contents || '' === $contents) {
+            throw new BadRequestHttpException('Le fichier avatar est invalide ou corrompu.');
+        }
+
         $this->deleteStoredFile($personnel);
 
         $filename = sprintf('%s.%s', $personnelId->toRfc4122(), $extension);
-        $file->move($this->uploadDir, $filename);
-
+        $this->objectStorage->put($this->storageKey($filename), $contents, $mimeType);
         $personnel->setAvatarFilename($filename);
     }
 
@@ -50,54 +56,39 @@ final class PersonnelAvatarService
         $personnel->setAvatarFilename(null);
     }
 
-    public function resolvePath(Personnel $personnel): ?string
+    public function read(Personnel $personnel): ?StoredFile
     {
         $filename = $personnel->getAvatarFilename();
         if (null === $filename || '' === trim($filename)) {
             return null;
         }
 
-        $path = $this->uploadDir . DIRECTORY_SEPARATOR . $filename;
-        if (!is_file($path)) {
-            return null;
-        }
-
-        return $path;
+        return $this->objectStorage->get($this->storageKey($filename), $this->legacyKeys($filename));
     }
 
     public function buildAvatarUrl(Personnel $personnel): ?string
     {
-        $path = $this->resolvePath($personnel);
+        $filename = $personnel->getAvatarFilename();
         $personnelId = $personnel->getId();
-
-        if (null === $path || !$personnelId instanceof Uuid) {
+        if (null === $filename || '' === trim($filename) || !$personnelId instanceof Uuid) {
             return null;
         }
 
-        $version = filemtime($path) ?: time();
+        $modified = $this->objectStorage->lastModified($this->storageKey($filename), $this->legacyKeys($filename));
+        if (null === $modified) {
+            return null;
+        }
 
         return sprintf(
             '/api/v1/admin/personnels/%s/avatar?v=%d',
             $personnelId->toRfc4122(),
-            $version,
+            $modified,
         );
     }
 
     public function resolveMimeType(Personnel $personnel): ?string
     {
-        $filename = $personnel->getAvatarFilename();
-        if (null === $filename) {
-            return null;
-        }
-
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
-        return match ($extension) {
-            'jpg', 'jpeg' => 'image/jpeg',
-            'png' => 'image/png',
-            'webp' => 'image/webp',
-            default => null,
-        };
+        return $this->read($personnel)?->mimeType ?? $this->mimeFromFilename($personnel->getAvatarFilename());
     }
 
     private function assertValidUpload(UploadedFile $file): void
@@ -112,26 +103,42 @@ final class PersonnelAvatarService
         }
 
         if ($file->getSize() > self::MAX_SIZE_BYTES) {
-            throw new BadRequestHttpException('L\'avatar ne doit pas dépasser 2 Mo.');
-        }
-    }
-
-    private function ensureUploadDirectoryExists(): void
-    {
-        if (is_dir($this->uploadDir)) {
-            return;
-        }
-
-        if (!mkdir($this->uploadDir, 0775, true) && !is_dir($this->uploadDir)) {
-            throw new BadRequestHttpException('Impossible de préparer le dossier de stockage des avatars.');
+            throw new BadRequestHttpException('L\'avatar ne doit pas dépasser 8 Mo.');
         }
     }
 
     private function deleteStoredFile(Personnel $personnel): void
     {
-        $path = $this->resolvePath($personnel);
-        if (null !== $path && is_file($path)) {
-            unlink($path);
+        $filename = $personnel->getAvatarFilename();
+        if (null === $filename || '' === trim($filename)) {
+            return;
         }
+
+        $this->objectStorage->delete($this->storageKey($filename), $this->legacyKeys($filename));
+    }
+
+    private function storageKey(string $filename): string
+    {
+        return 'personnel/avatars/' . $filename;
+    }
+
+    /** @return list<string> */
+    private function legacyKeys(string $filename): array
+    {
+        return ['personnel/' . $filename];
+    }
+
+    private function mimeFromFilename(?string $filename): ?string
+    {
+        if (null === $filename) {
+            return null;
+        }
+
+        return match (strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            default => null,
+        };
     }
 }

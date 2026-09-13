@@ -7,9 +7,9 @@ use App\Entity\Personnel;
 use App\Exception\ConflictException;
 use App\Security\Permission\AdminPermissions;
 use App\Service\Personnel\PersonnelSignatureService;
+use App\Service\Storage\StoredFileResponse;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,20 +36,12 @@ final class MeSignatureController extends AbstractController
     public function show(#[CurrentUser] ?Personnel $personnel): Response
     {
         $personnel = $this->requirePersonnel($personnel);
-        $path = $this->signatureService->resolvePath($personnel);
-        if (null === $path) {
+        $file = $this->signatureService->read($personnel);
+        if (null === $file) {
             throw new NotFoundHttpException('Aucune signature n\'est liée à ce compte.');
         }
 
-        $response = new BinaryFileResponse($path);
-        $mimeType = $this->signatureService->resolveMimeType($personnel);
-        if (null !== $mimeType) {
-            $response->headers->set('Content-Type', $mimeType);
-        }
-        $response->setPrivate();
-        $response->headers->addCacheControlDirective('no-store');
-
-        return $response;
+        return StoredFileResponse::create($file);
     }
 
     #[Route('', name: 'api_me_signature_upload', methods: ['POST'])]

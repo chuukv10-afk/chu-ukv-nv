@@ -16,6 +16,7 @@ use App\Entity\Service;
 use App\Entity\Specialite;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
+use App\Service\Storage\StoredFile;
 use App\Repository\DepartementRepository;
 use App\Repository\GradeRepository;
 use App\Repository\PersonnelRepository;
@@ -284,11 +285,9 @@ final class PersonnelService
         return $personnel;
     }
 
-    public function resolveAvatarPath(string $id): ?string
+    public function readAvatar(string $id): ?StoredFile
     {
-        $personnel = $this->getById($id);
-
-        return $this->avatarService->resolvePath($personnel);
+        return $this->avatarService->read($this->getById($id));
     }
 
     public function resolveAvatarMimeType(string $id): ?string
@@ -324,11 +323,9 @@ final class PersonnelService
         return $personnel;
     }
 
-    public function resolveSignaturePath(string $id): ?string
+    public function readSignature(string $id): ?StoredFile
     {
-        $personnel = $this->getById($id);
-
-        return $this->signatureService->resolvePath($personnel);
+        return $this->signatureService->read($this->getById($id));
     }
 
     public function resolveSignatureMimeType(string $id): ?string

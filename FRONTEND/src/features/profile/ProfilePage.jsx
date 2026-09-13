@@ -162,7 +162,7 @@ export default function ProfilePage() {
         <Stack spacing={2}>
           <Typography level="title-md">Signature manuscrite</Typography>
           <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
-            Image JPG, PNG ou WebP — 2 Mo maximum. Fond transparent recommandé (PNG).
+            Image JPG, PNG ou WebP — 8 Mo maximum. Fond transparent recommandé (PNG).
           </Typography>
 
           <Box
