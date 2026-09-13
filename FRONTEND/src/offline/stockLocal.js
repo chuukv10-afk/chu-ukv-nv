@@ -207,7 +207,9 @@ export async function reverseLocalMutationStock(action, payload = {}) {
   if (
     action === 'pharmacie.vente.complete'
     || action === 'pharmacie.vente.create_and_valider'
+    || action === 'pharmacie.vente.create_and_bon_pour'
     || action === 'pharmacie.vente.valider'
+    || action === 'pharmacie.vente.bon_pour'
     || action === 'pharmacie.demande_service.delivrer'
   ) {
     await restoreLocalStock(lignes);

@@ -145,7 +145,13 @@ async function lignesForDocument(kind, id, fallback = []) {
 }
 
 async function applyLocalStock(action, payload) {
-  if (action === 'pharmacie.vente.complete' || action === 'pharmacie.vente.create_and_valider' || action === 'pharmacie.vente.valider') {
+  if (
+    action === 'pharmacie.vente.complete'
+    || action === 'pharmacie.vente.create_and_valider'
+    || action === 'pharmacie.vente.create_and_bon_pour'
+    || action === 'pharmacie.vente.valider'
+    || action === 'pharmacie.vente.bon_pour'
+  ) {
     const lignes = await lignesForDocument('vente', payload.id, payload.lignes);
     payload.lignes = lignes;
     await decrementLocalStock(lignes);
@@ -230,14 +236,17 @@ async function enqueueWrite(method, endpoint, body) {
 
 async function buildOptimistic(action, payload) {
   if (action.startsWith('pharmacie.vente')) {
-    const validated = action.includes('valider') || action.includes('complete');
     const now = new Date().toISOString();
     const dateVente = toDateVenteIso(payload.dateVente, now);
     const priced = await priceVenteLignes(payload.lignes || []);
+    let statut = 'BROUILLON';
+    if (action.includes('annuler')) statut = 'ANNULEE';
+    else if (action.includes('encaisser') || action.includes('complete') || action.includes('create_and_valider') || action.endsWith('.valider')) statut = 'VALIDEE';
+    else if (action.includes('bon_pour')) statut = 'BON_POUR';
     return {
       id: payload.id,
       numero: 'OFF-VENTE',
-      statut: action.includes('annuler') ? 'ANNULEE' : (validated ? 'VALIDEE' : 'BROUILLON'),
+      statut,
       clientType: payload.clientType,
       clientNom: payload.clientNom,
       patientId: payload.patientId,

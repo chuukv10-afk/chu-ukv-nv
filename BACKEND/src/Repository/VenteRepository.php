@@ -34,7 +34,7 @@ class VenteRepository extends ServiceEntityRepository
         $normalizedSearch = null !== $search ? trim($search) : '';
         if ('' !== $normalizedSearch) {
             $qb
-                ->andWhere('LOWER(v.numero) LIKE :search OR LOWER(v.clientNom) LIKE :search OR LOWER(p.nom) LIKE :search OR LOWER(p.postNom) LIKE :search')
+                ->andWhere('LOWER(v.numero) LIKE :search OR LOWER(v.clientNom) LIKE :search OR LOWER(p.nom) LIKE :search OR LOWER(p.postNom) LIKE :search OR LOWER(p.prenom) LIKE :search')
                 ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
         }
 
@@ -74,8 +74,8 @@ class VenteRepository extends ServiceEntityRepository
             ->leftJoin('v.patient', 'p')->addSelect('p')
             ->leftJoin('v.visite', 'vi')->addSelect('vi')
             ->leftJoin('vi.service', 's')->addSelect('s')
-            ->andWhere('v.statut = :statut')
-            ->setParameter('statut', Vente::STATUT_VALIDEE);
+            ->andWhere('v.statut IN (:statuts)')
+            ->setParameter('statuts', [Vente::STATUT_VALIDEE, Vente::STATUT_BON_POUR]);
 
         if (null !== $dateFrom && '' !== $dateFrom) {
             $qb
@@ -96,6 +96,28 @@ class VenteRepository extends ServiceEntityRepository
         }
 
         return $qb->getQuery()->getResult();
+    }
+
+    public function sumCreancesOuvertes(): string
+    {
+        $total = $this->createQueryBuilder('v')
+            ->select('COALESCE(SUM(v.montantTotal), 0)')
+            ->andWhere('v.statut = :statut')
+            ->setParameter('statut', Vente::STATUT_BON_POUR)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return number_format((float) $total, 4, '.', '');
+    }
+
+    public function countCreancesOuvertes(): int
+    {
+        return (int) $this->createQueryBuilder('v')
+            ->select('COUNT(v.id)')
+            ->andWhere('v.statut = :statut')
+            ->setParameter('statut', Vente::STATUT_BON_POUR)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     /**

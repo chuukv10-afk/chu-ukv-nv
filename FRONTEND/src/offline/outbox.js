@@ -31,14 +31,15 @@ function kindFromAction(action = '') {
 function isCreateAction(action = '') {
   return action.endsWith('.create')
     || action.endsWith('.complete')
-    || action.includes('create_and_valider');
+    || action.includes('create_and_valider')
+    || action.includes('create_and_bon_pour');
 }
 
 function isFollowUpAction(action = '') {
-  if (!action || action.includes('create_and_valider')) {
+  if (!action || action.includes('create_and_valider') || action.includes('create_and_bon_pour')) {
     return false;
   }
-  return /\.(update|valider|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(action);
+  return /\.(update|valider|bon_pour|encaisser|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(action);
 }
 
 async function listByStatus(statuses) {
@@ -142,6 +143,40 @@ export async function enqueueMutation({
       return mergedOptimistic;
     }
     if (pendingCreate && action === 'pharmacie.vente.valider') {
+      const mergedPayload = { ...pendingCreate.payload, ...nextPayload, id: localId };
+      const mergedOptimistic = {
+        ...pendingCreate.optimistic,
+        ...optimistic,
+        id: localId,
+        statut: 'VALIDEE',
+        pendingSync: true,
+      };
+      await patchOutboxRow(pendingCreate, {
+        action: 'pharmacie.vente.create_and_valider',
+        payload: mergedPayload,
+        optimistic: mergedOptimistic,
+      });
+      await persistOptimistic(pendingCreate.endpoint || endpoint, pendingCreate.action, mergedOptimistic);
+      return mergedOptimistic;
+    }
+    if (pendingCreate && action === 'pharmacie.vente.bon_pour') {
+      const mergedPayload = { ...pendingCreate.payload, ...nextPayload, id: localId };
+      const mergedOptimistic = {
+        ...pendingCreate.optimistic,
+        ...optimistic,
+        id: localId,
+        statut: 'BON_POUR',
+        pendingSync: true,
+      };
+      await patchOutboxRow(pendingCreate, {
+        action: 'pharmacie.vente.create_and_bon_pour',
+        payload: mergedPayload,
+        optimistic: mergedOptimistic,
+      });
+      await persistOptimistic(pendingCreate.endpoint || endpoint, pendingCreate.action, mergedOptimistic);
+      return mergedOptimistic;
+    }
+    if (pendingCreate && action === 'pharmacie.vente.encaisser') {
       const mergedPayload = { ...pendingCreate.payload, ...nextPayload, id: localId };
       const mergedOptimistic = {
         ...pendingCreate.optimistic,

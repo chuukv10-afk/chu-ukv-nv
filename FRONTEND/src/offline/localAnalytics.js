@@ -67,7 +67,7 @@ export async function buildLocalRecettes(params) {
 
   if (!type || type === 'VENTE') {
     for (const vente of namedItems(await readNamedCache('pharmacie.ventes'))) {
-      if (vente.statut && vente.statut !== 'VALIDEE') continue;
+      if (vente.statut !== 'VALIDEE' && vente.statut !== 'BON_POUR') continue;
       const date = vente.dateVente || vente.createdAt;
       if (!inRange(date, from, to)) continue;
       const item = {
@@ -77,7 +77,7 @@ export async function buildLocalRecettes(params) {
         date,
         libelle: venteLibelle(vente),
         montant: vente.montantTotal,
-        statut: 'ENCAISSEE',
+        statut: vente.statut === 'BON_POUR' ? 'IMPAYEE' : 'ENCAISSEE',
         origine: vente.origine || vente.clientType,
       };
       if (search && !`${item.numero} ${item.libelle}`.toLowerCase().includes(search)) continue;
@@ -117,7 +117,7 @@ export async function buildLocalRecettes(params) {
     if (row.statut === 'ENCAISSEE') {
       if (row.type === 'VENTE') encaisseVentes += Number(row.montant || 0);
       else encaisseServices += Number(row.montant || 0);
-    } else if (row.type === 'SERVICE') {
+    } else if (row.statut === 'IMPAYEE') {
       creancesOuvertes += Number(row.montant || 0);
       creancesCount += 1;
     }

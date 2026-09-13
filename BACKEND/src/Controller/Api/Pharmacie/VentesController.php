@@ -61,6 +61,20 @@ final class VentesController extends AbstractController
         return $this->apiSuccess($venteService->serializeDetail($venteService->valider($id)), 'Vente validée, stock décrémenté.');
     }
 
+    #[Route('/{id}/bon-pour', name: 'api_pharmacie_ventes_bon_pour', methods: ['POST'], requirements: ['id' => '\d+'])]
+    #[IsGranted(PharmaciePermissions::VENTE_VALIDER)]
+    public function bonPour(VenteService $venteService, int $id): JsonResponse
+    {
+        return $this->apiSuccess($venteService->serializeDetail($venteService->enregistrerBonPour($id)), 'Bon pour enregistré, stock décrémenté. Encaissement en attente.');
+    }
+
+    #[Route('/{id}/encaisser', name: 'api_pharmacie_ventes_encaisser', methods: ['POST'], requirements: ['id' => '\d+'])]
+    #[IsGranted(PharmaciePermissions::VENTE_VALIDER)]
+    public function encaisser(VenteService $venteService, int $id): JsonResponse
+    {
+        return $this->apiSuccess($venteService->serializeDetail($venteService->encaisser($id)), 'Bon pour encaissé.');
+    }
+
     #[Route('/{id}/annuler', name: 'api_pharmacie_ventes_annuler', methods: ['POST'], requirements: ['id' => '\d+'])]
     public function annuler(
         VenteService $venteService,

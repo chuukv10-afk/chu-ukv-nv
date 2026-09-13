@@ -55,7 +55,13 @@ export function movementsFromOutboxRow(row, medicamentsById = new Map()) {
     }, medicamentsById));
   }
 
-  if (action === 'pharmacie.vente.complete' || action === 'pharmacie.vente.create_and_valider' || action === 'pharmacie.vente.valider') {
+  if (
+    action === 'pharmacie.vente.complete'
+    || action === 'pharmacie.vente.create_and_valider'
+    || action === 'pharmacie.vente.create_and_bon_pour'
+    || action === 'pharmacie.vente.valider'
+    || action === 'pharmacie.vente.bon_pour'
+  ) {
     return lignes.map((ligne, index) => movementLine(row, index, 'SORTIE_VENTE', 'SORTIE', ligne, {
       documentType: 'VENTE',
       createdAt: optimistic.dateVente || payload.dateVente,

@@ -1,5 +1,6 @@
 export const VENTE_STATUTS = [
   { value: 'BROUILLON', label: 'Brouillon', color: 'neutral' },
+  { value: 'BON_POUR', label: 'Bon pour', color: 'warning' },
   { value: 'VALIDEE', label: 'Validée', color: 'success' },
   { value: 'ANNULEE', label: 'Annulée', color: 'danger' },
 ];

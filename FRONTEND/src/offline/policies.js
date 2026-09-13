@@ -14,6 +14,8 @@ export const WRITE_POLICIES = [
   { method: 'POST', test: (path) => path === '/api/v1/pharmacie/ventes', action: 'pharmacie.vente.create', module: 'pharmacie' },
   { method: 'PUT', test: (path) => /\/api\/v1\/pharmacie\/ventes\/[^/]+$/.test(path), action: 'pharmacie.vente.update', module: 'pharmacie', idFromPath: (path) => idFrom(path, /ventes\/([^/]+)$/) },
   { method: 'POST', test: (path) => /\/api\/v1\/pharmacie\/ventes\/[^/]+\/valider$/.test(path), action: 'pharmacie.vente.valider', module: 'pharmacie', idFromPath: (path) => idFrom(path, /ventes\/([^/]+)\/valider$/) },
+  { method: 'POST', test: (path) => /\/api\/v1\/pharmacie\/ventes\/[^/]+\/bon-pour$/.test(path), action: 'pharmacie.vente.bon_pour', module: 'pharmacie', idFromPath: (path) => idFrom(path, /ventes\/([^/]+)\/bon-pour$/) },
+  { method: 'POST', test: (path) => /\/api\/v1\/pharmacie\/ventes\/[^/]+\/encaisser$/.test(path), action: 'pharmacie.vente.encaisser', module: 'pharmacie', idFromPath: (path) => idFrom(path, /ventes\/([^/]+)\/encaisser$/) },
   { method: 'POST', test: (path) => /\/api\/v1\/pharmacie\/ventes\/[^/]+\/annuler$/.test(path), action: 'pharmacie.vente.annuler', module: 'pharmacie', idFromPath: (path) => idFrom(path, /ventes\/([^/]+)\/annuler$/) },
   { method: 'DELETE', test: (path) => /\/api\/v1\/pharmacie\/ventes\/[^/]+$/.test(path), action: 'pharmacie.vente.delete', module: 'pharmacie', idFromPath: (path) => idFrom(path, /ventes\/([^/]+)$/) },
 

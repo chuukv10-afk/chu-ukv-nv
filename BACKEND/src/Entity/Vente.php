@@ -16,6 +16,7 @@ class Vente implements BlameableInterface
     use BlameableTrait;
 
     public const STATUT_BROUILLON = 'BROUILLON';
+    public const STATUT_BON_POUR = 'BON_POUR';
     public const STATUT_VALIDEE = 'VALIDEE';
     public const STATUT_ANNULEE = 'ANNULEE';
 
@@ -91,7 +92,7 @@ class Vente implements BlameableInterface
      */
     public static function getStatuts(): array
     {
-        return [self::STATUT_BROUILLON, self::STATUT_VALIDEE, self::STATUT_ANNULEE];
+        return [self::STATUT_BROUILLON, self::STATUT_BON_POUR, self::STATUT_VALIDEE, self::STATUT_ANNULEE];
     }
 
     public function getId(): ?int

@@ -81,20 +81,12 @@ final class VenteService
 
     public function createAndValider(UpsertVenteInput $input): Vente
     {
-        $connection = $this->entityManager->getConnection();
-        $connection->beginTransaction();
-        try {
-            $vente = $this->create($input);
-            $vente = $this->valider((int) $vente->getId());
-            $connection->commit();
+        return $this->createAndFinaliser($input, Vente::STATUT_VALIDEE);
+    }
 
-            return $vente;
-        } catch (\Throwable $exception) {
-            if ($connection->isTransactionActive()) {
-                $connection->rollBack();
-            }
-            throw $exception;
-        }
+    public function createAndBonPour(UpsertVenteInput $input): Vente
+    {
+        return $this->createAndFinaliser($input, Vente::STATUT_BON_POUR);
     }
 
     public function update(int $id, UpsertVenteInput $input): Vente
@@ -109,62 +101,22 @@ final class VenteService
 
     public function valider(int $id): Vente
     {
-        $vente = $this->requireBrouillon($id);
-        if ($vente->getLignes()->isEmpty()) {
-            throw new ConflictException('Impossible de valider une vente sans ligne.');
-        }
-        $this->assertVisiteHospitalisee($vente);
+        return $this->sortirStock($this->requireBrouillon($id), Vente::STATUT_VALIDEE);
+    }
 
-        $sortieType = Vente::ORIGINE_HOSPITALISE === $vente->getOrigine()
-            ? MouvementStock::TYPE_SORTIE_HOSPITALISE
-            : MouvementStock::TYPE_SORTIE_VENTE;
-        $historique = $this->isHistorique($vente);
+    public function enregistrerBonPour(int $id): Vente
+    {
+        return $this->sortirStock($this->requireBrouillon($id), Vente::STATUT_BON_POUR);
+    }
 
-        $total = 0.0;
-        foreach ($vente->getLignes() as $ligne) {
-            $medicament = $ligne->getMedicament();
-            $lot = $ligne->getLot();
-            if (null !== $lot && $lot->getMedicament()?->getId() !== $medicament?->getId()) {
-                $lot = null;
-            }
-            if ($historique) {
-                if (null === $lot || !$this->stockService->canSortirHistorique($lot, $ligne->getQuantite())) {
-                    $lot = $this->stockService->resolveFefoHistorique($medicament, $ligne->getQuantite());
-                }
-            } elseif (null === $lot || !$this->stockService->canSortir($lot, $ligne->getQuantite())) {
-                $lot = $this->stockService->resolveFefo($medicament, $ligne->getQuantite());
-            }
-            $ligne->setLot($lot);
-
-            $this->stockService->applySortie(
-                $lot,
-                $ligne->getQuantite(),
-                $sortieType,
-                MouvementStock::DOC_VENTE,
-                (int) $vente->getId(),
-                requireVendable: !$historique,
-                effectiveAt: $historique ? $this->effectiveAt($vente->getDateVente()) : null,
-            );
-
-            if ($historique) {
-                $prix = $this->stockService->normalizePrix((string) $ligne->getPrixUnitaire());
-            } else {
-                $prix = $this->stockService->normalizePrix((string) $medicament->getPrixVente());
-                $ligne->setPrixUnitaire($prix);
-            }
-            $ligneTotal = round((float) $prix * $ligne->getQuantite(), 4);
-            $ligne->setPrixTotal(number_format($ligneTotal, 4, '.', ''));
-            $total += $ligneTotal;
+    public function encaisser(int $id): Vente
+    {
+        $vente = $this->getById($id);
+        if (Vente::STATUT_BON_POUR !== $vente->getStatut()) {
+            throw new ConflictException('Seul un bon pour peut être encaissé.');
         }
 
-        $dateVente = $historique
-            ? ($vente->getDateVente() ?? $this->now())
-            : $this->now();
-
-        $vente
-            ->setStatut(Vente::STATUT_VALIDEE)
-            ->setDateVente($dateVente)
-            ->setMontantTotal(number_format($total, 4, '.', ''));
+        $vente->setStatut(Vente::STATUT_VALIDEE);
         $this->entityManager->flush();
 
         return $vente;
@@ -174,8 +126,8 @@ final class VenteService
     {
         $this->assertValid($input);
         $vente = $this->getById($id);
-        if (Vente::STATUT_VALIDEE !== $vente->getStatut()) {
-            throw new ConflictException('Seule une vente validée peut être annulée.');
+        if (!in_array($vente->getStatut(), [Vente::STATUT_VALIDEE, Vente::STATUT_BON_POUR], true)) {
+            throw new ConflictException('Seule une vente validée ou un bon pour peut être annulé.');
         }
 
         $dateVente = $vente->getDateVente() ?? $vente->getCreatedAt() ?? new \DateTimeImmutable();
@@ -422,6 +374,86 @@ final class VenteService
         }
 
         return $items;
+    }
+
+    private function createAndFinaliser(UpsertVenteInput $input, string $statut): Vente
+    {
+        $connection = $this->entityManager->getConnection();
+        $connection->beginTransaction();
+        try {
+            $vente = $this->create($input);
+            $vente = $this->sortirStock($vente, $statut);
+            $connection->commit();
+
+            return $vente;
+        } catch (\Throwable $exception) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    private function sortirStock(Vente $vente, string $statut): Vente
+    {
+        if ($vente->getLignes()->isEmpty()) {
+            throw new ConflictException('Impossible de valider une vente sans ligne.');
+        }
+        $this->assertVisiteHospitalisee($vente);
+
+        $sortieType = Vente::ORIGINE_HOSPITALISE === $vente->getOrigine()
+            ? MouvementStock::TYPE_SORTIE_HOSPITALISE
+            : MouvementStock::TYPE_SORTIE_VENTE;
+        $historique = $this->isHistorique($vente);
+
+        $total = 0.0;
+        foreach ($vente->getLignes() as $ligne) {
+            $medicament = $ligne->getMedicament();
+            $lot = $ligne->getLot();
+            if (null !== $lot && $lot->getMedicament()?->getId() !== $medicament?->getId()) {
+                $lot = null;
+            }
+            if ($historique) {
+                if (null === $lot || !$this->stockService->canSortirHistorique($lot, $ligne->getQuantite())) {
+                    $lot = $this->stockService->resolveFefoHistorique($medicament, $ligne->getQuantite());
+                }
+            } elseif (null === $lot || !$this->stockService->canSortir($lot, $ligne->getQuantite())) {
+                $lot = $this->stockService->resolveFefo($medicament, $ligne->getQuantite());
+            }
+            $ligne->setLot($lot);
+
+            $this->stockService->applySortie(
+                $lot,
+                $ligne->getQuantite(),
+                $sortieType,
+                MouvementStock::DOC_VENTE,
+                (int) $vente->getId(),
+                requireVendable: !$historique,
+                effectiveAt: $historique ? $this->effectiveAt($vente->getDateVente()) : null,
+            );
+
+            if ($historique) {
+                $prix = $this->stockService->normalizePrix((string) $ligne->getPrixUnitaire());
+            } else {
+                $prix = $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+                $ligne->setPrixUnitaire($prix);
+            }
+            $ligneTotal = round((float) $prix * $ligne->getQuantite(), 4);
+            $ligne->setPrixTotal(number_format($ligneTotal, 4, '.', ''));
+            $total += $ligneTotal;
+        }
+
+        $dateVente = $historique
+            ? ($vente->getDateVente() ?? $this->now())
+            : $this->now();
+
+        $vente
+            ->setStatut($statut)
+            ->setDateVente($dateVente)
+            ->setMontantTotal(number_format($total, 4, '.', ''));
+        $this->entityManager->flush();
+
+        return $vente;
     }
 
     private function requireBrouillon(int $id): Vente

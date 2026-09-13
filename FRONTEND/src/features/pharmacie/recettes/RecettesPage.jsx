@@ -28,6 +28,7 @@ export default function RecettesPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const canCreances = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_READ);
+  const canVentes = hasPermission(PERMISSIONS.PHARMACIE.VENTE_READ);
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState(EMPTY_PAGINATION);
   const [totaux, setTotaux] = useState(EMPTY_TOTAUX);
@@ -91,22 +92,29 @@ export default function RecettesPage() {
             <Box>
               <Typography level="h2" sx={{ fontWeight: 700 }}>Recettes pharmacie</Typography>
               <Typography level="body-md" sx={{ color: 'neutral.500' }}>
-                Suivi de l’argent : ventes validées et demandes de service délivrées.
+                Suivi de l’argent : ventes encaissées, bons pour et demandes de service délivrées.
               </Typography>
             </Box>
           </Stack>
-          {canCreances ? (
-            <Button variant="outlined" onClick={() => navigate(ROUTES.PHARMACIE.CREANCES)}>
-              Voir les créances ({totaux.creancesCount})
-            </Button>
-          ) : null}
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {canVentes ? (
+              <Button variant="outlined" color="warning" onClick={() => navigate(ROUTES.PHARMACIE.VENTES, { state: { statut: 'BON_POUR' } })}>
+                Bons pour
+              </Button>
+            ) : null}
+            {canCreances ? (
+              <Button variant="outlined" onClick={() => navigate(ROUTES.PHARMACIE.CREANCES)}>
+                Créances services
+              </Button>
+            ) : null}
+          </Stack>
         </Stack>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <SummaryCard title="Encaissé ventes" value={formatPrix(totaux.encaisseVentes)} color="primary" />
           <SummaryCard title="Encaissé services" value={formatPrix(totaux.encaisseServices)} color="success" />
           <SummaryCard title="Total encaissé" value={formatPrix(totaux.encaisseTotal)} />
-          <SummaryCard title="Créances ouvertes" value={formatPrix(totaux.creancesOuvertes)} color="warning" hint={`${totaux.creancesCount} demande(s) impayée(s)`} />
+          <SummaryCard title="Créances ouvertes" value={formatPrix(totaux.creancesOuvertes)} color="warning" hint={`${totaux.creancesCount} créance(s) ouverte(s)`} />
         </Stack>
 
         <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2 }}>
@@ -170,7 +178,7 @@ export default function RecettesPage() {
                   <td>{formatPrix(item.montant)}</td>
                   <td>
                     <Chip size="sm" variant="soft" color={item.statut === 'IMPAYEE' ? 'warning' : 'success'}>
-                      {item.statut === 'IMPAYEE' ? 'Impayée' : 'Encaissée'}
+                      {item.statut === 'IMPAYEE' ? (item.type === 'VENTE' ? 'Bon pour' : 'Impayée') : 'Encaissée'}
                     </Chip>
                   </td>
                   <td style={{ textAlign: 'right' }}>

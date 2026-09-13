@@ -17,8 +17,11 @@ const ACTION_RANK = [
   [/^pharmacie\.vente\.create$/, 60],
   [/^pharmacie\.vente\.complete$/, 60],
   [/^pharmacie\.vente\.create_and_valider$/, 60],
+  [/^pharmacie\.vente\.create_and_bon_pour$/, 60],
   [/^pharmacie\.vente\.update$/, 60],
   [/^pharmacie\.vente\.valider$/, 61],
+  [/^pharmacie\.vente\.bon_pour$/, 61],
+  [/^pharmacie\.vente\.encaisser$/, 62],
   [/^pharmacie\.demande_service\.create$/, 60],
   [/^pharmacie\.demande_service\.update$/, 60],
   [/^pharmacie\.demande_service\.envoyer$/, 61],
@@ -91,10 +94,10 @@ export function mutationProducesLocalId(mutation, localId) {
 }
 
 export function mutationNeedsOwnServerId(action = '') {
-  if (String(action).includes('create_and_valider')) {
+  if (String(action).includes('create_and_valider') || String(action).includes('create_and_bon_pour')) {
     return false;
   }
-  return /\.(update|valider|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(action);
+  return /\.(update|valider|bon_pour|encaisser|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(action);
 }
 
 export async function canPushMutation(item) {

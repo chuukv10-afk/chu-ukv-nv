@@ -38,6 +38,16 @@ export async function validerVenteApi(id) {
   return unwrapData(response);
 }
 
+export async function bonPourVenteApi(id) {
+  const response = await callApiPost(`${pharmacie.ventes}/${id}/bon-pour`, {});
+  return unwrapData(response);
+}
+
+export async function encaisserVenteApi(id) {
+  const response = await callApiPost(`${pharmacie.ventes}/${id}/encaisser`, {});
+  return unwrapData(response);
+}
+
 export async function annulerVenteApi(id, motif = '') {
   const response = await callApiPost(`${pharmacie.ventes}/${id}/annuler`, { motif });
   return unwrapData(response);
@@ -47,22 +57,23 @@ export async function deleteVenteApi(id) {
   return callApiDelete(`${pharmacie.ventes}/${id}`);
 }
 
-export async function completeVenteOfflineApi(payload) {
-  const checked = await assertPharmacyWrite('pharmacie.vente.complete', payload);
+export async function completeVenteOfflineApi(payload, { bonPour = false } = {}) {
+  const action = bonPour ? 'pharmacie.vente.create_and_bon_pour' : 'pharmacie.vente.complete';
+  const checked = await assertPharmacyWrite(action, payload);
   if (checked.dateVente) checked.dateVente = String(checked.dateVente).slice(0, 10);
   await decrementLocalStock(checked.lignes || []);
   const now = new Date().toISOString();
   const dateVente = toDateVenteIso(checked.dateVente, now);
   const priced = await priceVenteLignes(checked.lignes || []);
   return enqueueMutation({
-    action: 'pharmacie.vente.complete',
+    action,
     module: 'pharmacie',
     endpoint: pharmacie.ventes,
     method: 'POST',
     payload: checked,
     optimistic: {
       numero: 'OFF-VENTE',
-      statut: 'VALIDEE',
+      statut: bonPour ? 'BON_POUR' : 'VALIDEE',
       clientType: checked.clientType,
       clientNom: checked.clientNom,
       patientId: checked.patientId,

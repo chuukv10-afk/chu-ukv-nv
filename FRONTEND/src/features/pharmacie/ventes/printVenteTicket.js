@@ -80,13 +80,14 @@ export function printVenteTicket(vente) {
     <div class="row"><span>Client</span><span>${escapeHtml(vente.origine === 'HOSPITALISE' ? 'Hospitalisé' : (vente.clientType === 'PATIENT' ? 'Patient' : 'Passant'))}</span></div>
     <div class="row"><span></span><span>${escapeHtml(clientLabel(vente))}</span></div>
     ${vente.visite?.service?.libelle ? `<div class="row"><span>Service</span><span>${escapeHtml(vente.visite.service.libelle)}</span></div>` : ''}
-    <div class="row"><span>Paiement</span><span>${escapeHtml(paiementLabel(vente.modePaiement))}</span></div>
+    <div class="row"><span>Paiement</span><span>${escapeHtml(vente.statut === 'BON_POUR' ? 'Bon pour — non encaissé' : paiementLabel(vente.modePaiement))}</span></div>
     <hr class="rule" />
     <div class="row muted"><span class="grow">Article</span><span class="qty">Q</span><span class="amt">Montant</span></div>
     ${rows || '<div class="muted">Aucune ligne</div>'}
     <hr class="rule" />
     <div class="row total"><span>TOTAL</span><span>${escapeHtml(formatPrix(vente.montantTotal))}</span></div>
     ${vente.statut === 'ANNULEE' ? '<div class="center" style="margin-top:8px;font-weight:800">*** ANNULÉE ***</div>' : ''}
+    ${vente.statut === 'BON_POUR' ? '<div class="center" style="margin-top:8px;font-weight:800">*** BON POUR ***</div>' : ''}
     <div class="footer center">
       Merci de votre visite.<br />
       Conservez ce ticket.

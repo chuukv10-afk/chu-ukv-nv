@@ -4,7 +4,7 @@ import {
   Box, Button, Card, Chip, FormControl, FormHelperText, FormLabel, IconButton, Input, Modal, ModalDialog,
   Option, Select, Stack, Typography,
 } from '@mui/joy';
-import { ArrowLeft, Ban, Check, Plus, Printer, Search, ShoppingCart, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Check, FileText, Plus, Printer, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
@@ -33,10 +33,12 @@ import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { useOffline } from '../../../offline/useOffline.js';
 import {
   annulerVenteApi,
+  bonPourVenteApi,
   canUseOfflineCaisse,
   completeVenteOfflineApi,
   createVenteApi,
   deleteVenteApi,
+  encaisserVenteApi,
   fetchVenteApi,
   updateVenteApi,
   validerVenteApi,
@@ -111,10 +113,12 @@ export default function VenteFormPage() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
-  const readOnly = vente?.statut === 'VALIDEE' || vente?.statut === 'ANNULEE';
+  const isBonPour = vente?.statut === 'BON_POUR';
+  const readOnly = vente?.statut === 'VALIDEE' || vente?.statut === 'ANNULEE' || isBonPour;
   const canSave = isNew ? canCreate : canUpdate && !readOnly;
   const sameDay = isSameCalendarDay(vente?.dateVente || vente?.createdAt);
-  const canAnnuler = vente?.statut === 'VALIDEE' && (sameDay ? canAnnulerJ : canAnnulerHorsJ);
+  const canAnnuler = (vente?.statut === 'VALIDEE' || isBonPour) && (sameDay ? canAnnulerJ : canAnnulerHorsJ);
+  const canFinaliser = canValider && !readOnly && (!isNew || offlineCaisse);
 
   const medicamentMap = useMemo(
     () => Object.fromEntries(medicaments.map((item) => [String(item.id), item])),
@@ -354,6 +358,72 @@ export default function VenteFormPage() {
     }
   };
 
+  const handleBonPour = async () => {
+    if (form.clientType === 'HOSPITALISE' && !form.visiteId) {
+      setError('Sélectionnez une visite hospitalisée.');
+      setConfirmAction(null);
+      return;
+    }
+    if (!assertAnterieure()) {
+      setConfirmAction(null);
+      return;
+    }
+    const payload = toPayload(form, anterieure);
+    try {
+      assertVentePayload(payload);
+    } catch (err) {
+      setError(err.message);
+      setConfirmAction(null);
+      return;
+    }
+    setConfirmLoading(true);
+    setSaving(true);
+    setError('');
+    try {
+      if (isNew && offlineCaisse) {
+        const saved = await completeVenteOfflineApi(payload, { bonPour: true });
+        setVente(saved);
+        setConfirmAction(null);
+        showSuccess(anterieure
+          ? 'Bon pour antérieur enregistré sur ce poste. Stock local décrémenté ; synchro ensuite.'
+          : 'Bon pour enregistré hors-ligne. Le stock local diminue ; l’encaissement reste ouvert.');
+        printVenteTicket(saved);
+        return;
+      }
+      if (canSave) {
+        await updateVenteApi(id, payload);
+      }
+      const saved = await bonPourVenteApi(id);
+      setVente(saved);
+      setConfirmAction(null);
+      showSuccess('Bon pour enregistré, stock décrémenté. Encaissement en attente.');
+      printVenteTicket(saved);
+    } catch (err) {
+      setError(err.message || 'Enregistrement du bon pour impossible.');
+    } finally {
+      setSaving(false);
+      setConfirmLoading(false);
+    }
+  };
+
+  const handleEncaisserBonPour = async () => {
+    setConfirmLoading(true);
+    setSaving(true);
+    setError('');
+    try {
+      const paid = await encaisserVenteApi(id);
+      setVente(paid);
+      setConfirmAction(null);
+      showSuccess('Bon pour encaissé.');
+      printVenteTicket(paid);
+    } catch (err) {
+      setError(err.message || 'Encaissement impossible.');
+    } finally {
+      setSaving(false);
+      setConfirmLoading(false);
+    }
+  };
+
   const handleAnnuler = async () => {
     if (!sameDay && !motif.trim()) {
       setError('Le motif est obligatoire pour une annulation hors délai.');
@@ -409,7 +479,7 @@ export default function VenteFormPage() {
                     ? (desktop
                       ? 'Rattrapage bureau : date réelle et prix du jour. Enregistré en local, synchronisé dès que le serveur répond.'
                       : 'Rattrapage : indiquez la date réelle et le prix pratiqué ce jour-là. Le stock actuel sera décrémenté.')
-                    : 'Paiement immédiat. Un lot par ligne ; FEFO si aucun lot n’est choisi.'}
+                    : 'Encaissement immédiat, ou bon pour (stock sorti, paiement plus tard). Un lot par ligne ; FEFO si aucun lot n’est choisi.'}
                 </Typography>
               </Box>
               {vente?.statut ? (
@@ -441,9 +511,19 @@ export default function VenteFormPage() {
                 Imprimer le ticket
               </Button>
             ) : null}
-            {canValider && !readOnly && (!isNew || offlineCaisse) ? (
+            {canFinaliser ? (
+              <Button variant="outlined" color="warning" startDecorator={<FileText size={16} />} onClick={() => setConfirmAction('bonPour')} loading={saving}>
+                Bon pour{offlineCaisse && isNew ? ' hors-ligne' : ''}
+              </Button>
+            ) : null}
+            {canFinaliser ? (
               <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('valider')} loading={saving}>
                 Encaisser{offlineCaisse && isNew ? ' hors-ligne' : ''}
+              </Button>
+            ) : null}
+            {canValider && isBonPour ? (
+              <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('encaisser')} loading={saving}>
+                Encaisser
               </Button>
             ) : null}
           </Stack>
@@ -706,7 +786,7 @@ export default function VenteFormPage() {
                 })}
               </Stack>
               <Typography level="title-lg" sx={{ mt: 2, textAlign: 'right', fontWeight: 700 }}>
-                Total : {formatPrix(vente?.statut === 'VALIDEE' || vente?.statut === 'ANNULEE' ? vente.montantTotal : estimatedTotal)}
+                Total : {formatPrix(vente?.statut === 'VALIDEE' || vente?.statut === 'ANNULEE' || vente?.statut === 'BON_POUR' ? vente.montantTotal : estimatedTotal)}
               </Typography>
             </Card>
           </>
@@ -728,6 +808,30 @@ export default function VenteFormPage() {
         loading={confirmLoading}
         onClose={() => setConfirmAction(null)}
         onConfirm={handleValider}
+      />
+      <ConfirmModal
+        open={confirmAction === 'bonPour'}
+        title="Enregistrer un bon pour"
+        message={anterieure
+          ? 'Le stock sera décrémenté à la date et aux prix saisis. La vente restera à encaisser.'
+          : offlineCaisse
+            ? 'Bon pour hors-ligne : le stock local diminue tout de suite, le paiement reste ouvert.'
+            : 'Le stock sera décrémenté maintenant. La vente restera un bon pour jusqu’à l’encaissement.'}
+        confirmLabel="Bon pour"
+        color="warning"
+        loading={confirmLoading}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={handleBonPour}
+      />
+      <ConfirmModal
+        open={confirmAction === 'encaisser'}
+        title="Encaisser le bon pour"
+        message="Aucun mouvement de stock : les médicaments sont déjà sortis. Seul le paiement est enregistré."
+        confirmLabel="Encaisser"
+        color="success"
+        loading={confirmLoading}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={handleEncaisserBonPour}
       />
       <ConfirmModal
         open={confirmAction === 'delete'}

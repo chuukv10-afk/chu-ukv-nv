@@ -113,7 +113,7 @@ final class PharmaciePermissions
             [
                 [
                     'code' => self::VENTE_VALIDER,
-                    'libelle' => 'Valider une vente (sortie de stock)',
+                    'libelle' => 'Valider une vente, enregistrer un bon pour ou encaisser',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
                 [

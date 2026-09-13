@@ -93,8 +93,15 @@ function matchesSearch(item, search, keys) {
   if (!search) return true;
   const needle = String(search).toLowerCase();
   if (keys.some((key) => String(item?.[key] ?? '').toLowerCase().includes(needle))) return true;
-  return [item?.medicament?.libelle, item?.medicament?.code, item?.lot?.numeroLot]
-    .some((value) => String(value ?? '').toLowerCase().includes(needle));
+  return [
+    item?.medicament?.libelle,
+    item?.medicament?.code,
+    item?.lot?.numeroLot,
+    item?.patient?.nom,
+    item?.patient?.postNom,
+    item?.patient?.prenom,
+    item?.patient?.fullName,
+  ].some((value) => String(value ?? '').toLowerCase().includes(needle));
 }
 
 function calendarDay(raw) {

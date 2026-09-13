@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
-import { Eye, Plus, Printer, Search, ShoppingCart, Trash2 } from 'lucide-react';
+import { Check, Eye, Plus, Printer, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
@@ -28,7 +28,7 @@ const VENTE_PERIOD_OPTIONS = [
   PERIOD_OPTIONS[PERIOD_OPTIONS.length - 1],
 ];
 import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
-import { deleteVenteApi, fetchVenteApi, fetchVentesApi } from './ventesApi.js';
+import { deleteVenteApi, encaisserVenteApi, fetchVenteApi, fetchVentesApi } from './ventesApi.js';
 import { printVenteTicket } from './printVenteTicket.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_VENTE_PAGE_SIZE, total: 0, totalPages: 0 };
@@ -50,11 +50,13 @@ function clientLabel(item) {
 
 export default function VentesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
   const canCreate = hasPermission(PERMISSIONS.PHARMACIE.VENTE_CREATE);
   const canSaisirAnterieure = hasPermission(PERMISSIONS.PHARMACIE.VENTE_SAISIE_ANTERIEURE);
   const canDelete = hasPermission(PERMISSIONS.PHARMACIE.VENTE_DELETE);
+  const canValider = hasPermission(PERMISSIONS.PHARMACIE.VENTE_VALIDER);
 
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState(EMPTY_PAGINATION);
@@ -62,13 +64,14 @@ export default function VentesPage() {
   const [listError, setListError] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statut, setStatut] = useState('');
-  const [period, setPeriod] = useState('today');
+  const [statut, setStatut] = useState(location.state?.statut || '');
+  const [period, setPeriod] = useState(location.state?.statut === 'BON_POUR' ? 'since_ouverture' : 'today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_VENTE_PAGE_SIZE);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingEncaisser, setPendingEncaisser] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   useEffect(() => {
@@ -119,6 +122,21 @@ export default function VentesPage() {
     }
   };
 
+  const handleEncaisser = async () => {
+    if (!pendingEncaisser) return;
+    setConfirmLoading(true);
+    try {
+      await encaisserVenteApi(pendingEncaisser.id);
+      showSuccess('Bon pour encaissé.');
+      setPendingEncaisser(null);
+      await load(page);
+    } catch (error) {
+      showError(error.message || 'Encaissement impossible.');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
   const handlePrint = async (item) => {
     try {
       const detail = item.lignes ? item : await fetchVenteApi(item.id);
@@ -137,7 +155,7 @@ export default function VentesPage() {
             <Box>
               <Typography level="h2" sx={{ fontWeight: 700 }}>Ventes caisse</Typography>
               <Typography level="body-md" sx={{ color: 'neutral.500' }}>
-                Passant ou patient, paiement immédiat, sortie FEFO.
+                Passant ou patient, encaissement immédiat ou bon pour (stock sorti, paiement plus tard).
                 {canSaisirAnterieure
                   ? ' Les ventes antérieures n’apparaissent pas dans « Aujourd’hui » : choisissez Ce mois, Cette année ou Depuis le 28/08.'
                   : ''}
@@ -167,7 +185,7 @@ export default function VentesPage() {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
               <Input
                 startDecorator={<Search size={16} />}
-                placeholder="N° vente, client…"
+                placeholder="N° vente, nom ou prénom du client…"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 sx={{ flex: 1 }}
@@ -175,7 +193,13 @@ export default function VentesPage() {
               <Select
                 placeholder="Tous les statuts"
                 value={statut || null}
-                onChange={(_, value) => setStatut(value ?? '')}
+                onChange={(_, value) => {
+                  const next = value ?? '';
+                  setStatut(next);
+                  if (next === 'BON_POUR' && period === 'today') {
+                    setPeriod('since_ouverture');
+                  }
+                }}
                 sx={{ minWidth: 180 }}
               >
                 <Option value="">Tous les statuts</Option>
@@ -193,6 +217,11 @@ export default function VentesPage() {
                 ))}
               </Select>
             </Stack>
+            {statut === 'BON_POUR' ? (
+              <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                Recherchez un bon pour par nom ou prénom. La période passe à « Depuis le 28/08 » pour ne rien manquer.
+              </Typography>
+            ) : null}
             {period === 'custom' ? (
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                 <FormControl sx={{ minWidth: 180 }}>
@@ -266,6 +295,17 @@ export default function VentesPage() {
                           <Printer size={16} />
                         </IconButton>
                       ) : null}
+                      {canValider && item.statut === 'BON_POUR' ? (
+                        <IconButton
+                          size="sm"
+                          variant="plain"
+                          color="success"
+                          title="Encaisser le bon pour"
+                          onClick={() => setPendingEncaisser(item)}
+                        >
+                          <Check size={16} />
+                        </IconButton>
+                      ) : null}
                       {canDelete && item.statut === 'BROUILLON' ? (
                         <IconButton size="sm" variant="plain" color="danger" onClick={() => setPendingDelete(item)}>
                           <Trash2 size={16} />
@@ -297,6 +337,18 @@ export default function VentesPage() {
         loading={confirmLoading}
         onClose={() => setPendingDelete(null)}
         onConfirm={handleDelete}
+      />
+      <ConfirmModal
+        open={Boolean(pendingEncaisser)}
+        title="Encaisser le bon pour"
+        message={pendingEncaisser
+          ? `Encaisser ${pendingEncaisser.numero} — ${clientLabel(pendingEncaisser)} ? Le stock a déjà été sorti.`
+          : ''}
+        confirmLabel="Encaisser"
+        color="success"
+        loading={confirmLoading}
+        onClose={() => setPendingEncaisser(null)}
+        onConfirm={handleEncaisser}
       />
     </Box>
   );

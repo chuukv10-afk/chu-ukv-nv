@@ -80,12 +80,16 @@ final class RecetteService
             }
         }
 
+        $creancesVentes = (float) $this->venteRepository->sumCreancesOuvertes();
+        $creancesServices = (float) $this->demandeServiceRepository->sumCreancesOuvertes();
+
         return [
             'encaisseVentes' => $this->money($encaisseVentes),
             'encaisseServices' => $this->money($encaisseServices),
             'encaisseTotal' => $this->money($encaisseVentes + $encaisseServices),
-            'creancesOuvertes' => $this->demandeServiceRepository->sumCreancesOuvertes(),
-            'creancesCount' => $this->demandeServiceRepository->countCreancesOuvertes(),
+            'creancesOuvertes' => $this->money($creancesVentes + $creancesServices),
+            'creancesCount' => $this->venteRepository->countCreancesOuvertes()
+                + $this->demandeServiceRepository->countCreancesOuvertes(),
         ];
     }
 
@@ -113,7 +117,7 @@ final class RecetteService
             'date' => $date?->format(\DateTimeInterface::ATOM),
             'libelle' => $libelle,
             'montant' => $vente->getMontantTotal(),
-            'statut' => 'ENCAISSEE',
+            'statut' => Vente::STATUT_BON_POUR === $vente->getStatut() ? 'IMPAYEE' : 'ENCAISSEE',
             'origine' => $origine,
         ];
     }

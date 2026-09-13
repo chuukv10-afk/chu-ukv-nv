@@ -168,10 +168,13 @@ final class SyncPushService
     private function dispatch(string $action, array $payload): array
     {
         return match ($action) {
-            'pharmacie.vente.create' => $this->venteCreate($payload, false),
-            'pharmacie.vente.complete', 'pharmacie.vente.create_and_valider' => $this->venteCreate($payload, true),
+            'pharmacie.vente.create' => $this->venteCreate($payload, ''),
+            'pharmacie.vente.complete', 'pharmacie.vente.create_and_valider' => $this->venteCreate($payload, 'valider'),
+            'pharmacie.vente.create_and_bon_pour' => $this->venteCreate($payload, 'bon_pour'),
             'pharmacie.vente.update' => $this->venteUpdate($payload),
             'pharmacie.vente.valider' => $this->venteValider($payload),
+            'pharmacie.vente.bon_pour' => $this->venteBonPour($payload),
+            'pharmacie.vente.encaisser' => $this->venteEncaisser($payload),
             'pharmacie.vente.annuler' => $this->venteAnnuler($payload),
             'pharmacie.vente.delete' => $this->venteDelete($payload),
             'pharmacie.demande_service.create' => $this->demandeCreate($payload),
@@ -211,12 +214,14 @@ final class SyncPushService
      * @param array<string, mixed> $payload
      * @return array{0: string, 1: string, 2: array<string, mixed>}
      */
-    private function venteCreate(array $payload, bool $valider): array
+    private function venteCreate(array $payload, string $finalize = ''): array
     {
         $input = $this->venteInput($payload);
-        $vente = $valider
-            ? $this->venteService->createAndValider($input)
-            : $this->venteService->create($input);
+        $vente = match ($finalize) {
+            'valider' => $this->venteService->createAndValider($input),
+            'bon_pour' => $this->venteService->createAndBonPour($input),
+            default => $this->venteService->create($input),
+        };
 
         return ['vente', (string) $vente->getId(), $this->venteService->serializeDetail($vente)];
     }
@@ -232,6 +237,36 @@ final class SyncPushService
             throw new \InvalidArgumentException('Identifiant de vente manquant.');
         }
         $vente = $this->venteService->valider($id);
+
+        return ['vente', (string) $vente->getId(), $this->venteService->serializeDetail($vente)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function venteBonPour(array $payload): array
+    {
+        $id = (int) ($payload['id'] ?? 0);
+        if ($id <= 0) {
+            throw new \InvalidArgumentException('Identifiant de vente manquant.');
+        }
+        $vente = $this->venteService->enregistrerBonPour($id);
+
+        return ['vente', (string) $vente->getId(), $this->venteService->serializeDetail($vente)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function venteEncaisser(array $payload): array
+    {
+        $id = (int) ($payload['id'] ?? 0);
+        if ($id <= 0) {
+            throw new \InvalidArgumentException('Identifiant de vente manquant.');
+        }
+        $vente = $this->venteService->encaisser($id);
 
         return ['vente', (string) $vente->getId(), $this->venteService->serializeDetail($vente)];
     }
