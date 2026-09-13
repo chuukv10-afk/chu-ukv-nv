@@ -512,13 +512,13 @@ export default function VenteFormPage() {
               </Button>
             ) : null}
             {canFinaliser ? (
-              <Button variant="outlined" color="warning" startDecorator={<FileText size={16} />} onClick={() => setConfirmAction('bonPour')} loading={saving}>
-                Bon pour{offlineCaisse && isNew ? ' hors-ligne' : ''}
+              <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('valider')} loading={saving}>
+                Encaisser{offlineCaisse && isNew ? ' hors-ligne' : ''}
               </Button>
             ) : null}
             {canFinaliser ? (
-              <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('valider')} loading={saving}>
-                Encaisser{offlineCaisse && isNew ? ' hors-ligne' : ''}
+              <Button variant="outlined" color="warning" startDecorator={<FileText size={16} />} onClick={() => setConfirmAction('bonPour')} loading={saving}>
+                Enregistrer comme bon pour{offlineCaisse && isNew ? ' (hors-ligne)' : ''}
               </Button>
             ) : null}
             {canValider && isBonPour ? (
@@ -811,13 +811,13 @@ export default function VenteFormPage() {
       />
       <ConfirmModal
         open={confirmAction === 'bonPour'}
-        title="Enregistrer un bon pour"
+        title="Enregistrer comme bon pour"
         message={anterieure
           ? 'Le stock sera décrémenté à la date et aux prix saisis. La vente restera à encaisser.'
           : offlineCaisse
             ? 'Bon pour hors-ligne : le stock local diminue tout de suite, le paiement reste ouvert.'
             : 'Le stock sera décrémenté maintenant. La vente restera un bon pour jusqu’à l’encaissement.'}
-        confirmLabel="Bon pour"
+        confirmLabel="Enregistrer comme bon pour"
         color="warning"
         loading={confirmLoading}
         onClose={() => setConfirmAction(null)}

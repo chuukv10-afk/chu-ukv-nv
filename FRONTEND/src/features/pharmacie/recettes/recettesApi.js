@@ -6,6 +6,8 @@ const EMPTY_TOTAUX = {
   encaisseVentes: '0',
   encaisseServices: '0',
   encaisseTotal: '0',
+  bonsPourTotal: '0',
+  bonsPourCount: 0,
   creancesOuvertes: '0',
   creancesCount: 0,
 };

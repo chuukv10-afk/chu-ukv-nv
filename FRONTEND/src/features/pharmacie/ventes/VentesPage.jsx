@@ -17,9 +17,10 @@ import {
   DATE_STOCK_OUVERTURE,
   DEFAULT_VENTE_PAGE_SIZE,
   VENTE_PAGE_SIZE_OPTIONS,
+  VENTE_NATURES,
   VENTE_STATUT_COLORS,
   VENTE_STATUT_LABELS,
-  VENTE_STATUTS,
+  VENTE_STATUTS_FILTRE,
 } from './venteConstants.js';
 
 const VENTE_PERIOD_OPTIONS = [
@@ -64,8 +65,11 @@ export default function VentesPage() {
   const [listError, setListError] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statut, setStatut] = useState(location.state?.statut || '');
-  const [period, setPeriod] = useState(location.state?.statut === 'BON_POUR' ? 'since_ouverture' : 'today');
+  const [nature, setNature] = useState(location.state?.nature || (location.state?.statut === 'BON_POUR' ? 'BON_POUR' : ''));
+  const [statut, setStatut] = useState(location.state?.statut && location.state.statut !== 'BON_POUR' ? location.state.statut : '');
+  const [period, setPeriod] = useState(
+    (location.state?.nature === 'BON_POUR' || location.state?.statut === 'BON_POUR') ? 'since_ouverture' : 'today',
+  );
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [page, setPage] = useState(1);
@@ -79,7 +83,7 @@ export default function VentesPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, limit, statut, period, customFrom, customTo]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, limit, nature, statut, period, customFrom, customTo]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -92,7 +96,8 @@ export default function VentesPage() {
         page: targetPage,
         limit,
         search: debouncedSearch || undefined,
-        statut: statut || undefined,
+        type: nature || undefined,
+        statut: nature === 'BON_POUR' ? undefined : (statut || undefined),
         dateFrom: range.dateFrom,
         dateTo: range.dateTo,
       });
@@ -103,7 +108,7 @@ export default function VentesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch, statut, period, customFrom, customTo]);
+  }, [page, limit, debouncedSearch, nature, statut, period, customFrom, customTo]);
 
   useEffect(() => { load(page); }, [load, page]);
 
@@ -182,6 +187,28 @@ export default function VentesPage() {
 
         <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2 }}>
           <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+              <Typography level="body-sm" sx={{ fontWeight: 600, color: 'neutral.600', mr: 0.5 }}>
+                Afficher
+              </Typography>
+              {VENTE_NATURES.map((item) => (
+                <Chip
+                  key={item.value || 'tout'}
+                  variant={nature === item.value ? 'solid' : 'outlined'}
+                  color={item.value === 'BON_POUR' ? 'warning' : (item.value === 'VENTE' ? 'primary' : 'neutral')}
+                  onClick={() => {
+                    setNature(item.value);
+                    if (item.value === 'BON_POUR') {
+                      setStatut('');
+                      if (period === 'today') setPeriod('since_ouverture');
+                    }
+                  }}
+                  sx={{ cursor: 'pointer' }}
+                >
+                  {item.label}
+                </Chip>
+              ))}
+            </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
               <Input
                 startDecorator={<Search size={16} />}
@@ -190,23 +217,19 @@ export default function VentesPage() {
                 onChange={(event) => setSearch(event.target.value)}
                 sx={{ flex: 1 }}
               />
-              <Select
-                placeholder="Tous les statuts"
-                value={statut || null}
-                onChange={(_, value) => {
-                  const next = value ?? '';
-                  setStatut(next);
-                  if (next === 'BON_POUR' && period === 'today') {
-                    setPeriod('since_ouverture');
-                  }
-                }}
-                sx={{ minWidth: 180 }}
-              >
-                <Option value="">Tous les statuts</Option>
-                {VENTE_STATUTS.map((item) => (
-                  <Option key={item.value} value={item.value}>{item.label}</Option>
-                ))}
-              </Select>
+              {nature !== 'BON_POUR' ? (
+                <Select
+                  placeholder="Tous les statuts"
+                  value={statut || null}
+                  onChange={(_, value) => setStatut(value ?? '')}
+                  sx={{ minWidth: 180 }}
+                >
+                  <Option value="">Tous les statuts</Option>
+                  {VENTE_STATUTS_FILTRE.map((item) => (
+                    <Option key={item.value} value={item.value}>{item.label}</Option>
+                  ))}
+                </Select>
+              ) : null}
               <Select
                 value={period}
                 onChange={(_, value) => setPeriod(value ?? 'today')}
@@ -217,7 +240,7 @@ export default function VentesPage() {
                 ))}
               </Select>
             </Stack>
-            {statut === 'BON_POUR' ? (
+            {nature === 'BON_POUR' ? (
               <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
                 Recherchez un bon pour par nom ou prénom. La période passe à « Depuis le 28/08 » pour ne rien manquer.
               </Typography>

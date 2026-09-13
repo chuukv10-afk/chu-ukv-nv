@@ -20,6 +20,8 @@ const EMPTY_TOTAUX = {
   encaisseVentes: '0',
   encaisseServices: '0',
   encaisseTotal: '0',
+  bonsPourTotal: '0',
+  bonsPourCount: 0,
   creancesOuvertes: '0',
   creancesCount: 0,
 };
@@ -98,7 +100,7 @@ export default function RecettesPage() {
           </Stack>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {canVentes ? (
-              <Button variant="outlined" color="warning" onClick={() => navigate(ROUTES.PHARMACIE.VENTES, { state: { statut: 'BON_POUR' } })}>
+              <Button variant="outlined" color="warning" onClick={() => navigate(ROUTES.PHARMACIE.VENTES, { state: { nature: 'BON_POUR' } })}>
                 Bons pour
               </Button>
             ) : null}
@@ -110,11 +112,17 @@ export default function RecettesPage() {
           </Stack>
         </Stack>
 
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} flexWrap="wrap" useFlexGap>
           <SummaryCard title="Encaissé ventes" value={formatPrix(totaux.encaisseVentes)} color="primary" />
           <SummaryCard title="Encaissé services" value={formatPrix(totaux.encaisseServices)} color="success" />
           <SummaryCard title="Total encaissé" value={formatPrix(totaux.encaisseTotal)} />
-          <SummaryCard title="Créances ouvertes" value={formatPrix(totaux.creancesOuvertes)} color="warning" hint={`${totaux.creancesCount} créance(s) ouverte(s)`} />
+          <SummaryCard
+            title="Total bon pour"
+            value={formatPrix(totaux.bonsPourTotal)}
+            color="warning"
+            hint={`${totaux.bonsPourCount} bon(s) pour non encaissé(s)`}
+          />
+          <SummaryCard title="Créances services" value={formatPrix(totaux.creancesOuvertes)} color="warning" hint={`${totaux.creancesCount} demande(s) impayée(s)`} />
         </Stack>
 
         <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2 }}>

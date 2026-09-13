@@ -64,9 +64,10 @@ export async function buildLocalRecettes(params) {
   const to = params.get('dateTo');
   const search = String(params.get('search') || '').toLowerCase();
   const rows = [];
+  const ventesCache = namedItems(await readNamedCache('pharmacie.ventes'));
 
   if (!type || type === 'VENTE') {
-    for (const vente of namedItems(await readNamedCache('pharmacie.ventes'))) {
+    for (const vente of ventesCache) {
       if (vente.statut !== 'VALIDEE' && vente.statut !== 'BON_POUR') continue;
       const date = vente.dateVente || vente.createdAt;
       if (!inRange(date, from, to)) continue;
@@ -117,10 +118,18 @@ export async function buildLocalRecettes(params) {
     if (row.statut === 'ENCAISSEE') {
       if (row.type === 'VENTE') encaisseVentes += Number(row.montant || 0);
       else encaisseServices += Number(row.montant || 0);
-    } else if (row.statut === 'IMPAYEE') {
+    } else if (row.statut === 'IMPAYEE' && row.type === 'SERVICE') {
       creancesOuvertes += Number(row.montant || 0);
       creancesCount += 1;
     }
+  }
+
+  let bonsPourTotal = 0;
+  let bonsPourCount = 0;
+  for (const vente of ventesCache) {
+    if (vente.statut !== 'BON_POUR') continue;
+    bonsPourTotal += Number(vente.montantTotal || 0);
+    bonsPourCount += 1;
   }
 
   const page = paginate(rows, params.get('page'), params.get('limit'));
@@ -132,6 +141,8 @@ export async function buildLocalRecettes(params) {
         encaisseVentes: money(encaisseVentes),
         encaisseServices: money(encaisseServices),
         encaisseTotal: money(encaisseVentes + encaisseServices),
+        bonsPourTotal: money(bonsPourTotal),
+        bonsPourCount,
         creancesOuvertes: money(creancesOuvertes),
         creancesCount,
       },

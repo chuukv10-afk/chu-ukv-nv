@@ -80,16 +80,18 @@ final class RecetteService
             }
         }
 
-        $creancesVentes = (float) $this->venteRepository->sumCreancesOuvertes();
+        $bonsPourTotal = (float) $this->venteRepository->sumCreancesOuvertes();
+        $bonsPourCount = $this->venteRepository->countCreancesOuvertes();
         $creancesServices = (float) $this->demandeServiceRepository->sumCreancesOuvertes();
 
         return [
             'encaisseVentes' => $this->money($encaisseVentes),
             'encaisseServices' => $this->money($encaisseServices),
             'encaisseTotal' => $this->money($encaisseVentes + $encaisseServices),
-            'creancesOuvertes' => $this->money($creancesVentes + $creancesServices),
-            'creancesCount' => $this->venteRepository->countCreancesOuvertes()
-                + $this->demandeServiceRepository->countCreancesOuvertes(),
+            'bonsPourTotal' => $this->money($bonsPourTotal),
+            'bonsPourCount' => $bonsPourCount,
+            'creancesOuvertes' => $this->money($creancesServices),
+            'creancesCount' => $this->demandeServiceRepository->countCreancesOuvertes(),
         ];
     }
 

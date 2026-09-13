@@ -26,6 +26,7 @@ class VenteRepository extends ServiceEntityRepository
         ?string $statut = null,
         ?string $dateFrom = null,
         ?string $dateTo = null,
+        ?string $type = null,
     ): array {
         $qb = $this->createQueryBuilder('v')
             ->leftJoin('v.patient', 'p')->addSelect('p')
@@ -38,7 +39,15 @@ class VenteRepository extends ServiceEntityRepository
                 ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
         }
 
-        if (null !== $statut && '' !== $statut) {
+        $normalizedType = null !== $type ? strtoupper(trim($type)) : '';
+        if ('BON_POUR' === $normalizedType) {
+            $qb->andWhere('v.statut = :nature')->setParameter('nature', Vente::STATUT_BON_POUR);
+        } elseif ('VENTE' === $normalizedType) {
+            $qb->andWhere('v.statut != :nature')->setParameter('nature', Vente::STATUT_BON_POUR);
+            if (null !== $statut && '' !== $statut && Vente::STATUT_BON_POUR !== $statut) {
+                $qb->andWhere('v.statut = :statut')->setParameter('statut', $statut);
+            }
+        } elseif (null !== $statut && '' !== $statut) {
             $qb->andWhere('v.statut = :statut')->setParameter('statut', $statut);
         }
 

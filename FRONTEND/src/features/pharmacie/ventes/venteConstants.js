@@ -5,6 +5,14 @@ export const VENTE_STATUTS = [
   { value: 'ANNULEE', label: 'Annulée', color: 'danger' },
 ];
 
+export const VENTE_STATUTS_FILTRE = VENTE_STATUTS.filter((item) => item.value !== 'BON_POUR');
+
+export const VENTE_NATURES = [
+  { value: '', label: 'Tout' },
+  { value: 'VENTE', label: 'Ventes' },
+  { value: 'BON_POUR', label: 'Bons pour' },
+];
+
 export const VENTE_STATUT_LABELS = VENTE_STATUTS.reduce((acc, item) => {
   acc[item.value] = item.label;
   return acc;

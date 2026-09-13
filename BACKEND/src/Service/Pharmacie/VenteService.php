@@ -54,6 +54,7 @@ final class VenteService
             $query->statut,
             $query->dateFrom,
             $query->dateTo,
+            $query->type,
         );
 
         return new PaginatedResult(
