@@ -12,8 +12,10 @@ if (!window.electronAPI) {
     .then(({ registerSW }) => {
       const listeners = new Set();
       let apply = () => window.location.reload();
+      let current = { needRefresh: false, apply };
       const notify = (needRefresh) => {
-        listeners.forEach((listener) => listener({ needRefresh, apply }));
+        current = { needRefresh, apply };
+        listeners.forEach((listener) => listener(current));
       };
       const updateSW = registerSW({
         immediate: true,
@@ -21,14 +23,16 @@ if (!window.electronAPI) {
           apply = () => updateSW(true);
           notify(true);
         },
-        onRegisteredSW() {
-          notify(false);
+        onRegisteredSW(_url, registration) {
+          if (registration) {
+            window.setInterval(() => registration.update(), 5 * 60 * 1000);
+          }
         },
       });
       window.chuUkvSwUpdate = {
         subscribe(listener) {
           listeners.add(listener);
-          listener({ needRefresh: false, apply });
+          listener(current);
           return () => listeners.delete(listener);
         },
       };

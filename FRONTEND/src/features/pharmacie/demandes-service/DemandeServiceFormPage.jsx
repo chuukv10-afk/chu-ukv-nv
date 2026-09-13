@@ -24,6 +24,9 @@ import {
   PAIEMENT_STATUT_COLORS,
   PAIEMENT_STATUT_LABELS,
   emptyDemandeForm,
+  montantPayeOf,
+  montantResteOf,
+  peutEncaisserDemande,
 } from './demandeConstants.js';
 import {
   createDemandeServiceApi,
@@ -76,6 +79,7 @@ export default function DemandeServiceFormPage() {
   const [motifRefus, setMotifRefus] = useState('');
   const [reglerOpen, setReglerOpen] = useState(false);
   const [modePaiement, setModePaiement] = useState('ESPECES');
+  const [montantEncaissement, setMontantEncaissement] = useState('');
   const [visiteQuery, setVisiteQuery] = useState('');
   const [visiteResults, setVisiteResults] = useState([]);
   const [selectedVisite, setSelectedVisite] = useState(null);
@@ -213,7 +217,17 @@ export default function DemandeServiceFormPage() {
             {canEnvoyer && demande?.statut === 'BROUILLON' ? <Button startDecorator={<Send size={16} />} onClick={() => setConfirmAction('envoyer')}>Envoyer</Button> : null}
             {canDelivrer && demande?.statut === 'ENVOYEE' ? <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('delivrer')}>Délivrer</Button> : null}
             {canRefuser && demande?.statut === 'ENVOYEE' ? <Button variant="outlined" color="danger" startDecorator={<Ban size={16} />} onClick={() => { setMotifRefus(''); setRefusOpen(true); }}>Refuser</Button> : null}
-            {canRegler && demande?.statut === 'DELIVREE' && demande?.statutPaiement === 'IMPAYEE' ? <Button color="success" onClick={() => setReglerOpen(true)}>Régler</Button> : null}
+            {canRegler && peutEncaisserDemande(demande) ? (
+              <Button
+                color="success"
+                onClick={() => {
+                  setMontantEncaissement(String(montantResteOf(demande)));
+                  setReglerOpen(true);
+                }}
+              >
+                Encaisser
+              </Button>
+            ) : null}
           </Stack>
         </Stack>
 
@@ -317,7 +331,17 @@ export default function DemandeServiceFormPage() {
                   </Stack>
                 ))}
               </Stack>
-              <Typography level="title-lg" sx={{ mt: 2, textAlign: 'right', fontWeight: 700 }}>Total : {formatPrix(demande?.montantTotal)}</Typography>
+              <Stack spacing={0.25} sx={{ mt: 2, textAlign: 'right' }}>
+                <Typography level="title-lg" sx={{ fontWeight: 700 }}>Total : {formatPrix(demande?.montantTotal)}</Typography>
+                {demande && (demande.statutPaiement === 'PARTIELLE' || demande.statutPaiement === 'PAYEE' || Number(demande.montantPaye) > 0) ? (
+                  <>
+                    <Typography level="body-sm">Déjà encaissé : {formatPrix(montantPayeOf(demande))}</Typography>
+                    <Typography level="body-sm" color={montantResteOf(demande) > 0 ? 'warning' : 'success'}>
+                      Reste dû : {formatPrix(montantResteOf(demande))}
+                    </Typography>
+                  </>
+                ) : null}
+              </Stack>
             </Card>
           </>
         )}
@@ -343,8 +367,20 @@ export default function DemandeServiceFormPage() {
 
       <Modal open={reglerOpen} onClose={() => setReglerOpen(false)}>
         <ModalDialog sx={{ maxWidth: 440, width: '100%' }}>
-          <Typography level="title-lg" sx={{ fontWeight: 700 }}>Régler la créance</Typography>
-          <Typography level="body-sm">Montant : {formatPrix(demande?.montantTotal)} — aucun mouvement de stock.</Typography>
+          <Typography level="title-lg" sx={{ fontWeight: 700 }}>Encaisser la créance</Typography>
+          <Typography level="body-sm">
+            Total {formatPrix(demande?.montantTotal)} · déjà payé {formatPrix(montantPayeOf(demande))} · reste {formatPrix(montantResteOf(demande))}.
+            Aucun mouvement de stock.
+          </Typography>
+          <FormControl required>
+            <FormLabel>Montant à encaisser</FormLabel>
+            <Input
+              type="number"
+              value={montantEncaissement}
+              onChange={(e) => setMontantEncaissement(e.target.value)}
+              slotProps={{ input: { min: 0, step: '0.01', max: montantResteOf(demande) } }}
+            />
+          </FormControl>
           <FormControl required>
             <FormLabel>Paiement</FormLabel>
             <Select value={modePaiement} onChange={(_, value) => setModePaiement(value ?? 'ESPECES')}>
@@ -354,7 +390,25 @@ export default function DemandeServiceFormPage() {
           </FormControl>
           <Stack direction="row" spacing={1} justifyContent="flex-end">
             <Button variant="plain" onClick={() => setReglerOpen(false)}>Fermer</Button>
-            <Button color="success" loading={confirmLoading} onClick={async () => { setConfirmLoading(true); try { setDemande(await reglerDemandeServiceApi(id, modePaiement)); setReglerOpen(false); showSuccess('Créance réglée.'); } catch (err) { setError(err.message); } finally { setConfirmLoading(false); } }}>Encaisser</Button>
+            <Button
+              color="success"
+              loading={confirmLoading}
+              onClick={async () => {
+                setConfirmLoading(true);
+                try {
+                  const updated = await reglerDemandeServiceApi(id, modePaiement, montantEncaissement);
+                  setDemande(updated);
+                  setReglerOpen(false);
+                  showSuccess(montantResteOf(updated) > 0 ? 'Acompte encaissé. Un reste est encore dû.' : 'Créance soldée.');
+                } catch (err) {
+                  setError(err.message);
+                } finally {
+                  setConfirmLoading(false);
+                }
+              }}
+            >
+              Encaisser
+            </Button>
           </Stack>
         </ModalDialog>
       </Modal>

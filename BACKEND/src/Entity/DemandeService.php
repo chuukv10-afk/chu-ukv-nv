@@ -22,6 +22,7 @@ class DemandeService implements BlameableInterface
 
     public const PAIEMENT_SANS_OBJET = 'SANS_OBJET';
     public const PAIEMENT_IMPAYEE = 'IMPAYEE';
+    public const PAIEMENT_PARTIELLE = 'PARTIELLE';
     public const PAIEMENT_PAYEE = 'PAYEE';
 
     #[ORM\Id]
@@ -51,6 +52,9 @@ class DemandeService implements BlameableInterface
 
     #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 4)]
     private string $montantTotal = '0.0000';
+
+    #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 4)]
+    private string $montantPaye = '0.0000';
 
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $modePaiement = null;
@@ -96,6 +100,18 @@ class DemandeService implements BlameableInterface
     public function setStatutPaiement(string $statutPaiement): static { $this->statutPaiement = $statutPaiement; return $this; }
     public function getMontantTotal(): string { return $this->montantTotal; }
     public function setMontantTotal(string $montantTotal): static { $this->montantTotal = $montantTotal; return $this; }
+    public function getMontantPaye(): string { return $this->montantPaye; }
+    public function setMontantPaye(string $montantPaye): static { $this->montantPaye = $montantPaye; return $this; }
+    public function getMontantReste(): string
+    {
+        return number_format(max(0, round((float) $this->montantTotal - (float) $this->montantPaye, 4)), 4, '.', '');
+    }
+
+    public function estCreanceOuverte(): bool
+    {
+        return self::STATUT_DELIVREE === $this->statut
+            && in_array($this->statutPaiement, [self::PAIEMENT_IMPAYEE, self::PAIEMENT_PARTIELLE], true);
+    }
     public function getModePaiement(): ?string { return $this->modePaiement; }
     public function setModePaiement(?string $modePaiement): static { $this->modePaiement = $modePaiement; return $this; }
     public function getPayeAt(): ?\DateTimeImmutable { return $this->payeAt; }

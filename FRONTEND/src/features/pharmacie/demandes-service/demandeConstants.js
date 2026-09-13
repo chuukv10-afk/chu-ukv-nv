@@ -11,6 +11,7 @@ export const DEMANDE_STATUT_COLORS = Object.fromEntries(DEMANDE_STATUTS.map((ite
 export const PAIEMENT_STATUTS = [
   { value: 'SANS_OBJET', label: 'Sans objet', color: 'neutral' },
   { value: 'IMPAYEE', label: 'Impayée', color: 'warning' },
+  { value: 'PARTIELLE', label: 'Partiellement payée', color: 'warning' },
   { value: 'PAYEE', label: 'Payée', color: 'success' },
 ];
 
@@ -24,4 +25,19 @@ export const EMPTY_DEMANDE_LIGNE = { medicamentId: '', quantite: 1 };
 
 export function emptyDemandeForm() {
   return { serviceId: '', visiteId: '', motif: '', lignes: [{ ...EMPTY_DEMANDE_LIGNE }] };
+}
+
+export function montantPayeOf(demande) {
+  return Number(demande?.montantPaye ?? 0);
+}
+
+export function montantResteOf(demande) {
+  if (demande?.montantReste != null && demande.montantReste !== '') {
+    return Number(demande.montantReste);
+  }
+  return Math.max(0, Number(demande?.montantTotal || 0) - montantPayeOf(demande));
+}
+
+export function peutEncaisserDemande(demande) {
+  return demande?.statut === 'DELIVREE' && ['IMPAYEE', 'PARTIELLE'].includes(demande?.statutPaiement);
 }

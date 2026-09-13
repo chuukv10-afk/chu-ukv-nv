@@ -270,7 +270,15 @@ async function buildOptimistic(action, payload) {
     if (action.endsWith('.refuser')) statut = 'REFUSEE';
     if (action.endsWith('.regler')) {
       statut = 'DELIVREE';
-      statutPaiement = 'PAYEE';
+      const total = Number(payload.montantTotal || 0);
+      const deja = Number(payload.montantPaye || 0);
+      const add = payload.montant == null || payload.montant === ''
+        ? Math.max(0, total - deja)
+        : Number(payload.montant);
+      const paye = Math.min(total, deja + (Number.isFinite(add) ? add : 0));
+      statutPaiement = paye + 0.0001 >= total && total > 0 ? 'PAYEE' : 'PARTIELLE';
+      payload.montantPaye = paye;
+      payload.montantReste = Math.max(0, total - paye);
     }
     return {
       id: payload.id,
@@ -281,6 +289,9 @@ async function buildOptimistic(action, payload) {
       motif: payload.motif,
       lignes: payload.lignes || [],
       modePaiement: payload.modePaiement,
+      montantTotal: payload.montantTotal,
+      montantPaye: payload.montantPaye ?? 0,
+      montantReste: payload.montantReste,
       createdAt: new Date().toISOString(),
     };
   }

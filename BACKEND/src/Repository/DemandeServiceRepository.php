@@ -40,7 +40,13 @@ class DemandeServiceRepository extends ServiceEntityRepository
             $qb->andWhere('d.statut = :statut')->setParameter('statut', $statut);
         }
         if (null !== $statutPaiement && '' !== $statutPaiement) {
-            $qb->andWhere('d.statutPaiement = :statutPaiement')->setParameter('statutPaiement', $statutPaiement);
+            if ('OUVERTE' === strtoupper($statutPaiement)) {
+                $qb
+                    ->andWhere('d.statutPaiement IN (:statutsPaiement)')
+                    ->setParameter('statutsPaiement', [DemandeService::PAIEMENT_IMPAYEE, DemandeService::PAIEMENT_PARTIELLE]);
+            } else {
+                $qb->andWhere('d.statutPaiement = :statutPaiement')->setParameter('statutPaiement', $statutPaiement);
+            }
         }
 
         $countQb = clone $qb;
@@ -63,7 +69,11 @@ class DemandeServiceRepository extends ServiceEntityRepository
             ->andWhere('d.statut = :statut')
             ->andWhere('d.statutPaiement IN (:paiements)')
             ->setParameter('statut', DemandeService::STATUT_DELIVREE)
-            ->setParameter('paiements', [DemandeService::PAIEMENT_PAYEE, DemandeService::PAIEMENT_IMPAYEE]);
+            ->setParameter('paiements', [
+                DemandeService::PAIEMENT_PAYEE,
+                DemandeService::PAIEMENT_PARTIELLE,
+                DemandeService::PAIEMENT_IMPAYEE,
+            ]);
 
         if (null !== $dateFrom && '' !== $dateFrom) {
             $qb
@@ -112,11 +122,11 @@ class DemandeServiceRepository extends ServiceEntityRepository
     public function sumCreancesOuvertes(): string
     {
         $total = $this->createQueryBuilder('d')
-            ->select('COALESCE(SUM(d.montantTotal), 0)')
+            ->select('COALESCE(SUM(d.montantTotal - d.montantPaye), 0)')
             ->andWhere('d.statut = :statut')
-            ->andWhere('d.statutPaiement = :paiement')
+            ->andWhere('d.statutPaiement IN (:paiements)')
             ->setParameter('statut', DemandeService::STATUT_DELIVREE)
-            ->setParameter('paiement', DemandeService::PAIEMENT_IMPAYEE)
+            ->setParameter('paiements', [DemandeService::PAIEMENT_IMPAYEE, DemandeService::PAIEMENT_PARTIELLE])
             ->getQuery()
             ->getSingleScalarResult();
 
@@ -128,9 +138,9 @@ class DemandeServiceRepository extends ServiceEntityRepository
         return (int) $this->createQueryBuilder('d')
             ->select('COUNT(d.id)')
             ->andWhere('d.statut = :statut')
-            ->andWhere('d.statutPaiement = :paiement')
+            ->andWhere('d.statutPaiement IN (:paiements)')
             ->setParameter('statut', DemandeService::STATUT_DELIVREE)
-            ->setParameter('paiement', DemandeService::PAIEMENT_IMPAYEE)
+            ->setParameter('paiements', [DemandeService::PAIEMENT_IMPAYEE, DemandeService::PAIEMENT_PARTIELLE])
             ->getQuery()
             ->getSingleScalarResult();
     }

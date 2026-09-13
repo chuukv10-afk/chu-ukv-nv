@@ -42,8 +42,12 @@ export async function refuserDemandeServiceApi(id, motif) {
   return unwrapData(response);
 }
 
-export async function reglerDemandeServiceApi(id, modePaiement) {
-  const response = await callApiPost(`${pharmacie.demandesService}/${id}/regler`, { modePaiement });
+export async function reglerDemandeServiceApi(id, modePaiement, montant) {
+  const payload = { modePaiement };
+  if (montant != null && montant !== '') {
+    payload.montant = Number(montant);
+  }
+  const response = await callApiPost(`${pharmacie.demandesService}/${id}/regler`, payload);
   return unwrapData(response);
 }
 

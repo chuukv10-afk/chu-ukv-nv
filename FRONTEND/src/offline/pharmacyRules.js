@@ -330,12 +330,16 @@ async function hydrateFromCache(action, payload) {
       next.lignes = normalizeDocumentLignes(cached.lignes || []);
     }
   }
-  if (action.startsWith('pharmacie.demande_service.') && isPresentId(next.id) && (!next.lignes || next.lignes.length === 0)) {
+  if (action.startsWith('pharmacie.demande_service.') && isPresentId(next.id)) {
     const cached = await loadEntity('/api/v1/pharmacie/demandes-service', next.id);
     if (cached) {
       if (!isPresentId(next.serviceId)) next.serviceId = cached.serviceId;
       if (next.visiteId == null) next.visiteId = cached.visiteId;
-      next.lignes = normalizeDocumentLignes(cached.lignes || []);
+      if (next.montantTotal == null) next.montantTotal = cached.montantTotal;
+      if (next.montantPaye == null) next.montantPaye = cached.montantPaye;
+      if (!next.lignes || next.lignes.length === 0) {
+        next.lignes = normalizeDocumentLignes(cached.lignes || []);
+      }
     }
   }
   return next;
@@ -396,6 +400,18 @@ export async function assertPharmacyWrite(action, payload = {}) {
     const mode = text(next.modePaiement).toUpperCase();
     if (!VENTE_MODES.includes(mode)) {
       throw fail('Le mode de paiement est obligatoire.');
+    }
+    if (next.montant != null && next.montant !== '') {
+      const paye = Number(String(next.montant).replace(',', '.'));
+      const total = Number(next.montantTotal || 0);
+      const deja = Number(next.montantPaye || 0);
+      const reste = Math.max(0, total - deja);
+      if (!Number.isFinite(paye) || paye <= 0) {
+        throw fail('Le montant encaissé doit être supérieur à 0.');
+      }
+      if (paye > reste + 0.0001) {
+        throw fail('Le montant dépasse le reste dû.');
+      }
     }
   }
 

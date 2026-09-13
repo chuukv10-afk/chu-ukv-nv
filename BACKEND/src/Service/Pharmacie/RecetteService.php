@@ -69,14 +69,14 @@ final class RecetteService
         $encaisseServices = 0.0;
 
         foreach ($rows as $row) {
-            if ('ENCAISSEE' !== $row['statut']) {
+            if ('VENTE' === $row['type']) {
+                if ('ENCAISSEE' === $row['statut']) {
+                    $encaisseVentes += (float) $row['montant'];
+                }
                 continue;
             }
-            $montant = (float) $row['montant'];
-            if ('VENTE' === $row['type']) {
-                $encaisseVentes += $montant;
-            } else {
-                $encaisseServices += $montant;
+            if ('ENCAISSEE' === $row['statut'] || 'PARTIELLE' === $row['statut']) {
+                $encaisseServices += (float) ($row['montantPaye'] ?? $row['montant']);
             }
         }
 
@@ -146,7 +146,13 @@ final class RecetteService
             'date' => $date?->format(\DateTimeInterface::ATOM),
             'libelle' => $libelle,
             'montant' => $demande->getMontantTotal(),
-            'statut' => DemandeService::PAIEMENT_PAYEE === $demande->getStatutPaiement() ? 'ENCAISSEE' : 'IMPAYEE',
+            'montantPaye' => $demande->getMontantPaye(),
+            'montantReste' => $demande->getMontantReste(),
+            'statut' => match ($demande->getStatutPaiement()) {
+                DemandeService::PAIEMENT_PAYEE => 'ENCAISSEE',
+                DemandeService::PAIEMENT_PARTIELLE => 'PARTIELLE',
+                default => 'IMPAYEE',
+            },
             'origine' => 'SERVICE',
         ];
     }

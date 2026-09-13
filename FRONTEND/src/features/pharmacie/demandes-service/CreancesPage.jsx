@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Button, Chip, Modal, ModalDialog, Option, Select, Sheet, Stack, Table, Typography, FormControl, FormLabel,
+  Box, Button, Chip, Input, Modal, ModalDialog, Option, Select, Sheet, Stack, Table, Typography, FormControl, FormLabel,
 } from '@mui/joy';
 import { Receipt } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
@@ -11,7 +11,14 @@ import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { formatPrix } from '../shared/format.js';
-import { DEFAULT_DEMANDE_PAGE_SIZE, DEMANDE_PAGE_SIZE_OPTIONS } from './demandeConstants.js';
+import {
+  DEFAULT_DEMANDE_PAGE_SIZE,
+  DEMANDE_PAGE_SIZE_OPTIONS,
+  PAIEMENT_STATUT_COLORS,
+  PAIEMENT_STATUT_LABELS,
+  montantPayeOf,
+  montantResteOf,
+} from './demandeConstants.js';
 import { fetchDemandesServiceApi, reglerDemandeServiceApi } from './demandesServiceApi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_DEMANDE_PAGE_SIZE, total: 0, totalPages: 0 };
@@ -30,13 +37,14 @@ export default function CreancesPage() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(null);
   const [modePaiement, setModePaiement] = useState('ESPECES');
+  const [montantEncaissement, setMontantEncaissement] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
     setError('');
     try {
-      const result = await fetchDemandesServiceApi({ page: targetPage, limit, statutPaiement: 'IMPAYEE' });
+      const result = await fetchDemandesServiceApi({ page: targetPage, limit, statutPaiement: 'OUVERTE' });
       setItems(result.items);
       setPagination(result.pagination);
     } catch (err) {
@@ -52,8 +60,8 @@ export default function CreancesPage() {
     if (!pending) return;
     setSaving(true);
     try {
-      await reglerDemandeServiceApi(pending.id, modePaiement);
-      showSuccess('Créance réglée.');
+      const updated = await reglerDemandeServiceApi(pending.id, modePaiement, montantEncaissement);
+      showSuccess(montantResteOf(updated) > 0 ? 'Acompte encaissé. Un reste est encore dû.' : 'Créance soldée.');
       setPending(null);
       await load(page);
     } catch (err) {
@@ -70,36 +78,55 @@ export default function CreancesPage() {
           <Receipt size={24} color={LOTRU_PRIMARY[600]} />
           <Box>
             <Typography level="h2" sx={{ fontWeight: 700 }}>Créances services</Typography>
-            <Typography level="body-md" sx={{ color: 'neutral.500' }}>Demandes délivrées non encore payées.</Typography>
+            <Typography level="body-md" sx={{ color: 'neutral.500' }}>Demandes délivrées encore dues, y compris les acomptes.</Typography>
           </Box>
         </Stack>
         {error ? <Typography level="body-sm" color="danger">{error}</Typography> : null}
         <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto' }}>
-          <Table stickyHeader hoverRow sx={{ minWidth: 780 }}>
+          <Table stickyHeader hoverRow sx={{ minWidth: 920 }}>
             <thead>
               <tr>
                 <th>Numéro</th>
                 <th>Service</th>
-                <th>Montant</th>
+                <th>Total</th>
+                <th>Payé</th>
+                <th>Reste</th>
                 <th>Paiement</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
+                <tr><td colSpan={7}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={5}><Typography level="body-sm" sx={{ p: 2, color: LOTRU_NEUTRAL[600] }}>Aucune créance.</Typography></td></tr>
+                <tr><td colSpan={7}><Typography level="body-sm" sx={{ p: 2, color: LOTRU_NEUTRAL[600] }}>Aucune créance.</Typography></td></tr>
               ) : items.map((item) => (
                 <tr key={item.id}>
                   <td><Typography level="body-sm" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.numero}</Typography></td>
                   <td>{item.service?.libelle ?? '—'}</td>
                   <td>{formatPrix(item.montantTotal)}</td>
-                  <td><Chip size="sm" variant="soft" color="warning">Impayée</Chip></td>
+                  <td>{formatPrix(montantPayeOf(item))}</td>
+                  <td>{formatPrix(montantResteOf(item))}</td>
+                  <td>
+                    <Chip size="sm" variant="soft" color={PAIEMENT_STATUT_COLORS[item.statutPaiement] ?? 'warning'}>
+                      {PAIEMENT_STATUT_LABELS[item.statutPaiement] ?? 'Impayée'}
+                    </Chip>
+                  </td>
                   <td style={{ textAlign: 'right' }}>
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
                       <Button size="sm" variant="plain" onClick={() => navigate(ROUTES.PHARMACIE.DEMANDE_SERVICE_DETAIL.replace(':id', String(item.id)))}>Voir</Button>
-                      {canRegler ? <Button size="sm" onClick={() => { setPending(item); setModePaiement('ESPECES'); }}>Régler</Button> : null}
+                      {canRegler ? (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setPending(item);
+                            setModePaiement('ESPECES');
+                            setMontantEncaissement(String(montantResteOf(item)));
+                          }}
+                        >
+                          Encaisser
+                        </Button>
+                      ) : null}
                     </Stack>
                   </td>
                 </tr>
@@ -111,8 +138,19 @@ export default function CreancesPage() {
       </Stack>
       <Modal open={Boolean(pending)} onClose={() => setPending(null)}>
         <ModalDialog sx={{ maxWidth: 420, width: '100%' }}>
-          <Typography level="title-lg" sx={{ fontWeight: 700 }}>Régler {pending?.numero}</Typography>
-          <Typography level="body-sm">Montant : {formatPrix(pending?.montantTotal)}</Typography>
+          <Typography level="title-lg" sx={{ fontWeight: 700 }}>Encaisser {pending?.numero}</Typography>
+          <Typography level="body-sm">
+            Total {formatPrix(pending?.montantTotal)} · déjà payé {formatPrix(montantPayeOf(pending))} · reste {formatPrix(montantResteOf(pending))}.
+          </Typography>
+          <FormControl required>
+            <FormLabel>Montant à encaisser</FormLabel>
+            <Input
+              type="number"
+              value={montantEncaissement}
+              onChange={(e) => setMontantEncaissement(e.target.value)}
+              slotProps={{ input: { min: 0, step: '0.01', max: montantResteOf(pending) } }}
+            />
+          </FormControl>
           <FormControl required>
             <FormLabel>Paiement</FormLabel>
             <Select value={modePaiement} onChange={(_, value) => setModePaiement(value ?? 'ESPECES')}>

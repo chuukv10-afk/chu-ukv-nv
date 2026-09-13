@@ -100,7 +100,11 @@ export async function buildLocalRecettes(params) {
         date,
         libelle: `Service — ${demande.service?.libelle || demande.motif || '—'}`,
         montant: demande.montantTotal,
-        statut: demande.statutPaiement === 'PAYEE' ? 'ENCAISSEE' : 'IMPAYEE',
+        montantPaye: demande.montantPaye ?? 0,
+        montantReste: Math.max(0, Number(demande.montantTotal || 0) - Number(demande.montantPaye || 0)),
+        statut: demande.statutPaiement === 'PAYEE'
+          ? 'ENCAISSEE'
+          : (demande.statutPaiement === 'PARTIELLE' ? 'PARTIELLE' : 'IMPAYEE'),
         origine: 'SERVICE',
       };
       if (search && !`${item.numero} ${item.libelle}`.toLowerCase().includes(search)) continue;
@@ -118,8 +122,9 @@ export async function buildLocalRecettes(params) {
     if (row.statut === 'ENCAISSEE') {
       if (row.type === 'VENTE') encaisseVentes += Number(row.montant || 0);
       else encaisseServices += Number(row.montant || 0);
-    } else if (row.statut === 'IMPAYEE' && row.type === 'SERVICE') {
-      creancesOuvertes += Number(row.montant || 0);
+    } else if (row.type === 'SERVICE' && (row.statut === 'IMPAYEE' || row.statut === 'PARTIELLE')) {
+      if (row.statut === 'PARTIELLE') encaisseServices += Number(row.montantPaye || 0);
+      creancesOuvertes += Number(row.montantReste ?? row.montant ?? 0);
       creancesCount += 1;
     }
   }
@@ -192,8 +197,8 @@ export async function buildLocalStatistiques(params) {
   }
 
   const revenuVentes = ventes.reduce((sum, item) => sum + Number(item.montantTotal || 0), 0);
-  const servicesPayes = demandes.filter((item) => item.statutPaiement === 'PAYEE');
-  const revenuServices = servicesPayes.reduce((sum, item) => sum + Number(item.montantTotal || 0), 0);
+  const servicesPayes = demandes.filter((item) => item.statutPaiement === 'PAYEE' || item.statutPaiement === 'PARTIELLE');
+  const revenuServices = servicesPayes.reduce((sum, item) => sum + Number(item.montantPaye || (item.statutPaiement === 'PAYEE' ? item.montantTotal : 0) || 0), 0);
 
   const perDay = Object.fromEntries(daysBetween(from, to).map((day) => [day, {
     date: day,
@@ -211,8 +216,8 @@ export async function buildLocalStatistiques(params) {
     const day = calendarDay(demande.delivreeAt || demande.createdAt);
     if (!perDay[day]) continue;
     perDay[day].services += 1;
-    if (demande.statutPaiement === 'PAYEE') {
-      perDay[day].revenue += Number(demande.montantTotal || 0);
+    if (demande.statutPaiement === 'PAYEE' || demande.statutPaiement === 'PARTIELLE') {
+      perDay[day].revenue += Number(demande.montantPaye || (demande.statutPaiement === 'PAYEE' ? demande.montantTotal : 0) || 0);
     }
   }
 

@@ -120,7 +120,8 @@ final class DemandeServiceService
             ->setStatut(DemandeService::STATUT_DELIVREE)
             ->setStatutPaiement(DemandeService::PAIEMENT_IMPAYEE)
             ->setDelivreeAt(new \DateTimeImmutable())
-            ->setMontantTotal(number_format($total, 4, '.', ''));
+            ->setMontantTotal(number_format($total, 4, '.', ''))
+            ->setMontantPaye('0.0000');
         $this->entityManager->flush();
 
         return $demande;
@@ -143,13 +144,18 @@ final class DemandeServiceService
     {
         $this->assertValid($input);
         $demande = $this->getById($id);
-        if (DemandeService::STATUT_DELIVREE !== $demande->getStatut()
-            || DemandeService::PAIEMENT_IMPAYEE !== $demande->getStatutPaiement()) {
-            throw new ConflictException('Seule une créance impayée peut être réglée.');
+        if (!$demande->estCreanceOuverte()) {
+            throw new ConflictException('Seule une créance encore due peut être encaissée.');
         }
+        $result = DemandePaiementRules::applyPaiement(
+            $demande->getMontantTotal(),
+            $demande->getMontantPaye(),
+            $input->montant,
+        );
         $user = $this->security->getUser();
         $demande
-            ->setStatutPaiement(DemandeService::PAIEMENT_PAYEE)
+            ->setMontantPaye($result['montantPaye'])
+            ->setStatutPaiement($result['statutPaiement'])
             ->setModePaiement(strtoupper(trim($input->modePaiement)))
             ->setPayeAt(new \DateTimeImmutable())
             ->setPayePar($user instanceof Personnel ? $user : null);
@@ -189,6 +195,8 @@ final class DemandeServiceService
             'statut' => $demande->getStatut(),
             'statutPaiement' => $demande->getStatutPaiement(),
             'montantTotal' => $demande->getMontantTotal(),
+            'montantPaye' => $demande->getMontantPaye(),
+            'montantReste' => $demande->getMontantReste(),
             'modePaiement' => $demande->getModePaiement(),
             'motifRefus' => $demande->getMotifRefus(),
             'delivreeAt' => $demande->getDelivreeAt()?->format(\DateTimeInterface::ATOM),

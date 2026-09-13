@@ -29,7 +29,7 @@ export default function PwaUpdateBanner() {
       )}
     >
       <Typography level="title-sm">Nouvelle version disponible</Typography>
-      <Typography level="body-xs">Actualisez pour charger les correctifs (dates, synchro). Aucun exe à copier.</Typography>
+      <Typography level="body-xs">Actualisez pour voir les derniers changements (bons pour, caisse). La PWA garde parfois l’ancienne page.</Typography>
     </Alert>
   );
 }

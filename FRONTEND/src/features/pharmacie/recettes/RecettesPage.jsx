@@ -185,8 +185,12 @@ export default function RecettesPage() {
                   <td>{item.libelle}</td>
                   <td>{formatPrix(item.montant)}</td>
                   <td>
-                    <Chip size="sm" variant="soft" color={item.statut === 'IMPAYEE' ? 'warning' : 'success'}>
-                      {item.statut === 'IMPAYEE' ? (item.type === 'VENTE' ? 'Bon pour' : 'Impayée') : 'Encaissée'}
+                    <Chip size="sm" variant="soft" color={item.statut === 'ENCAISSEE' ? 'success' : 'warning'}>
+                      {item.statut === 'ENCAISSEE'
+                        ? 'Encaissée'
+                        : item.statut === 'PARTIELLE'
+                          ? 'Partielle'
+                          : (item.type === 'VENTE' ? 'Bon pour' : 'Impayée')}
                     </Chip>
                   </td>
                   <td style={{ textAlign: 'right' }}>

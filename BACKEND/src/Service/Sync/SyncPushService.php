@@ -376,7 +376,10 @@ final class SyncPushService
     {
         $demande = $this->demandeServiceService->regler(
             $this->requireServerId($payload['id'] ?? 0, 'Demande'),
-            new ReglerDemandeInput(modePaiement: (string) ($payload['modePaiement'] ?? 'ESPECES')),
+            new ReglerDemandeInput(
+                modePaiement: (string) ($payload['modePaiement'] ?? 'ESPECES'),
+                montant: $payload['montant'] ?? null,
+            ),
         );
 
         return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];

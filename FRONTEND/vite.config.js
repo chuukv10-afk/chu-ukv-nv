@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     react(),
     !isElectronBuild && VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png'],
       manifest: false,
       workbox: {

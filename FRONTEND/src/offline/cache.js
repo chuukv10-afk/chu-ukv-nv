@@ -134,7 +134,12 @@ function matchesCollectionFilters(item, params, collection) {
   const type = String(params.get('type') || '').toUpperCase();
   if (type === 'BON_POUR' && item.statut !== 'BON_POUR') return false;
   if (type === 'VENTE' && item.statut === 'BON_POUR') return false;
-  if (params.get('statutPaiement') && item.statutPaiement !== params.get('statutPaiement')) return false;
+  const statutPaiement = String(params.get('statutPaiement') || '').toUpperCase();
+  if (statutPaiement === 'OUVERTE') {
+    if (!['IMPAYEE', 'PARTIELLE'].includes(item.statutPaiement)) return false;
+  } else if (statutPaiement && item.statutPaiement !== statutPaiement) {
+    return false;
+  }
   if (params.get('medicamentId') && String(item.medicamentId) !== params.get('medicamentId') && String(item.medicament?.id) !== params.get('medicamentId')) {
     return false;
   }

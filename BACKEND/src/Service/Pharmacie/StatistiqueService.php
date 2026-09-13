@@ -61,7 +61,10 @@ final class StatistiqueService
         $servicesPayes = $this->filterByCalendarDay(
             array_values(array_filter(
                 $demandes,
-                static fn (DemandeService $demande): bool => DemandeService::PAIEMENT_PAYEE === $demande->getStatutPaiement(),
+                static fn (DemandeService $demande): bool => in_array($demande->getStatutPaiement(), [
+                    DemandeService::PAIEMENT_PAYEE,
+                    DemandeService::PAIEMENT_PARTIELLE,
+                ], true),
             )),
             static fn (DemandeService $demande): ?\DateTimeInterface => $demande->getPayeAt() ?? $demande->getDelivreeAt(),
             $query->dateFrom,
@@ -74,7 +77,7 @@ final class StatistiqueService
         }
         $revenuServices = 0.0;
         foreach ($servicesPayes as $demande) {
-            $revenuServices += (float) $demande->getMontantTotal();
+            $revenuServices += (float) $demande->getMontantPaye();
         }
 
         return [
@@ -162,7 +165,7 @@ final class StatistiqueService
                 continue;
             }
             $days[$day] ??= ['count' => 0, 'amount' => 0.0];
-            $days[$day]['amount'] += (float) $demande->getMontantTotal();
+            $days[$day]['amount'] += (float) $demande->getMontantPaye();
         }
 
         ksort($days);
