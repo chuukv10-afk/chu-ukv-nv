@@ -4,10 +4,17 @@ export async function uploadViaPreparedUrl({
   confirm,
   localUpload,
 }) {
-  const prepared = await prepare({
-    mimeType: file.type,
-    size: file.size,
-  });
+  let prepared = null;
+  try {
+    prepared = await prepare({
+      mimeType: file.type,
+      size: file.size,
+    });
+  } catch (error) {
+    if (error?.status !== 404) {
+      throw error;
+    }
+  }
 
   if (prepared?.mode === 's3' && prepared.uploadUrl) {
     const put = await fetch(prepared.uploadUrl, {

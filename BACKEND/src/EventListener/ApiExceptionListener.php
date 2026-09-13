@@ -3,6 +3,8 @@
 namespace App\EventListener;
 
 use App\Service\Security\PermissionLabelResolver;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -11,6 +13,7 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
+use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
 
 #[AsEventListener(event: KernelEvents::EXCEPTION, priority: 0)]
@@ -18,6 +21,7 @@ final class ApiExceptionListener
 {
     public function __construct(
         private readonly PermissionLabelResolver $permissionLabelResolver,
+        private readonly ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -74,7 +78,52 @@ final class ApiExceptionListener
                 $throwable->getStatusCode(),
                 headers: $throwable->getHeaders(),
             ));
+
+            return;
         }
+
+        if ($throwable instanceof NotNormalizableValueException) {
+            $event->setResponse($this->errorResponse(
+                'Données invalides : un champ n\'a pas le bon type.',
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
+            ));
+
+            return;
+        }
+
+        if ($throwable instanceof UniqueConstraintViolationException) {
+            $event->setResponse($this->errorResponse(
+                'Un enregistrement avec les mêmes informations existe déjà.',
+                JsonResponse::HTTP_CONFLICT,
+            ));
+
+            return;
+        }
+
+        $this->logger?->error('Erreur API non gérée.', [
+            'path' => $event->getRequest()->getPathInfo(),
+            'exception' => $throwable::class,
+            'message' => $throwable->getMessage(),
+        ]);
+
+        $event->setResponse($this->errorResponse(
+            $this->safeUnexpectedMessage($throwable),
+            JsonResponse::HTTP_INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    private function safeUnexpectedMessage(\Throwable $throwable): string
+    {
+        $message = trim($throwable->getMessage());
+        if ('' === $message) {
+            return 'Une erreur interne est survenue. Réessayez, ou consultez var/log/prod.log.';
+        }
+
+        if (strlen($message) > 280) {
+            $message = substr($message, 0, 277) . '...';
+        }
+
+        return $message;
     }
 
     /**
