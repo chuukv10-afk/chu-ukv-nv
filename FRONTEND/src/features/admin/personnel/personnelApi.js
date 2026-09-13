@@ -7,6 +7,7 @@ import {
   downloadFile,
   openFileInBrowser,
 } from '../../../api/apiClient.js';
+import { uploadViaPreparedUrl } from '../../../utils/storageUpload.js';
 
 function unwrapData(response) {
   return response?.data ?? response;
@@ -65,10 +66,16 @@ export async function deletePersonnelApi(id) {
 }
 
 export async function uploadPersonnelAvatarApi(id, file) {
-  const formData = new FormData();
-  formData.append('avatar', file);
-  const response = await callApiPost(`${admin.personnels}/${id}/avatar`, formData);
-  return unwrapData(response);
+  return uploadViaPreparedUrl({
+    file,
+    prepare: async (body) => unwrapData(await callApiPost(`${admin.personnels}/${id}/avatar/prepare`, body)),
+    confirm: async (body) => unwrapData(await callApiPost(`${admin.personnels}/${id}/avatar/confirm`, body)),
+    localUpload: async (localFile) => {
+      const formData = new FormData();
+      formData.append('avatar', localFile);
+      return unwrapData(await callApiPost(`${admin.personnels}/${id}/avatar`, formData));
+    },
+  });
 }
 
 export async function deletePersonnelAvatarApi(id) {
@@ -77,10 +84,16 @@ export async function deletePersonnelAvatarApi(id) {
 }
 
 export async function uploadPersonnelSignatureApi(id, file) {
-  const formData = new FormData();
-  formData.append('signature', file);
-  const response = await callApiPost(`${admin.personnels}/${id}/signature`, formData);
-  return unwrapData(response);
+  return uploadViaPreparedUrl({
+    file,
+    prepare: async (body) => unwrapData(await callApiPost(`${admin.personnels}/${id}/signature/prepare`, body)),
+    confirm: async (body) => unwrapData(await callApiPost(`${admin.personnels}/${id}/signature/confirm`, body)),
+    localUpload: async (localFile) => {
+      const formData = new FormData();
+      formData.append('signature', localFile);
+      return unwrapData(await callApiPost(`${admin.personnels}/${id}/signature`, formData));
+    },
+  });
 }
 
 export async function deletePersonnelSignatureApi(id) {

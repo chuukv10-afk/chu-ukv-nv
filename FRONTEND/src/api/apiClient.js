@@ -114,7 +114,15 @@ async function networkFetch(endpoint, method, body, allowRefresh = true) {
 
   let payload = null;
   try {
-    payload = await response.json();
+    const text = await response.text();
+    if (text.includes('ROUTER_EXTERNAL_TARGET')) {
+      payload = {
+        success: false,
+        message: 'Le fichier est trop volumineux pour transiter par Vercel. Déployez l\'envoi direct vers S3.',
+      };
+    } else {
+      payload = text ? JSON.parse(text) : { success: response.ok, message: response.statusText };
+    }
   } catch {
     payload = { success: response.ok, message: response.statusText };
   }

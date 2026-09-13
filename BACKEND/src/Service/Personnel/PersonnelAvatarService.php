@@ -23,6 +23,45 @@ final class PersonnelAvatarService
     ) {
     }
 
+    /**
+     * @return array{mode: string, filename: string, mimeType: string, uploadUrl?: string}
+     */
+    public function prepareDirectUpload(Personnel $personnel, string $mimeType, int $size): array
+    {
+        $extension = $this->assertMimeAndSize($mimeType, $size);
+        $personnelId = $personnel->getId();
+        if (!$personnelId instanceof Uuid) {
+            throw new BadRequestHttpException('Impossible d\'enregistrer l\'avatar avant la création du personnel.');
+        }
+
+        $filename = sprintf('%s.%s', $personnelId->toRfc4122(), $extension);
+        $payload = [
+            'mode' => 'local',
+            'filename' => $filename,
+            'mimeType' => $mimeType,
+        ];
+        if ($this->objectStorage->isS3()) {
+            $payload['mode'] = 's3';
+            $payload['uploadUrl'] = $this->objectStorage->presignPut($this->storageKey($filename), $mimeType);
+        }
+
+        return $payload;
+    }
+
+    public function confirmDirectUpload(Personnel $personnel, string $filename): void
+    {
+        $this->assertOwnedFilename($personnel, $filename);
+        if (!$this->objectStorage->exists($this->storageKey($filename))) {
+            throw new BadRequestHttpException('Le fichier n\'a pas été reçu dans le cloud.');
+        }
+
+        $previous = $personnel->getAvatarFilename();
+        if (is_string($previous) && '' !== $previous && $previous !== $filename) {
+            $this->objectStorage->delete($this->storageKey($previous), $this->legacyKeys($previous));
+        }
+        $personnel->setAvatarFilename($filename);
+    }
+
     public function upload(Personnel $personnel, UploadedFile $file): void
     {
         $this->assertValidUpload($file);
@@ -97,13 +136,31 @@ final class PersonnelAvatarService
             throw new BadRequestHttpException('Le fichier avatar est invalide ou corrompu.');
         }
 
-        $mimeType = $file->getMimeType();
-        if (null === $mimeType || !isset(self::ALLOWED_MIME_TYPES[$mimeType])) {
+        $this->assertMimeAndSize((string) $file->getMimeType(), (int) $file->getSize());
+    }
+
+    private function assertMimeAndSize(string $mimeType, int $size): string
+    {
+        $extension = self::ALLOWED_MIME_TYPES[$mimeType] ?? null;
+        if (null === $extension) {
             throw new BadRequestHttpException('Format d\'image non supporté. Utilisez JPG, PNG ou WebP.');
         }
-
-        if ($file->getSize() > self::MAX_SIZE_BYTES) {
+        if ($size > self::MAX_SIZE_BYTES) {
             throw new BadRequestHttpException('L\'avatar ne doit pas dépasser 50 Mo.');
+        }
+
+        return $extension;
+    }
+
+    private function assertOwnedFilename(Personnel $personnel, string $filename): void
+    {
+        $personnelId = $personnel->getId();
+        if (!$personnelId instanceof Uuid) {
+            throw new BadRequestHttpException('Personnel invalide.');
+        }
+        $expectedPrefix = $personnelId->toRfc4122() . '.';
+        if (!str_starts_with($filename, $expectedPrefix) || !isset(self::ALLOWED_MIME_TYPES[$this->mimeFromFilename($filename) ?? ''])) {
+            throw new BadRequestHttpException('Nom de fichier avatar invalide.');
         }
     }
 

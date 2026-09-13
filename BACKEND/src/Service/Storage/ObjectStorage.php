@@ -87,6 +87,30 @@ final class ObjectStorage
         }
     }
 
+    public function presignPut(string $key, string $mimeType, int $expiresSeconds = 900): string
+    {
+        if (!$this->isS3()) {
+            throw new ServiceUnavailableHttpException(null, 'Le stockage cloud n\'est pas actif.');
+        }
+
+        try {
+            $command = $this->client()->getCommand('PutObject', [
+                'Bucket' => $this->bucket,
+                'Key' => $this->s3Key($this->normalizeKey($key)),
+                'ContentType' => $mimeType,
+            ]);
+            $request = $this->client()->createPresignedRequest($command, '+' . max(60, $expiresSeconds) . ' seconds');
+
+            return (string) $request->getUri();
+        } catch (AwsException $exception) {
+            $this->logger?->error('Échec URL présignée S3.', [
+                'key' => $key,
+                'message' => $exception->getAwsErrorMessage() ?: $exception->getMessage(),
+            ]);
+            throw new ServiceUnavailableHttpException(null, 'Impossible de préparer l\'envoi vers le cloud (S3).');
+        }
+    }
+
     public function lastModified(string $key, array $legacyKeys = []): ?int
     {
         $candidates = $this->candidateKeys($key, $legacyKeys);

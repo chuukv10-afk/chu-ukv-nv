@@ -6,6 +6,8 @@ use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Admin\CreatePersonnelInput;
 use App\DTO\Admin\PersonnelListQuery;
 use App\DTO\Admin\UpdatePersonnelInput;
+use App\DTO\Storage\ConfirmStoredFileInput;
+use App\DTO\Storage\PrepareStoredFileInput;
 use App\Entity\Personnel;
 use App\Security\Permission\AdminPermissions;
 use App\Service\Personnel\PersonnelService;
@@ -98,6 +100,32 @@ final class PersonnelController extends AbstractController
         return StoredFileResponse::create($file);
     }
 
+    #[Route('/{id}/avatar/prepare', name: 'api_admin_personnels_avatar_prepare', methods: ['POST'])]
+    #[IsGranted(AdminPermissions::PERSONNEL_UPDATE)]
+    public function prepareAvatar(string $id, #[MapRequestPayload] PrepareStoredFileInput $input): JsonResponse
+    {
+        $personnel = $this->personnelService->getById($id);
+        $this->denyAccessUnlessGranted(AdminPermissions::PERSONNEL_UPDATE, $personnel);
+
+        return $this->apiSuccess(
+            $this->personnelService->prepareAvatarUpload($id, $input->mimeType, $input->size),
+            'Envoi de l\'avatar préparé.',
+        );
+    }
+
+    #[Route('/{id}/avatar/confirm', name: 'api_admin_personnels_avatar_confirm', methods: ['POST'])]
+    #[IsGranted(AdminPermissions::PERSONNEL_UPDATE)]
+    public function confirmAvatar(string $id, #[MapRequestPayload] ConfirmStoredFileInput $input): JsonResponse
+    {
+        $personnel = $this->personnelService->getById($id);
+        $this->denyAccessUnlessGranted(AdminPermissions::PERSONNEL_UPDATE, $personnel);
+
+        return $this->apiSuccess(
+            $this->personnelService->serialize($this->personnelService->confirmAvatarUpload($id, $input->filename)),
+            'Avatar mis à jour avec succès.',
+        );
+    }
+
     #[Route('/{id}/avatar', name: 'api_admin_personnels_avatar_upload', methods: ['POST'])]
     #[IsGranted(AdminPermissions::PERSONNEL_UPDATE)]
     public function uploadAvatar(string $id, Request $request): JsonResponse
@@ -142,6 +170,32 @@ final class PersonnelController extends AbstractController
         }
 
         return StoredFileResponse::create($file);
+    }
+
+    #[Route('/{id}/signature/prepare', name: 'api_admin_personnels_signature_prepare', methods: ['POST'])]
+    #[IsGranted(AdminPermissions::PERSONNEL_UPDATE)]
+    public function prepareSignature(string $id, #[MapRequestPayload] PrepareStoredFileInput $input): JsonResponse
+    {
+        $personnel = $this->personnelService->getById($id);
+        $this->denyAccessUnlessGranted(AdminPermissions::PERSONNEL_UPDATE, $personnel);
+
+        return $this->apiSuccess(
+            $this->personnelService->prepareSignatureUpload($id, $input->mimeType, $input->size),
+            'Envoi de la signature préparé.',
+        );
+    }
+
+    #[Route('/{id}/signature/confirm', name: 'api_admin_personnels_signature_confirm', methods: ['POST'])]
+    #[IsGranted(AdminPermissions::PERSONNEL_UPDATE)]
+    public function confirmSignature(string $id, #[MapRequestPayload] ConfirmStoredFileInput $input): JsonResponse
+    {
+        $personnel = $this->personnelService->getById($id);
+        $this->denyAccessUnlessGranted(AdminPermissions::PERSONNEL_UPDATE, $personnel);
+
+        return $this->apiSuccess(
+            $this->personnelService->serialize($this->personnelService->confirmSignatureUpload($id, $input->filename)),
+            'Signature mise à jour avec succès.',
+        );
     }
 
     #[Route('/{id}/signature', name: 'api_admin_personnels_signature_upload', methods: ['POST'])]

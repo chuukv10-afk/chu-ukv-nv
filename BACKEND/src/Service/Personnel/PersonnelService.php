@@ -259,6 +259,27 @@ final class PersonnelService
         $this->eM->flush();
     }
 
+    /**
+     * @return array{mode: string, filename: string, mimeType: string, uploadUrl?: string}
+     */
+    public function prepareAvatarUpload(string $id, string $mimeType, int $size): array
+    {
+        $personnel = $this->getById($id);
+        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+
+        return $this->avatarService->prepareDirectUpload($personnel, $mimeType, $size);
+    }
+
+    public function confirmAvatarUpload(string $id, string $filename): Personnel
+    {
+        $personnel = $this->getById($id);
+        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->avatarService->confirmDirectUpload($personnel, $filename);
+        $this->eM->flush();
+
+        return $personnel;
+    }
+
     public function uploadAvatar(string $id, UploadedFile $file): Personnel
     {
         $personnel = $this->getById($id);
@@ -295,6 +316,27 @@ final class PersonnelService
         $personnel = $this->getById($id);
 
         return $this->avatarService->resolveMimeType($personnel);
+    }
+
+    /**
+     * @return array{mode: string, filename: string, mimeType: string, uploadUrl?: string}
+     */
+    public function prepareSignatureUpload(string $id, string $mimeType, int $size): array
+    {
+        $personnel = $this->getById($id);
+        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+
+        return $this->signatureService->prepareDirectUpload($personnel, $mimeType, $size);
+    }
+
+    public function confirmSignatureUpload(string $id, string $filename): Personnel
+    {
+        $personnel = $this->getById($id);
+        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->signatureService->confirmDirectUpload($personnel, $filename);
+        $this->eM->flush();
+
+        return $personnel;
     }
 
     public function uploadSignature(string $id, UploadedFile $file): Personnel

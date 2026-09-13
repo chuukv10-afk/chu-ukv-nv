@@ -3,6 +3,8 @@
 namespace App\Controller\Api;
 
 use App\Controller\Api\Trait\JsonResponseTrait;
+use App\DTO\Storage\ConfirmStoredFileInput;
+use App\DTO\Storage\PrepareStoredFileInput;
 use App\Entity\Personnel;
 use App\Exception\ConflictException;
 use App\Security\Permission\AdminPermissions;
@@ -14,6 +16,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
@@ -42,6 +45,32 @@ final class MeSignatureController extends AbstractController
         }
 
         return StoredFileResponse::create($file);
+    }
+
+    #[Route('/prepare', name: 'api_me_signature_prepare', methods: ['POST'])]
+    #[IsGranted(AdminPermissions::SIGNATURE_UPDATE)]
+    public function prepare(#[MapRequestPayload] PrepareStoredFileInput $input, #[CurrentUser] ?Personnel $personnel): JsonResponse
+    {
+        $personnel = $this->requirePersonnel($personnel);
+
+        return $this->apiSuccess(
+            $this->signatureService->prepareDirectUpload($personnel, $input->mimeType, $input->size),
+            'Envoi de la signature préparé.',
+        );
+    }
+
+    #[Route('/confirm', name: 'api_me_signature_confirm', methods: ['POST'])]
+    #[IsGranted(AdminPermissions::SIGNATURE_UPDATE)]
+    public function confirm(#[MapRequestPayload] ConfirmStoredFileInput $input, #[CurrentUser] ?Personnel $personnel): JsonResponse
+    {
+        $personnel = $this->requirePersonnel($personnel);
+        $this->signatureService->confirmDirectUpload($personnel, $input->filename);
+        $this->entityManager->flush();
+
+        return $this->apiSuccess(
+            ['signatureUrl' => $this->signatureService->buildSignatureUrl($personnel)],
+            'Signature enregistrée avec succès.',
+        );
     }
 
     #[Route('', name: 'api_me_signature_upload', methods: ['POST'])]
