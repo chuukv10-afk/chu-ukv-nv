@@ -42,21 +42,19 @@ final class StockService
     {
         $this->refreshStatut($lot);
 
-        return Lot::STATUT_DISPONIBLE === $lot->getStatut()
-            && $lot->getQuantiteRestante() > 0
-            && $lot->getDatePeremption() >= $this->today();
+        return LotSortieRules::isVendable($lot, $this->today());
     }
 
     public function canSortir(Lot $lot, int $quantite): bool
     {
-        return $quantite > 0 && $this->isVendable($lot) && $lot->getQuantiteRestante() >= $quantite;
+        $this->refreshStatut($lot);
+
+        return LotSortieRules::canSortir($lot, $quantite, $this->today());
     }
 
     public function canSortirHistorique(Lot $lot, int $quantite): bool
     {
-        return $quantite > 0
-            && Lot::STATUT_BLOQUE !== $lot->getStatut()
-            && $lot->getQuantiteRestante() >= $quantite;
+        return LotSortieRules::canSortirHistorique($lot, $quantite);
     }
 
     public function resolveFefoHistorique(Medicament $medicament, int $quantite): Lot

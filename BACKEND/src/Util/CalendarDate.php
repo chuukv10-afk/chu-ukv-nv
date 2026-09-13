@@ -11,6 +11,7 @@ namespace App\Util;
  * - new Date().toISOString()    : 2026-09-12T12:39:00.000Z
  * - createdAt / hydrate cache   : 2026-09-11T23:30:00.000Z (UTC, jour local Kinshasa différent)
  */
+//Normalisation des dates
 final class CalendarDate
 {
     public const TIMEZONE = 'Africa/Kinshasa';
@@ -55,6 +56,17 @@ final class CalendarDate
     public static function today(): string
     {
         return (new \DateTimeImmutable('today', new \DateTimeZone(self::TIMEZONE)))->format('Y-m-d');
+    }
+
+    /** Date de vente antérieure pour le sync, sinon null (vente du jour). */
+    public static function forSyncVente(mixed $value): ?string
+    {
+        $day = self::toDateOnly($value);
+        if (null === $day || $day >= self::today()) {
+            return null;
+        }
+
+        return $day;
     }
 
     private static function inKinshasa(\DateTimeInterface $date): \DateTimeImmutable

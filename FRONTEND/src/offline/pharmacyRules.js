@@ -1,11 +1,14 @@
 import { DATE_STOCK_OUVERTURE } from '../features/pharmacie/ventes/venteConstants.js';
-import { readCache, readNamedCache } from './cache.js';
 
 const VENTE_MODES = ['ESPECES', 'MOBILE'];
 const VENTE_CLIENTS = ['PATIENT', 'PASSANT'];
 const AJUSTEMENT_TYPES = ['AJUSTEMENT_PLUS', 'AJUSTEMENT_MOINS', 'SORTIE_PERTE', 'SORTIE_PEREMPTION'];
 const STATUTS = ['ACTIF', 'INACTIF'];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function cacheApi() {
+  return import('./cache.js');
+}
 
 function fail(message) {
   const error = new Error(message);
@@ -72,6 +75,7 @@ function namedItems(raw) {
 
 async function findNamedItem(named, id) {
   if (!isPresentId(id)) return null;
+  const { readNamedCache } = await cacheApi();
   const items = namedItems(await readNamedCache(named));
   const needle = String(id);
   return items.find((item) => String(item?.id) === needle) ?? null;
@@ -79,6 +83,7 @@ async function findNamedItem(named, id) {
 
 async function loadEntity(basePath, id) {
   if (!isPresentId(id)) return null;
+  const { readCache } = await cacheApi();
   const cached = await readCache(`${basePath}/${id}`);
   return cached?.data ?? cached ?? null;
 }
@@ -281,6 +286,7 @@ async function assertFournisseurActif(fournisseurId) {
 
 async function assertVisiteHospitalisee(visiteId) {
   if (!isPresentId(visiteId)) return;
+  const { readCache } = await cacheApi();
   const cached = await readCache('/api/v1/pharmacie/visites-hospitalisees');
   const items = namedItems(cached);
   if (items.length === 0) return;

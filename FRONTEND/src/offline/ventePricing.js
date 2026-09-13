@@ -1,5 +1,3 @@
-import { readNamedCache } from './cache.js';
-
 function namedItems(raw) {
   if (Array.isArray(raw)) return raw;
   if (Array.isArray(raw?.items)) return raw.items;
@@ -8,8 +6,7 @@ function namedItems(raw) {
   return [];
 }
 
-export async function priceVenteLignes(lignes = []) {
-  const medicaments = namedItems(await readNamedCache('pharmacie.medicaments'));
+export function priceLignes(lignes = [], medicaments = []) {
   const byId = new Map(medicaments.map((item) => [String(item.id), item]));
   const priced = lignes.map((ligne) => {
     const medicament = byId.get(String(ligne.medicamentId));
@@ -31,4 +28,9 @@ export async function priceVenteLignes(lignes = []) {
     lignes: priced,
     montantTotal: String(montantTotal),
   };
+}
+
+export async function priceVenteLignes(lignes = []) {
+  const { readNamedCache } = await import('./cache.js');
+  return priceLignes(lignes, namedItems(await readNamedCache('pharmacie.medicaments')));
 }

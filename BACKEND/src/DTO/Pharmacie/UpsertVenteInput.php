@@ -5,6 +5,7 @@ namespace App\DTO\Pharmacie;
 use App\Util\CalendarDate;
 use Symfony\Component\Validator\Constraints as Assert;
 
+//DTO Date de Synchronisation des ventes
 final class UpsertVenteInput
 {
     public function __construct(

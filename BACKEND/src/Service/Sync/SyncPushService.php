@@ -840,9 +840,6 @@ final class SyncPushService
     }
 
     /**
-     * @param array<string, mixed> $payload
-     */
-    /**
      * Le .exe envoie dateVente en ISO (T12:00:00 ou …Z). Une vente du jour
      * n'est pas une saisie antérieure : on ne garde que les jours déjà passés à Kinshasa.
      *
@@ -851,12 +848,8 @@ final class SyncPushService
     private function syncDateVente(array $payload): ?string
     {
         $raw = $payload['dateVente'] ?? $payload['optimistic']['dateVente'] ?? null;
-        $day = UpsertVenteInput::toDateOnly(null !== $raw ? (string) $raw : null);
-        if (null === $day) {
-            return null;
-        }
 
-        return $day < CalendarDate::today() ? $day : null;
+        return CalendarDate::forSyncVente($raw);
     }
 
     private function moduleFromAction(string $action): string

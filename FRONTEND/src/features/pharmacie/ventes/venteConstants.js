@@ -37,10 +37,30 @@ export const EMPTY_VENTE_LIGNE = {
 
 export const DATE_STOCK_OUVERTURE = '2026-08-28';
 
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function localYmd(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
 export function toDateOnly(value) {
-  if (value == null) return null;
+  if (value == null || value === '') return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return localYmd(value);
+  }
   const raw = String(value).trim();
   if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+  if (/(Z|[+-]\d{2}:?\d{2})$/i.test(raw)) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return localYmd(parsed);
+    }
+  }
   const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
   return match ? match[1] : null;
 }
@@ -52,11 +72,9 @@ export function toDateVenteIso(value, fallback = new Date().toISOString()) {
 }
 
 export function isHistoriqueDate(value, today = new Date()) {
-  if (!value) return false;
-  const day = String(value).slice(0, 10);
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const dayNum = String(today.getDate()).padStart(2, '0');
-  return day < `${today.getFullYear()}-${month}-${dayNum}`;
+  const day = toDateOnly(value);
+  if (!day) return false;
+  return day < localYmd(today);
 }
 
 export function emptyVenteForm() {

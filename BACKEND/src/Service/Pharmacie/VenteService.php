@@ -30,7 +30,6 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 final class VenteService
 {
     private const TIMEZONE = 'Africa/Kinshasa';
-    private const DATE_STOCK_OUVERTURE = '2026-08-28';
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -457,30 +456,18 @@ final class VenteService
 
     private function resolveDateHistorique(UpsertVenteInput $input): ?\DateTimeImmutable
     {
-        if (!$this->isSaisieAnterieure($input)) {
-            return null;
-        }
+        $day = VenteAnterieureRules::resolveDate(
+            $input->dateVente,
+            $this->security->isGranted(PharmaciePermissions::VENTE_SAISIE_ANTERIEURE),
+            $this->today()->format('Y-m-d'),
+        );
 
-        if (!$this->security->isGranted(PharmaciePermissions::VENTE_SAISIE_ANTERIEURE)) {
-            return null;
-        }
-
-        $date = $this->parseDateVente((string) $input->dateVente);
-        if ($date->format('Y-m-d') < self::DATE_STOCK_OUVERTURE) {
-            throw new ConflictException('La date ne peut pas précéder le stock d\'ouverture du 28/08/2026.');
-        }
-
-        return $date;
+        return null === $day ? null : $this->parseDateVente($day);
     }
 
     private function isSaisieAnterieure(UpsertVenteInput $input): bool
     {
-        $day = UpsertVenteInput::toDateOnly($input->dateVente);
-        if (null === $day) {
-            return false;
-        }
-
-        return $day < $this->today()->format('Y-m-d');
+        return VenteAnterieureRules::isAnterieure($input->dateVente, $this->today()->format('Y-m-d'));
     }
 
     private function isHistorique(Vente $vente): bool
@@ -506,11 +493,9 @@ final class VenteService
 
     private function resolveLignePrix(Medicament $medicament, mixed $override, bool $autoriserPrixSaisi): string
     {
-        if ($autoriserPrixSaisi && null !== $override && '' !== $override) {
-            return $this->stockService->normalizePrix((string) $override);
-        }
-
-        return $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+        return $this->stockService->normalizePrix(
+            VenteAnterieureRules::resolvePrixSource($medicament->getPrixVente(), $override, $autoriserPrixSaisi),
+        );
     }
 
     private function assertCanSaisirAnterieure(): void
