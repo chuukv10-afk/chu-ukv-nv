@@ -1,18 +1,35 @@
 {
+  "id": "/",
   "name": "CHU UKV",
   "short_name": "CHU UKV",
-  "description": "Système d’information hospitalier CHU UKV",
+  "description": "Système d’information hospitalier CHU UKV — caisse et dossiers en ligne, hors-ligne si le serveur tombe.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#111927",
   "theme_color": "#111927",
   "lang": "fr",
+  "dir": "ltr",
+  "categories": ["medical", "business"],
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

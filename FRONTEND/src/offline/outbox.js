@@ -1,3 +1,4 @@
+import { dateVenteForSync } from '../features/pharmacie/ventes/venteConstants.js';
 import { offlineDb } from './db.js';
 import { setConnectivityPatch } from './connectivity.js';
 import { namedListForAction } from './policies.js';
@@ -34,6 +35,9 @@ function isCreateAction(action = '') {
 }
 
 function isFollowUpAction(action = '') {
+  if (!action || action.includes('create_and_valider')) {
+    return false;
+  }
   return /\.(update|valider|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(action);
 }
 
@@ -114,11 +118,9 @@ export async function enqueueMutation({
   createdByTelephone = '',
 }) {
   const nextPayload = { ...(payload || {}) };
-  if (nextPayload.historique || nextPayload.saisieAnterieure) {
-    if (nextPayload.dateVente) nextPayload.dateVente = String(nextPayload.dateVente).slice(0, 10);
-  } else {
-    delete nextPayload.dateVente;
-  }
+  const dateVente = dateVenteForSync(nextPayload.dateVente);
+  if (dateVente) nextPayload.dateVente = dateVente;
+  else delete nextPayload.dateVente;
   if (nextPayload.dateReception) nextPayload.dateReception = String(nextPayload.dateReception).slice(0, 10);
   if (isCreateAction(action) && (nextPayload.id == null || nextPayload.id === '')) {
     nextPayload.id = optimistic?.id || createLocalEntityId(kindFromAction(action));
@@ -216,8 +218,8 @@ export async function listRetryableMutations() {
   return listByStatus(['pending', 'conflict', 'rejected']);
 }
 
-export async function requeueUnblockedMutations(resolvePayload) {
-  const blocked = await listByStatus(['conflict', 'rejected']);
+export async function requeueUnblockedMutations(resolvePayload, { statuses = ['rejected'] } = {}) {
+  const blocked = await listByStatus(statuses);
   for (const row of blocked) {
     const payload = typeof resolvePayload === 'function'
       ? await resolvePayload(row.payload || {})

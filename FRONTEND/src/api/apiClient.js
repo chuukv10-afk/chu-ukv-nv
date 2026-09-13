@@ -11,14 +11,13 @@ import { isDesktopApp } from '../offline/desktop.js';
 import { cancelLocalMutation, enqueueMutation, findPendingByLocalId } from '../offline/outbox.js';
 import { isLocalId } from '../offline/idMap.js';
 import { isAuthBypassEndpoint, matchWritePolicy, shouldBypassCache } from '../offline/policies.js';
-import { getStoredRefreshToken, setStoredRefreshToken, readOfflineSession } from '../offline/session.js';
+import { readOfflineSession } from '../offline/session.js';
+import { refreshAccessToken } from '../offline/tokenRefresh.js';
 import { assertPharmacyWrite } from '../offline/pharmacyRules.js';
 import { adjustLocalLot, decrementLocalStock, incrementLocalStock, restoreLocalStock, updateLocalLotMeta } from '../offline/stockLocal.js';
 import { priceVenteLignes } from '../offline/ventePricing.js';
 import { runSyncCycle } from '../offline/syncEngine.js';
 import { isHistoriqueDate, toDateVenteIso } from '../features/pharmacie/ventes/venteConstants.js';
-
-let refreshPromise = null;
 
 function isOversizedClientHeader(response) {
   if (response.status !== 400) {
@@ -75,36 +74,7 @@ function parseBody(body) {
 }
 
 async function tryRefreshToken() {
-  const refreshToken = getStoredRefreshToken();
-  if (!refreshToken) {
-    return false;
-  }
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-
-  refreshPromise = (async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}${auth.refresh}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.token) {
-        return false;
-      }
-      localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
-      setStoredRefreshToken(payload.refreshToken || '');
-      return true;
-    } catch {
-      return false;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-
-  return refreshPromise;
+  return refreshAccessToken();
 }
 
 async function networkFetch(endpoint, method, body, allowRefresh = true) {

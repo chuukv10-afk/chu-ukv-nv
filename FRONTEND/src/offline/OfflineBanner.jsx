@@ -25,9 +25,9 @@ export default function OfflineBanner() {
   const message = !reachable
     ? (typeof window !== 'undefined' && window.electronAPI
       ? 'Poste SQLite actif. Ventes, réceptions, lots et stock restent opérationnels. La synchro partira dès que le serveur répond.'
-      : 'Le serveur est injoignable. Lecture du cache local et file d’attente des écritures autorisées.')
+      : 'Mode PWA hors-ligne. Lecture du cache local et file d’attente des écritures autorisées. La synchro partira dès que le serveur répond.')
     : conflicts > 0
-      ? `${conflicts} opération(s) refusée(s). ${lastConflict || 'Le serveur a refusé au moins une écriture.'}`
+      ? `${conflicts} opération(s) à traiter. Les erreurs de format sont relancées automatiquement ; un stock insuffisant reste affiché jusqu’à correction.`
       : `${pending} opération(s) en attente d’envoi.`;
 
   return (

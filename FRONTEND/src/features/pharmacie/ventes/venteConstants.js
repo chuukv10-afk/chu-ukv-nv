@@ -77,6 +77,13 @@ export function isHistoriqueDate(value, today = new Date()) {
   return day < localYmd(today);
 }
 
+/** Jour à envoyer au sync : uniquement une date déjà passée, sinon null (vente du jour). */
+export function dateVenteForSync(value, today = new Date()) {
+  const day = toDateOnly(value);
+  if (!day || day >= localYmd(today)) return null;
+  return day;
+}
+
 export function emptyVenteForm() {
   return {
     clientType: 'PASSANT',

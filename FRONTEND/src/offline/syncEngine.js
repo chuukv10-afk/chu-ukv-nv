@@ -10,47 +10,10 @@ import { rememberIdMapping, resolvePayloadIds, isLocalId } from './idMap.js';
 import { addConflict, clearConflict, listPendingMutations, markOutboxStatus, refreshOutboxCounts, requeueUnblockedMutations } from './outbox.js';
 import { canPushMutation, sortMutationsForPush } from './outboxOrder.js';
 import { decrementLocalStock, incrementLocalStock, makeLocalLotId, replaceStockSnapshot, restoreLocalStock } from './stockLocal.js';
-import { toDateOnly } from '../features/pharmacie/ventes/venteConstants.js';
+import { sanitizeSyncDates } from './syncDates.js';
+import { refreshAccessToken } from './tokenRefresh.js';
 
-function todayLocalIso() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
-function localCalendarDay(value) {
-  if (!value) return null;
-  const raw = String(value);
-  if (raw.includes('T')) {
-    const date = new Date(raw);
-    if (!Number.isNaN(date.getTime())) {
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    }
-  }
-  return toDateOnly(raw);
-}
-
-function sanitizeSyncDates(payload = {}) {
-  const next = { ...payload };
-  const dateVente = localCalendarDay(next.dateVente);
-  const dateReception = toDateOnly(next.dateReception);
-  const explicitHistorique = Boolean(next.historique || next.saisieAnterieure);
-  if (explicitHistorique && dateVente && dateVente < todayLocalIso()) {
-    next.dateVente = dateVente;
-  } else {
-    delete next.dateVente;
-  }
-  if (dateReception) next.dateReception = dateReception;
-  if (Array.isArray(next.lignes)) {
-    next.lignes = next.lignes.map((ligne) => {
-      if (!ligne || typeof ligne !== 'object') return ligne;
-      const datePeremption = toDateOnly(ligne.datePeremption);
-      return datePeremption ? { ...ligne, datePeremption } : ligne;
-    });
-  }
-  return next;
-}
-
-async function authorizedJson(endpoint, method, body) {
+async function authorizedJson(endpoint, method, body, allowRefresh = true) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method,
@@ -66,6 +29,14 @@ async function authorizedJson(endpoint, method, body) {
     : {};
   if (response.status === 400 && !contentType.includes('application/json')) {
     localStorage.removeItem(AUTH_TOKEN_KEY);
+    handleUnauthorizedApiResponse(401, endpoint);
+    throw createSessionExpiredError();
+  }
+  if (response.status === 401 && allowRefresh) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return authorizedJson(endpoint, method, body, false);
+    }
     handleUnauthorizedApiResponse(401, endpoint);
     throw createSessionExpiredError();
   }
@@ -157,8 +128,11 @@ export async function pullSnapshots(modules = ['pharmacie', 'organisation', 'ref
   return data;
 }
 
-export async function pushOutbox() {
-  await requeueUnblockedMutations((payload) => resolvePayloadIds(payload));
+export async function pushOutbox({ retryConflicts = false } = {}) {
+  await requeueUnblockedMutations(
+    (payload) => resolvePayloadIds(payload),
+    { statuses: retryConflicts ? ['rejected', 'conflict'] : ['rejected'] },
+  );
   const pending = sortMutationsForPush(await listPendingMutations());
   if (pending.length === 0) {
     await refreshOutboxCounts();
@@ -177,20 +151,45 @@ export async function pushOutbox() {
       }
     }
     if (index < 0) {
+      for (const stuck of queue) {
+        const message = 'Cette écriture attend une création locale qui n’est pas dans la file (annulée ou déjà abandonnée). Supprimez-la ou recrééz la vente.';
+        await markOutboxStatus(stuck.clientId, 'conflict', { result: { message } });
+        await addConflict(stuck.clientId, message, {
+          ...stuck.payload,
+          action: stuck.action,
+          optimistic: stuck.optimistic,
+        });
+      }
       break;
     }
 
     const item = queue.splice(index, 1)[0];
-    const payload = sanitizeSyncDates(await resolvePayloadIds(item.payload || {}));
-    const response = await authorizedJson(auth.syncPush, 'POST', {
-      mutations: [{
-        clientId: item.clientId,
-        module: item.module,
+    let response;
+    try {
+      const payload = sanitizeSyncDates(await resolvePayloadIds(item.payload || {}));
+      response = await authorizedJson(auth.syncPush, 'POST', {
+        mutations: [{
+          clientId: item.clientId,
+          module: item.module,
+          action: item.action,
+          payload,
+          createdAt: item.createdAt,
+        }],
+      });
+    } catch (error) {
+      const message = error?.message || 'Synchronisation impossible.';
+      await markOutboxStatus(item.clientId, 'pending');
+      await addConflict(item.clientId, message, {
+        ...item.payload,
         action: item.action,
-        payload,
-        createdAt: item.createdAt,
-      }],
-    });
+        optimistic: item.optimistic,
+      });
+      setConnectivityPatch({ lastConflict: message });
+      if (error?.status === 401 || error?.name === 'SessionExpiredError') {
+        break;
+      }
+      continue;
+    }
     const result = (response?.data?.results ?? [])[0];
     if (!result) {
       continue;
@@ -267,9 +266,12 @@ async function rememberIdsFromResult(item, result) {
 
 let syncCyclePromise = null;
 
-export async function runSyncCycle() {
+export async function runSyncCycle({ retryConflicts = false } = {}) {
   if (syncCyclePromise) {
-    return syncCyclePromise;
+    const current = await syncCyclePromise;
+    if (!retryConflicts) {
+      return current;
+    }
   }
 
   syncCyclePromise = (async () => {
@@ -280,9 +282,9 @@ export async function runSyncCycle() {
 
     setConnectivityPatch({ syncing: true });
     try {
-      await pushOutbox();
+      const pushed = await pushOutbox({ retryConflicts });
       await pullSnapshots();
-      return { pulled: true };
+      return { pulled: true, pushed };
     } finally {
       setConnectivityPatch({ syncing: false });
       await refreshOutboxCounts();

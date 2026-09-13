@@ -23,6 +23,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import logo from '../../assets/img/logo.jpg';
 import { ROUTES } from '../../constants/routes.js';
 import { loginUser } from '../../features/auth/authService.js';
+import PwaInstallHint from '../../offline/PwaInstallHint.jsx';
 import { useOffline } from '../../offline/useOffline.js';
 
 export default function LoginPage() {
@@ -231,9 +232,12 @@ export default function LoginPage() {
         </CardContent>
       </Card>
 
-      <Typography level="body-xs" sx={{ mt: 4, color: 'neutral.500', textAlign: 'center' }}>
-        © {new Date().getFullYear()} CHU-Soft UKV. Développé par le Service Informatique Interne du CHU.
-      </Typography>
+      <Stack alignItems="center" spacing={1.5} sx={{ mt: 3 }}>
+        <PwaInstallHint />
+        <Typography level="body-xs" sx={{ color: 'neutral.500', textAlign: 'center' }}>
+          © {new Date().getFullYear()} CHU-Soft UKV. Développé par le Service Informatique Interne du CHU.
+        </Typography>
+      </Stack>
     </Sheet>
   );
 }

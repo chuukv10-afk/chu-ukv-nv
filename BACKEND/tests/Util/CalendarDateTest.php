@@ -88,6 +88,12 @@ final class CalendarDateTest
                     CalendarDate::today(),
                 );
             }
+            if (null !== $gotDay && 10 !== strlen($gotDay)) {
+                $failures[] = sprintf('%s [toDateOnly] doit faire 10 caractères, obtenu %s', $label, self::show($gotDay));
+            }
+            if (null !== $gotSync && 10 !== strlen($gotSync)) {
+                $failures[] = sprintf('%s [forSyncVente] doit faire 10 caractères, obtenu %s', $label, self::show($gotSync));
+            }
         }
 
         $object = new \DateTimeImmutable('2026-09-11 23:30:00', new \DateTimeZone('UTC'));

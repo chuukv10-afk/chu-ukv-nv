@@ -11,7 +11,9 @@ import {
   discardAllUnsynced,
   discardUnsynced,
   listUnsyncedMutations,
+  retryAllUnsynced,
 } from './outbox.js';
+import { runSyncCycle } from './syncEngine.js';
 
 const ACTION_LABELS = {
   'pharmacie.vente.complete': 'Vente hors-ligne',
@@ -54,6 +56,7 @@ export default function ConflictPanel({ open, onClose }) {
   const canDelete = isAdmin || hasPermission(PERMISSIONS.PHARMACIE.SYNC_CONFLICT_DELETE);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [pending, setPending] = useState(null);
 
   const reload = async () => {
@@ -102,9 +105,10 @@ export default function ConflictPanel({ open, onClose }) {
           <ModalClose />
           <Typography level="title-lg" sx={{ fontWeight: 700 }}>Écritures hors-ligne</Typography>
           <Typography level="body-sm" sx={{ color: 'neutral.600', mb: 1.5 }}>
-            File d’attente et refus serveur. La synchro n’envoie que les opérations encore en file.
+            Un refus de format (date, champ) est relancé tout seul dès que le serveur répond.
+            Un refus métier (stock insuffisant, droit manquant) reste ici jusqu’à correction, puis « Réessayer ».
             {canDelete
-              ? ' En tant qu’administrateur, vous pouvez supprimer définitivement une écriture non synchronisée (le stock local est rétabli si besoin).'
+              ? ' Un administrateur peut supprimer définitivement une écriture non synchronisée (le stock local est rétabli si besoin).'
               : ''}
           </Typography>
 
@@ -166,12 +170,31 @@ export default function ConflictPanel({ open, onClose }) {
           )}
 
           <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.5 }}>
+            {items.length > 0 ? (
+              <Button
+                variant="solid"
+                loading={retrying}
+                disabled={loading}
+                onClick={async () => {
+                  setRetrying(true);
+                  try {
+                    await retryAllUnsynced();
+                    await runSyncCycle({ retryConflicts: true });
+                    await reload();
+                  } finally {
+                    setRetrying(false);
+                  }
+                }}
+              >
+                Réessayer
+              </Button>
+            ) : null}
             {canDelete && items.length > 1 ? (
-              <Button color="danger" variant="outlined" onClick={() => setPending('all')}>
+              <Button color="danger" variant="outlined" disabled={retrying} onClick={() => setPending('all')}>
                 Tout supprimer
               </Button>
             ) : null}
-            <Button variant="plain" color="neutral" onClick={onClose}>Fermer</Button>
+            <Button variant="plain" color="neutral" disabled={retrying} onClick={onClose}>Fermer</Button>
           </Stack>
         </ModalDialog>
       </Modal>

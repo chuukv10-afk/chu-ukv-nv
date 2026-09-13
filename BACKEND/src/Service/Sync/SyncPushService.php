@@ -840,8 +840,9 @@ final class SyncPushService
     }
 
     /**
-     * Le .exe envoie dateVente en ISO (T12:00:00 ou …Z). Une vente du jour
-     * n'est pas une saisie antérieure : on ne garde que les jours déjà passés à Kinshasa.
+     * Le .exe envoie dateVente en ISO (T12:00:00 ou …Z). On normalise ici :
+     * un écart de format ne doit jamais devenir un conflit utilisateur.
+     * Une vente du jour n'est pas une saisie antérieure.
      *
      * @param array<string, mixed> $payload
      */

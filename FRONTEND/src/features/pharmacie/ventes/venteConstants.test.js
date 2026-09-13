@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   DATE_STOCK_OUVERTURE,
+  dateVenteForSync,
   isHistoriqueDate,
   toDateOnly,
   toDateVenteIso,
@@ -67,5 +68,12 @@ describe('dates envoyées par le .exe', () => {
   it('toDateVenteIso reconstruit le format exe T12:00:00', () => {
     assert.equal(toDateVenteIso('2026-08-29'), '2026-08-29T12:00:00');
     assert.equal(toDateVenteIso('2026-08-29T18:44:01.000Z'), '2026-08-29T12:00:00');
+  });
+
+  it('dateVenteForSync garde le jour passé même sans drapeau historique (payload .exe)', () => {
+    assert.equal(dateVenteForSync('2026-08-29T12:00:00'), '2026-08-29');
+    assert.equal(dateVenteForSync(`${yesterday}T12:00:00`), yesterday);
+    assert.equal(dateVenteForSync(`${today}T12:00:00`), null);
+    assert.equal(dateVenteForSync(new Date().toISOString()), null);
   });
 });

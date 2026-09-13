@@ -8,9 +8,9 @@ const isElectronBuild = process.env.ELECTRON === '1';
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+    !isElectronBuild && VitePWA({
+      registerType: 'prompt',
+      includeAssets: ['favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png'],
       manifest: false,
       workbox: {
         navigateFallback: '/index.html',
@@ -23,7 +23,7 @@ export default defineConfig({
         ],
       },
     }),
-  ],
+  ].filter(Boolean),
   base: isElectronBuild ? './' : '/',
   resolve: {
     alias: {

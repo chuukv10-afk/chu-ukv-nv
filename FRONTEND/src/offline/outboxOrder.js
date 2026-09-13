@@ -90,12 +90,18 @@ export function mutationProducesLocalId(mutation, localId) {
   return false;
 }
 
+export function mutationNeedsOwnServerId(action = '') {
+  if (String(action).includes('create_and_valider')) {
+    return false;
+  }
+  return /\.(update|valider|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(action);
+}
+
 export async function canPushMutation(item) {
   const resolvedOwnId = item.payload?.id != null
     ? await resolveServerId(item.payload.id)
     : item.optimistic?.id;
-  const needsOwnServerId = /\.(update|valider|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(item.action || '');
-  if (needsOwnServerId && isLocalId(resolvedOwnId)) {
+  if (mutationNeedsOwnServerId(item.action || '') && isLocalId(resolvedOwnId)) {
     return false;
   }
 

@@ -9,7 +9,30 @@ import './styles/global.css';
 
 if (!window.electronAPI) {
   import('virtual:pwa-register')
-    .then(({ registerSW }) => registerSW({ immediate: true }))
+    .then(({ registerSW }) => {
+      const listeners = new Set();
+      let apply = () => window.location.reload();
+      const notify = (needRefresh) => {
+        listeners.forEach((listener) => listener({ needRefresh, apply }));
+      };
+      const updateSW = registerSW({
+        immediate: true,
+        onNeedRefresh() {
+          apply = () => updateSW(true);
+          notify(true);
+        },
+        onRegisteredSW() {
+          notify(false);
+        },
+      });
+      window.chuUkvSwUpdate = {
+        subscribe(listener) {
+          listeners.add(listener);
+          listener({ needRefresh: false, apply });
+          return () => listeners.delete(listener);
+        },
+      };
+    })
     .catch(() => {});
 }
 

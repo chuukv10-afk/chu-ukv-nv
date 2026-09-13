@@ -11,7 +11,8 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 
 final class RefreshTokenService
 {
-    private const TTL_DAYS = 7;
+    /** Inactivité max : au-delà, il faut se reconnecter. Chaque usage glisse cette fenêtre. */
+    public const IDLE_HOURS = 8;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -27,7 +28,7 @@ final class RefreshTokenService
             ->setTokenHash($this->hash($plain))
             ->setPersonnel($personnel)
             ->setCreatedAt(new \DateTimeImmutable())
-            ->setExpiresAt(new \DateTimeImmutable('+' . self::TTL_DAYS . ' days'));
+            ->setExpiresAt(new \DateTimeImmutable('+' . self::IDLE_HOURS . ' hours'));
 
         $this->entityManager->persist($token);
         $this->entityManager->flush();

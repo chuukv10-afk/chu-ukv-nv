@@ -1,7 +1,7 @@
 {
   "name": "chu-ukv-frontend",
   "productName": "CHU UKV Pharmacie",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CHU UKV — poste pharmacie Electron + SQLite + sync Symfony",
   "author": "CHU UKV",
   "license": "UNLICENSED",
@@ -20,7 +20,7 @@
     "build:installer": "npm run build:electron && electron-builder --win nsis",
     "build:portable": "npm run build:electron && electron-builder --win portable",
     "lint": "eslint .",
-    "test": "node --test --test-reporter=spec src/features/pharmacie/ventes/venteConstants.test.js src/offline/pharmacyRules.test.js src/offline/ventePricing.test.js",
+    "test": "node --test --test-reporter=spec src/features/pharmacie/ventes/venteConstants.test.js src/offline/pharmacyRules.test.js src/offline/ventePricing.test.js src/offline/syncDates.test.js src/offline/outboxOrder.test.js src/offline/jwtExp.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
