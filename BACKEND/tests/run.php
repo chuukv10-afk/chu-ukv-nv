@@ -9,9 +9,11 @@ use App\Tests\Pharmacie\LotSortieRulesTest;
 use App\Tests\Pharmacie\VenteAnterieureRulesTest;
 use App\Tests\Storage\ObjectStorageTest;
 use App\Tests\Util\CalendarDateTest;
+use App\Tests\Util\DocumentNumeroTest;
 
 $suites = [
     'dates exe / synchro' => CalendarDateTest::run(),
+    'numéros documents MAX+1' => DocumentNumeroTest::run(),
     'stock FEFO / historique' => LotSortieRulesTest::run(),
     'vente antérieure / permission / prix' => VenteAnterieureRulesTest::run(),
     'encaissement partiel service' => DemandePaiementRulesTest::run(),

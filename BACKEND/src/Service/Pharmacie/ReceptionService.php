@@ -268,7 +268,7 @@ final class ReceptionService
     {
         $prefix = 'REC-' . (new \DateTimeImmutable())->format('Ymd') . '-';
 
-        return $prefix . str_pad((string) ($this->receptionRepository->countNumeroPrefix($prefix) + 1), 4, '0', STR_PAD_LEFT);
+        return $this->receptionRepository->nextNumeroForPrefix($prefix);
     }
 
     /**

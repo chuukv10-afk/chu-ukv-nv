@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Fournisseur;
 use App\Entity\Reception;
+use App\Repository\Trait\NumeroPrefixRepositoryTrait;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -12,6 +13,8 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class ReceptionRepository extends ServiceEntityRepository
 {
+    use NumeroPrefixRepositoryTrait;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Reception::class);

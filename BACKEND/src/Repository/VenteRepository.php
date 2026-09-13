@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Vente;
+use App\Repository\Trait\NumeroPrefixRepositoryTrait;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -11,6 +12,8 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class VenteRepository extends ServiceEntityRepository
 {
+    use NumeroPrefixRepositoryTrait;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Vente::class);

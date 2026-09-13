@@ -383,7 +383,7 @@ final class DemandeServiceService
     {
         $prefix = 'DSV-' . ($date ?? $this->now())->format('Ymd') . '-';
 
-        return $prefix . str_pad((string) ($this->demandeServiceRepository->countNumeroPrefix($prefix) + 1), 4, '0', STR_PAD_LEFT);
+        return $this->demandeServiceRepository->nextNumeroForPrefix($prefix);
     }
 
     private function resolveDateHistorique(UpsertDemandeServiceInput $input): ?\DateTimeImmutable

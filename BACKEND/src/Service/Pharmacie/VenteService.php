@@ -641,7 +641,7 @@ final class VenteService
     {
         $prefix = 'VTE-' . ($date ?? $this->now())->format('Ymd') . '-';
 
-        return $prefix . str_pad((string) ($this->venteRepository->countNumeroPrefix($prefix) + 1), 4, '0', STR_PAD_LEFT);
+        return $this->venteRepository->nextNumeroForPrefix($prefix);
     }
 
     private function resolveDateHistorique(UpsertVenteInput $input): ?\DateTimeImmutable
