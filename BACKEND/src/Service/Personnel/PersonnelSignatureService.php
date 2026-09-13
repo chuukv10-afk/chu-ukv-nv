@@ -11,7 +11,7 @@ use Symfony\Component\Uid\Uuid;
 
 final class PersonnelSignatureService
 {
-    public const MAX_SIZE_BYTES = 8_388_608;
+    public const MAX_SIZE_BYTES = 52_428_800;
     private const ALLOWED_MIME_TYPES = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
@@ -113,7 +113,7 @@ final class PersonnelSignatureService
         }
 
         if ($file->getSize() > self::MAX_SIZE_BYTES) {
-            throw new BadRequestHttpException('La signature ne doit pas dépasser 8 Mo.');
+            throw new BadRequestHttpException('La signature ne doit pas dépasser 50 Mo.');
         }
     }
 

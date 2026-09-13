@@ -11,7 +11,7 @@ use Symfony\Component\Uid\Uuid;
 
 final class PersonnelAvatarService
 {
-    public const MAX_SIZE_BYTES = 8_388_608;
+    public const MAX_SIZE_BYTES = 52_428_800;
     private const ALLOWED_MIME_TYPES = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
@@ -103,7 +103,7 @@ final class PersonnelAvatarService
         }
 
         if ($file->getSize() > self::MAX_SIZE_BYTES) {
-            throw new BadRequestHttpException('L\'avatar ne doit pas dépasser 8 Mo.');
+            throw new BadRequestHttpException('L\'avatar ne doit pas dépasser 50 Mo.');
         }
     }
 
