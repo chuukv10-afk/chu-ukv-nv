@@ -141,14 +141,15 @@ final class PersonnelService
         }
 
         $this->assertUniqueTelephone($input->telephone);
-        $this->assertUniqueMatricule($input->matricule);
+        $normalizedMatricule = $this->normalizeMatricule($input->matricule);
+        $this->assertUniqueMatricule($normalizedMatricule);
 
         $personnel = (new Personnel())
             ->setNom(trim($input->nom))
             ->setPostNom($this->normalizeOptionalText($input->postNom) ?? '')
             ->setPrenom($this->normalizeOptionalText($input->prenom))
             ->setTelephone(trim($input->telephone))
-            ->setMatricule(trim($input->matricule))
+            ->setMatricule($normalizedMatricule)
             ->setSexe(strtoupper(trim($input->sexe)))
             ->setType(Personnel::normalizeType($input->type))
             ->setStatus(Personnel::normalizeStatus($input->status))
@@ -196,13 +197,13 @@ final class PersonnelService
         }
 
         $normalizedTelephone = trim($input->telephone);
-        $normalizedMatricule = trim($input->matricule);
+        $normalizedMatricule = $this->normalizeMatricule($input->matricule);
 
         if (null !== $this->personnelRepository->findOneByTelephoneForAnotherPersonnel($normalizedTelephone, $personnelId)) {
             throw new ConflictException('Ce numéro de téléphone est déjà utilisé.');
         }
 
-        if (null !== $this->personnelRepository->findOneByMatriculeForAnotherPersonnel($normalizedMatricule, $personnelId)) {
+        if (null !== $normalizedMatricule && null !== $this->personnelRepository->findOneByMatriculeForAnotherPersonnel($normalizedMatricule, $personnelId)) {
             throw new ConflictException('Ce matricule est déjà utilisé.');
         }
 
@@ -436,11 +437,28 @@ final class PersonnelService
         }
     }
 
-    private function assertUniqueMatricule(string $matricule): void
+    private function assertUniqueMatricule(?string $matricule): void
     {
+        if (null === $matricule) {
+            return;
+        }
         if ($this->personnelRepository->existsByMatricule($matricule)) {
             throw new ConflictException('Ce matricule est déjà utilisé.');
         }
+    }
+
+    /** Vide ou « NU » = agent sans matricule. */
+    private function normalizeMatricule(?string $value): ?string
+    {
+        $normalized = $this->normalizeOptionalText($value);
+        if (null === $normalized) {
+            return null;
+        }
+        if (0 === strcasecmp($normalized, 'NU')) {
+            return null;
+        }
+
+        return $normalized;
     }
 
     private function normalizeOptionalText(?string $value): ?string

@@ -499,7 +499,7 @@ export default function PersonnelPage() {
                         </Box>
                       </Stack>
                     </td>
-                    <td className="pers-col-desktop"><Typography level="body-sm">{personnel.matricule}</Typography></td>
+                    <td className="pers-col-desktop"><Typography level="body-sm">{personnel.matricule || '—'}</Typography></td>
                     <td className="pers-col-desktop"><Typography level="body-sm">{personnel.telephone}</Typography></td>
                     <td className="pers-col-type"><Chip size="sm" variant="soft" color="neutral">{PERSONNEL_TYPE_LABELS[personnel.type] ?? personnel.type}</Chip></td>
                     <td className="pers-col-status"><StatusChip status={personnel.status} /></td>

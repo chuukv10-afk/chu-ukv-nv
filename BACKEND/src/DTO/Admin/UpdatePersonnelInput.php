@@ -26,9 +26,8 @@ final class UpdatePersonnelInput
         #[Assert\Length(max: 15)]
         public string $telephone = '',
 
-        #[Assert\NotBlank(message: 'Le matricule est obligatoire.')]
         #[Assert\Length(max: 20)]
-        public string $matricule = '',
+        public ?string $matricule = null,
 
         #[Assert\NotBlank(message: 'Le sexe est obligatoire.')]
         #[Assert\Choice(choices: ['M', 'F'], message: 'Le sexe doit être M ou F.')]

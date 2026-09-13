@@ -46,7 +46,7 @@ export default function PersonnelDeleteModal({
                 Supprimer ce personnel ?
               </Typography>
               <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
-                {personnel ? `${getDisplayName(personnel)} — ${personnel.matricule}` : ''}
+                {personnel ? `${getDisplayName(personnel)}${personnel.matricule ? ` — ${personnel.matricule}` : ''}` : ''}
               </Typography>
             </Box>
           </Stack>

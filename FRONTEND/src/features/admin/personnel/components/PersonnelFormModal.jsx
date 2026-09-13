@@ -236,7 +236,7 @@ export default function PersonnelFormModal({
       postNom: form.postNom.trim(),
       prenom: form.prenom?.trim() || null,
       telephone: form.telephone.trim(),
-      matricule: form.matricule.trim(),
+      matricule: form.matricule.trim() || null,
       sexe: form.sexe,
       type: form.type,
       status: form.status,
@@ -411,7 +411,7 @@ export default function PersonnelFormModal({
 
               <Typography level="title-sm" sx={{ fontWeight: 700 }}>Identité</Typography>
               <Typography level="body-xs" sx={{ color: 'neutral.500', mt: -1.5 }}>
-                Seuls le nom, le téléphone, le matricule et le mot de passe (à la création) sont obligatoires.
+                Seuls le nom, le téléphone et le mot de passe (à la création) sont obligatoires. Le matricule peut rester vide ou « NU ».
               </Typography>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                 <FormControl required sx={{ flex: 1 }}>
@@ -429,9 +429,14 @@ export default function PersonnelFormModal({
               </Stack>
 
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <FormControl required sx={{ flex: 1 }}>
+                <FormControl sx={{ flex: 1 }}>
                   <FormLabel>Matricule</FormLabel>
-                  <Input value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} disabled={isBusy} />
+                  <Input
+                    value={form.matricule}
+                    onChange={(e) => handleChange('matricule', e.target.value)}
+                    disabled={isBusy}
+                    placeholder="Vide ou NU si aucun"
+                  />
                 </FormControl>
                 <FormControl required sx={{ flex: 1 }}>
                   <FormLabel>Téléphone</FormLabel>

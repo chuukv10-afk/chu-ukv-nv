@@ -51,7 +51,7 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 20)]
     private ?string $status = null;
 
-    #[ORM\Column(length: 20, unique: true)]
+    #[ORM\Column(length: 20, unique: true, nullable: true)]
     private ?string $matricule = null;
 
     #[ORM\Column(length: 20, nullable: true)]
@@ -216,7 +216,7 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->matricule;
     }
 
-    public function setMatricule(string $matricule): static
+    public function setMatricule(?string $matricule): static
     {
         $this->matricule = $matricule;
 
