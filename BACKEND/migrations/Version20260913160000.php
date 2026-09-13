@@ -24,8 +24,8 @@ final class Version20260913160000 extends AbstractMigration
             return;
         }
 
-        $this->addSql("UPDATE personnel SET matricule = NULL WHERE matricule IS NULL OR TRIM(matricule) = '' OR UPPER(TRIM(matricule)) = 'NU'");
         $this->addSql('ALTER TABLE personnel CHANGE matricule matricule VARCHAR(20) DEFAULT NULL');
+        $this->addSql("UPDATE personnel SET matricule = NULL WHERE TRIM(matricule) = '' OR UPPER(TRIM(matricule)) = 'NU'");
     }
 
     public function down(Schema $schema): void
