@@ -60,6 +60,9 @@ class DemandeService implements BlameableInterface
     private ?string $modePaiement = null;
 
     #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $dateLivraison = null;
+
+    #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $delivreeAt = null;
 
     #[ORM\Column(nullable: true)]
@@ -90,6 +93,8 @@ class DemandeService implements BlameableInterface
     public function setService(?Service $service): static { $this->service = $service; return $this; }
     public function getVisite(): ?Visite { return $this->visite; }
     public function setVisite(?Visite $visite): static { $this->visite = $visite; return $this; }
+    public function getDateLivraison(): ?\DateTimeImmutable { return $this->dateLivraison; }
+    public function setDateLivraison(?\DateTimeImmutable $dateLivraison): static { $this->dateLivraison = $dateLivraison; return $this; }
     public function getDelivreeAt(): ?\DateTimeImmutable { return $this->delivreeAt; }
     public function setDelivreeAt(?\DateTimeImmutable $delivreeAt): static { $this->delivreeAt = $delivreeAt; return $this; }
     public function getMotif(): ?string { return $this->motif; }

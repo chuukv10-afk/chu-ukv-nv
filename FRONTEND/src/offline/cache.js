@@ -116,7 +116,7 @@ function calendarDay(raw) {
 
 function inDateRange(item, from, to) {
   if (!from && !to) return true;
-  const raw = item.dateVente || item.dateReception || item.enterAt || item.createdAt;
+  const raw = item.dateVente || item.dateLivraison || item.delivreeAt || item.dateReception || item.enterAt || item.createdAt;
   if (!raw) return true;
   const day = calendarDay(raw);
   if (from && day < from) return false;

@@ -65,6 +65,163 @@ final class VenteService
         );
     }
 
+    /**
+     * @return list<string>
+     */
+    public function exportHeaders(): array
+    {
+        return ['N°', 'Date', 'Numéro', 'Nature', 'Client', 'Articles', 'Paiement', 'Montant', 'Statut'];
+    }
+
+    /**
+     * @return list<list<string|null>>
+     */
+    public function buildExportRows(PharmacieListQuery $query): array
+    {
+        $this->assertValid($query);
+        $ventes = $this->venteRepository->findForExport(
+            $query->search,
+            $query->statut,
+            $query->dateFrom,
+            $query->dateTo,
+            $query->type,
+        );
+
+        $rows = [];
+        $total = 0.0;
+        foreach ($ventes as $vente) {
+            $rows[] = $this->buildExportRow($vente);
+            if (!in_array($vente->getStatut(), [Vente::STATUT_ANNULEE, Vente::STATUT_BROUILLON], true)) {
+                $total += (float) $vente->getMontantTotal();
+            }
+        }
+
+        if ($rows !== []) {
+            $rows[] = [
+                '',
+                '',
+                'TOTAL',
+                '',
+                '',
+                '',
+                $this->formatMontant($total),
+                sprintf('%d ligne(s)', count($ventes)),
+            ];
+        }
+
+        return $rows;
+    }
+
+    public function exportTitle(PharmacieListQuery $query): string
+    {
+        $type = strtoupper(trim((string) $query->type));
+        $search = trim((string) $query->search);
+        $title = match ($type) {
+            'BON_POUR' => 'Bons pour',
+            'VENTE' => 'Ventes',
+            default => 'Ventes et bons pour',
+        };
+        if ('' !== $search) {
+            $title .= ' — ' . $search;
+        }
+
+        $from = $query->dateFrom;
+        $to = $query->dateTo;
+        if (null !== $from && '' !== $from && null !== $to && '' !== $to) {
+            $title .= sprintf(' (%s au %s)', $this->formatDateOnly($from), $this->formatDateOnly($to));
+        } elseif (null !== $from && '' !== $from) {
+            $title .= ' depuis le ' . $this->formatDateOnly($from);
+        } elseif (null !== $to && '' !== $to) {
+            $title .= ' jusqu’au ' . $this->formatDateOnly($to);
+        }
+
+        return $title;
+    }
+
+    public function exportFilenamePrefix(PharmacieListQuery $query): string
+    {
+        return 'BON_POUR' === strtoupper(trim((string) $query->type)) ? 'bons_pour' : 'ventes';
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    private function buildExportRow(Vente $vente): array
+    {
+        $date = $vente->getDateVente() ?? $vente->getCreatedAt();
+        $articles = [];
+        foreach ($vente->getLignes() as $ligne) {
+            $libelle = $ligne->getMedicament()?->getLibelle() ?? 'Médicament';
+            $articles[] = $ligne->getQuantite() . ' × ' . $libelle;
+        }
+
+        return [
+            $date?->format('d/m/Y H:i'),
+            $vente->getNumero(),
+            Vente::STATUT_BON_POUR === $vente->getStatut() ? 'Bon pour' : 'Vente',
+            $this->clientExportLabel($vente),
+            $articles === [] ? '—' : implode('; ', $articles),
+            $this->modePaiementLabel($vente->getModePaiement()),
+            $this->formatMontant((float) $vente->getMontantTotal()),
+            $this->statutExportLabel($vente->getStatut()),
+        ];
+    }
+
+    private function clientExportLabel(Vente $vente): string
+    {
+        $patient = $vente->getPatient();
+        $name = $patient?->getFullName();
+        if (Vente::ORIGINE_HOSPITALISE === $vente->getOrigine()) {
+            $label = 'Hospitalisé';
+            if (null !== $name && '' !== trim($name)) {
+                $label .= ' — ' . $name;
+            }
+            $service = $vente->getVisite()?->getService()?->getLibelle();
+            if (null !== $service && '' !== $service) {
+                $label .= ' (' . $service . ')';
+            }
+
+            return $label;
+        }
+        if (Vente::CLIENT_PATIENT === $vente->getClientType()) {
+            return 'Patient — ' . ($name ?: '—');
+        }
+
+        return 'Passant — ' . ($vente->getClientNom() ?: '—');
+    }
+
+    private function statutExportLabel(?string $statut): string
+    {
+        return match ($statut) {
+            Vente::STATUT_BON_POUR => 'Bon pour',
+            Vente::STATUT_VALIDEE => 'Validée',
+            Vente::STATUT_ANNULEE => 'Annulée',
+            Vente::STATUT_BROUILLON => 'Brouillon',
+            default => (string) $statut,
+        };
+    }
+
+    private function modePaiementLabel(?string $mode): string
+    {
+        return match (strtoupper((string) $mode)) {
+            'ESPECES' => 'Espèces',
+            'MOBILE' => 'Mobile money',
+            default => (string) $mode,
+        };
+    }
+
+    private function formatMontant(float $value): string
+    {
+        return number_format($value, 2, ',', ' ') . ' FC';
+    }
+
+    private function formatDateOnly(string $isoDay): string
+    {
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $isoDay);
+
+        return false === $date ? $isoDay : $date->format('d/m/Y');
+    }
+
     public function create(UpsertVenteInput $input): Vente
     {
         $this->assertValid($input);

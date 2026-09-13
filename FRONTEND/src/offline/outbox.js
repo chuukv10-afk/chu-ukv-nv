@@ -32,11 +32,12 @@ function isCreateAction(action = '') {
   return action.endsWith('.create')
     || action.endsWith('.complete')
     || action.includes('create_and_valider')
-    || action.includes('create_and_bon_pour');
+    || action.includes('create_and_bon_pour')
+    || action.includes('create_and_delivrer');
 }
 
 function isFollowUpAction(action = '') {
-  if (!action || action.includes('create_and_valider') || action.includes('create_and_bon_pour')) {
+  if (!action || action.includes('create_and_valider') || action.includes('create_and_bon_pour') || action.includes('create_and_delivrer')) {
     return false;
   }
   return /\.(update|valider|bon_pour|encaisser|envoyer|delivrer|refuser|regler|annuler|delete)$/.test(action);
@@ -122,6 +123,9 @@ export async function enqueueMutation({
   const dateVente = dateVenteForSync(nextPayload.dateVente);
   if (dateVente) nextPayload.dateVente = dateVente;
   else delete nextPayload.dateVente;
+  const dateLivraison = dateVenteForSync(nextPayload.dateLivraison);
+  if (dateLivraison) nextPayload.dateLivraison = dateLivraison;
+  else delete nextPayload.dateLivraison;
   if (nextPayload.dateReception) nextPayload.dateReception = String(nextPayload.dateReception).slice(0, 10);
   if (isCreateAction(action) && (nextPayload.id == null || nextPayload.id === '')) {
     nextPayload.id = optimistic?.id || createLocalEntityId(kindFromAction(action));

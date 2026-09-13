@@ -162,6 +162,12 @@ export const NAV_SECTIONS = [
         icon: 'clipboard',
       },
       {
+        label: 'Appro. service antérieur',
+        to: ROUTES.PHARMACIE.DEMANDE_SERVICE_ANTERIEURE_NEW,
+        permission: PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_SAISIE_ANTERIEURE,
+        icon: 'clipboard',
+      },
+      {
         label: 'Créances',
         to: ROUTES.PHARMACIE.CREANCES,
         permission: PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_READ,

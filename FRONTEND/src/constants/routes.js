@@ -40,6 +40,7 @@ export const ROUTES = {
     VENTE_DETAIL: '/pharmacie/ventes/:id',
     DEMANDES_SERVICE: '/pharmacie/demandes-service',
     DEMANDE_SERVICE_NEW: '/pharmacie/demandes-service/nouveau',
+    DEMANDE_SERVICE_ANTERIEURE_NEW: '/pharmacie/demandes-service/anterieures/nouveau',
     DEMANDE_SERVICE_DETAIL: '/pharmacie/demandes-service/:id',
     CREANCES: '/pharmacie/creances',
     RECETTES: '/pharmacie/recettes',

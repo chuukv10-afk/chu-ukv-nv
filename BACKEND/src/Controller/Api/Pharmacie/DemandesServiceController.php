@@ -41,6 +41,17 @@ final class DemandesServiceController extends AbstractController
         return $this->apiSuccess($demandeServiceService->serializeDetail($demandeServiceService->getById($id)), 'Demande récupérée avec succès.');
     }
 
+    #[Route('/create-and-delivrer', name: 'api_pharmacie_demandes_service_create_and_delivrer', methods: ['POST'])]
+    #[IsGranted(PharmaciePermissions::DEMANDE_SERVICE_CREATE)]
+    public function createAndDelivrer(DemandeServiceService $demandeServiceService, #[MapRequestPayload] UpsertDemandeServiceInput $input): JsonResponse
+    {
+        return $this->apiSuccess(
+            $demandeServiceService->serializeDetail($demandeServiceService->createAndDelivrer($input)),
+            'Approvisionnement enregistré, stock décrémenté, créance ouverte.',
+            Response::HTTP_CREATED,
+        );
+    }
+
     #[Route('', name: 'api_pharmacie_demandes_service_create', methods: ['POST'])]
     #[IsGranted(PharmaciePermissions::DEMANDE_SERVICE_CREATE)]
     public function create(DemandeServiceService $demandeServiceService, #[MapRequestPayload] UpsertDemandeServiceInput $input): JsonResponse

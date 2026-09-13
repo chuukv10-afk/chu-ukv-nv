@@ -202,7 +202,7 @@ export async function pushOutbox({ retryConflicts = false } = {}) {
       await clearConflict(clientId);
       await markOutboxStatus(clientId, 'synced', { serverId: result.entityId, result });
     } else if (result.status === 'CONFLICT') {
-      if (item.status === 'pending' && (item.action?.includes('vente') || item.action === 'pharmacie.demande_service.delivrer')) {
+      if (item.status === 'pending' && (item.action?.includes('vente') || item.action === 'pharmacie.demande_service.delivrer' || item.action === 'pharmacie.demande_service.create_and_delivrer')) {
         await restoreLocalStock(item.payload?.lignes || []);
       }
       if (item.status === 'pending' && item.action === 'pharmacie.reception.valider') {

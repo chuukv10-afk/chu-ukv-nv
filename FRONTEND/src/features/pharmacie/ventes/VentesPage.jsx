@@ -4,12 +4,15 @@ import {
   Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
 import { Check, Eye, Plus, Printer, Search, ShoppingCart, Trash2 } from 'lucide-react';
+import ExportButtons from '../../../components/export/ExportButtons.jsx';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
+import { pharmacie } from '../../../api/endpoints.js';
+import { exportResourceApi } from '../../../utils/exportApi.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { formatDateTime, formatPatientName, formatPrix, todayIso } from '../shared/format.js';
 import { PERIOD_OPTIONS, resolvePeriodRange } from '../shared/period.js';
@@ -77,6 +80,7 @@ export default function VentesPage() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingEncaisser, setPendingEncaisser] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -142,6 +146,31 @@ export default function VentesPage() {
     }
   };
 
+  const exportParams = () => {
+    const range = period === 'since_ouverture'
+      ? { dateFrom: DATE_STOCK_OUVERTURE, dateTo: todayIso() }
+      : resolvePeriodRange(period, customFrom, customTo);
+    return {
+      search: debouncedSearch || undefined,
+      type: nature || undefined,
+      statut: nature === 'BON_POUR' ? undefined : (statut || undefined),
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
+    };
+  };
+
+  const handleExport = async (format) => {
+    setExportLoading(format);
+    try {
+      await exportResourceApi(pharmacie.ventes, format, exportParams());
+      showSuccess(format === 'pdf' ? 'Export PDF ouvert dans le navigateur.' : 'Export Excel téléchargé.');
+    } catch (error) {
+      showError(error.message || 'Export impossible.');
+    } finally {
+      setExportLoading(null);
+    }
+  };
+
   const handlePrint = async (item) => {
     try {
       const detail = item.lignes ? item : await fetchVenteApi(item.id);
@@ -168,6 +197,7 @@ export default function VentesPage() {
             </Box>
           </Stack>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <ExportButtons onExport={handleExport} loading={exportLoading} />
             {canSaisirAnterieure ? (
               <Button
                 variant="outlined"
@@ -242,9 +272,13 @@ export default function VentesPage() {
             </Stack>
             {nature === 'BON_POUR' ? (
               <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                Recherchez un bon pour par nom ou prénom. La période passe à « Depuis le 28/08 » pour ne rien manquer.
+                Recherchez un bon pour par nom ou prénom, puis exportez en PDF ou Excel. La période passe à « Depuis le 28/08 » pour ne rien manquer.
               </Typography>
-            ) : null}
+            ) : (
+              <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                L’export PDF / Excel reprend la recherche, le type (ventes ou bons pour) et la période affichés.
+              </Typography>
+            )}
             {period === 'custom' ? (
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                 <FormControl sx={{ minWidth: 180 }}>

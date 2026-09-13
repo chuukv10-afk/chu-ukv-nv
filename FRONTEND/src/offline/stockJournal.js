@@ -75,7 +75,7 @@ export function movementsFromOutboxRow(row, medicamentsById = new Map()) {
     }, medicamentsById));
   }
 
-  if (action === 'pharmacie.demande_service.delivrer') {
+  if (action === 'pharmacie.demande_service.delivrer' || action === 'pharmacie.demande_service.create_and_delivrer') {
     return lignes.map((ligne, index) => movementLine(row, index, 'SORTIE_SERVICE', 'SORTIE', ligne, {
       documentType: 'DEMANDE_SERVICE',
     }, medicamentsById));

@@ -77,12 +77,12 @@ class DemandeServiceRepository extends ServiceEntityRepository
 
         if (null !== $dateFrom && '' !== $dateFrom) {
             $qb
-                ->andWhere('COALESCE(d.payeAt, d.delivreeAt, d.updatedAt, d.createdAt) >= :dateFrom')
+                ->andWhere('COALESCE(d.payeAt, d.delivreeAt, d.dateLivraison, d.updatedAt, d.createdAt) >= :dateFrom')
                 ->setParameter('dateFrom', new \DateTimeImmutable($dateFrom . ' 00:00:00'));
         }
         if (null !== $dateTo && '' !== $dateTo) {
             $qb
-                ->andWhere('COALESCE(d.payeAt, d.delivreeAt, d.updatedAt, d.createdAt) <= :dateTo')
+                ->andWhere('COALESCE(d.payeAt, d.delivreeAt, d.dateLivraison, d.updatedAt, d.createdAt) <= :dateTo')
                 ->setParameter('dateTo', new \DateTimeImmutable($dateTo . ' 23:59:59'));
         }
 
@@ -107,12 +107,12 @@ class DemandeServiceRepository extends ServiceEntityRepository
 
         if (null !== $dateFrom && '' !== $dateFrom) {
             $qb
-                ->andWhere('d.delivreeAt >= :from OR d.payeAt >= :from OR d.createdAt >= :from')
+                ->andWhere('d.delivreeAt >= :from OR d.dateLivraison >= :from OR d.payeAt >= :from OR d.createdAt >= :from')
                 ->setParameter('from', new \DateTimeImmutable($dateFrom . ' 00:00:00'));
         }
         if (null !== $dateTo && '' !== $dateTo) {
             $qb
-                ->andWhere('d.delivreeAt <= :to OR d.payeAt <= :to OR d.createdAt <= :to')
+                ->andWhere('d.delivreeAt <= :to OR d.dateLivraison <= :to OR d.payeAt <= :to OR d.createdAt <= :to')
                 ->setParameter('to', new \DateTimeImmutable($dateTo . ' 23:59:59'));
         }
 

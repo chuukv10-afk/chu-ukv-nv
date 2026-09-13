@@ -2,14 +2,17 @@
 
 namespace App\Controller\Api\Pharmacie;
 
+use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Pharmacie\AnnulerVenteInput;
 use App\DTO\Pharmacie\PharmacieListQuery;
 use App\DTO\Pharmacie\UpsertVenteInput;
 use App\Security\Permission\PharmaciePermissions;
+use App\Service\Export\TableExportService;
 use App\Service\Pharmacie\VenteService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
@@ -21,6 +24,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class VentesController extends AbstractController
 {
     use JsonResponseTrait;
+    use ExportResponseTrait;
 
     #[Route('', name: 'api_pharmacie_ventes_index', methods: ['GET'])]
     #[IsGranted(PharmaciePermissions::VENTE_READ)]
@@ -31,6 +35,26 @@ final class VentesController extends AbstractController
         $result = $venteService->paginate($query);
 
         return $this->apiPaginatedSuccess($result->items, $result->page, $result->limit, $result->total, 'Liste des ventes récupérée avec succès.');
+    }
+
+    #[Route('/export', name: 'api_pharmacie_ventes_export', methods: ['GET'])]
+    #[IsGranted(PharmaciePermissions::VENTE_READ)]
+    public function export(
+        Request $request,
+        TableExportService $tableExportService,
+        VenteService $venteService,
+        #[MapQueryString] PharmacieListQuery $query = new PharmacieListQuery(),
+    ): Response {
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            $venteService->exportHeaders(),
+            $venteService->buildExportRows($query),
+            $venteService->exportTitle($query),
+            $venteService->exportFilenamePrefix($query),
+            'Aucune vente trouvée pour les filtres sélectionnés.',
+            pdfOrientation: 'landscape',
+        );
     }
 
     #[Route('/{id}', name: 'api_pharmacie_ventes_show', methods: ['GET'], requirements: ['id' => '\d+'])]

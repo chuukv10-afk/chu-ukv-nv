@@ -161,7 +161,7 @@ async function applyLocalStock(action, payload) {
     payload.lignes = lignes;
     await restoreLocalStock(lignes);
   }
-  if (action === 'pharmacie.demande_service.delivrer') {
+  if (action === 'pharmacie.demande_service.delivrer' || action === 'pharmacie.demande_service.create_and_delivrer') {
     const lignes = await lignesForDocument('demande', payload.id, payload.lignes);
     payload.lignes = lignes;
     await decrementLocalStock(lignes);
@@ -263,7 +263,7 @@ async function buildOptimistic(action, payload) {
     let statut = 'BROUILLON';
     let statutPaiement = 'SANS_OBJET';
     if (action.endsWith('.envoyer')) statut = 'ENVOYEE';
-    if (action.endsWith('.delivrer')) {
+    if (action.endsWith('.delivrer') || action.includes('create_and_delivrer')) {
       statut = 'DELIVREE';
       statutPaiement = 'IMPAYEE';
     }
@@ -292,6 +292,11 @@ async function buildOptimistic(action, payload) {
       montantTotal: payload.montantTotal,
       montantPaye: payload.montantPaye ?? 0,
       montantReste: payload.montantReste,
+      dateLivraison: payload.dateLivraison || null,
+      delivreeAt: action.endsWith('.delivrer') || action.includes('create_and_delivrer')
+        ? (payload.dateLivraison || new Date().toISOString())
+        : payload.delivreeAt,
+      historique: Boolean(payload.dateLivraison),
       createdAt: new Date().toISOString(),
     };
   }

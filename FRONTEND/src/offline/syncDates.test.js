@@ -18,4 +18,12 @@ describe('sanitizeSyncDates — file d’attente .exe', () => {
     });
     assert.equal(next.dateVente, undefined);
   });
+
+  it('normalise une date de livraison de service antérieure', () => {
+    const next = sanitizeSyncDates({
+      dateLivraison: '2026-08-29T12:00:00',
+      serviceId: 2,
+    });
+    assert.equal(next.dateLivraison, '2026-08-29');
+  });
 });

@@ -21,10 +21,10 @@ export const PAIEMENT_STATUT_COLORS = Object.fromEntries(PAIEMENT_STATUTS.map((i
 export const DEFAULT_DEMANDE_PAGE_SIZE = 10;
 export const DEMANDE_PAGE_SIZE_OPTIONS = [10, 25, 50];
 
-export const EMPTY_DEMANDE_LIGNE = { medicamentId: '', quantite: 1 };
+export const EMPTY_DEMANDE_LIGNE = { medicamentId: '', quantite: 1, prixUnitaire: '' };
 
 export function emptyDemandeForm() {
-  return { serviceId: '', visiteId: '', motif: '', lignes: [{ ...EMPTY_DEMANDE_LIGNE }] };
+  return { serviceId: '', visiteId: '', motif: '', dateLivraison: '', lignes: [{ ...EMPTY_DEMANDE_LIGNE }] };
 }
 
 export function montantPayeOf(demande) {

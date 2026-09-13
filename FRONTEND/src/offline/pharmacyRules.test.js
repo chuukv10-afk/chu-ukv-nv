@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { DATE_STOCK_OUVERTURE } from '../features/pharmacie/ventes/venteConstants.js';
-import { assertVentePayload } from './pharmacyRules.js';
+import { assertDemandePayload, assertVentePayload } from './pharmacyRules.js';
 
 function today() {
   const now = new Date();
@@ -93,5 +93,45 @@ describe('règles vente (caisse / exe)', () => {
 
   it('accepte une vente du jour sans date (exe caisse live)', () => {
     assertVentePayload(passant());
+  });
+});
+
+function demande(extra = {}) {
+  return {
+    serviceId: 3,
+    motif: 'Rattrapage',
+    lignes: [ligne()],
+    ...extra,
+  };
+}
+
+describe('règles demande de service antérieure', () => {
+  it('refuse une date d’approvisionnement = aujourd’hui ou future', () => {
+    throws(() => assertDemandePayload(demande({ dateLivraison: today() })), 'antérieure à aujourd');
+    throws(() => assertDemandePayload(demande({ dateLivraison: shift(today(), 1) })), 'antérieure à aujourd');
+  });
+
+  it('refuse une date avant le stock d’ouverture', () => {
+    throws(
+      () => assertDemandePayload(demande({ dateLivraison: '2026-08-27' })),
+      '28/08/2026',
+    );
+  });
+
+  it('accepte un approvisionnement antérieur au 28/08 avec prix du jour', () => {
+    assertDemandePayload(demande({
+      dateLivraison: DATE_STOCK_OUVERTURE,
+      lignes: [ligne({ prixUnitaire: 750 })],
+    }));
+  });
+
+  it('refuse un prix du jour négatif', () => {
+    throws(
+      () => assertDemandePayload(demande({
+        dateLivraison: shift(today(), -1),
+        lignes: [ligne({ prixUnitaire: -1 })],
+      })),
+      'prix',
+    );
   });
 });

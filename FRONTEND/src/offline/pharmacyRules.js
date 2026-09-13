@@ -161,18 +161,14 @@ function todayIsoLocal() {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
-function assertVenteAnterieure(payload = {}) {
-  const raw = text(payload.dateVente).slice(0, 10);
+function assertDateAnterieure(payload = {}, field, blankMessage, invalidMessage) {
+  const raw = text(payload[field]).slice(0, 10);
   if (!raw) {
     return;
   }
-  const day = assertIsoDate(
-    raw,
-    'Indiquez la date réelle de la vente.',
-    'Date de vente invalide (format AAAA-MM-JJ).',
-  );
+  const day = assertIsoDate(raw, blankMessage, invalidMessage);
   if (day >= todayIsoLocal()) {
-    throw fail('La date d\'une vente antérieure doit être antérieure à aujourd\'hui.');
+    throw fail('La date d\'une saisie antérieure doit être antérieure à aujourd\'hui.');
   }
   if (day < DATE_STOCK_OUVERTURE) {
     throw fail('La date ne peut pas précéder le stock d\'ouverture du 28/08/2026.');
@@ -183,6 +179,15 @@ function assertVenteAnterieure(payload = {}) {
     }
     assertPrix(ligne.prixUnitaire, 'Le prix du jour est invalide.');
   }
+}
+
+function assertVenteAnterieure(payload = {}) {
+  assertDateAnterieure(
+    payload,
+    'dateVente',
+    'Indiquez la date réelle de la vente.',
+    'Date de vente invalide (format AAAA-MM-JJ).',
+  );
 }
 
 export function assertReceptionPayload(payload = {}) {
@@ -215,6 +220,12 @@ export function assertDemandePayload(payload = {}) {
   }
   assertMaxLen(payload.motif, 255, 'Le motif est trop long.');
   payload.lignes = assertLignesMedicaments(payload.lignes || []);
+  assertDateAnterieure(
+    payload,
+    'dateLivraison',
+    'Indiquez la date réelle de l\'approvisionnement.',
+    'Date de livraison invalide (format AAAA-MM-JJ).',
+  );
 }
 
 export function assertAjustementPayload(payload = {}) {
@@ -340,6 +351,12 @@ async function hydrateFromCache(action, payload) {
       if (!next.lignes || next.lignes.length === 0) {
         next.lignes = normalizeDocumentLignes(cached.lignes || []);
       }
+      if (!next.dateLivraison) {
+        const cachedDay = String(cached.dateLivraison || cached.delivreeAt || '').slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(cachedDay) && cachedDay < todayIsoLocal()) {
+          next.dateLivraison = cachedDay;
+        }
+      }
     }
   }
   return next;
@@ -379,7 +396,12 @@ export async function assertPharmacyWrite(action, payload = {}) {
     await assertFournisseurActif(next.fournisseurId);
   }
 
-  if (action === 'pharmacie.demande_service.create' || action === 'pharmacie.demande_service.update' || action === 'pharmacie.demande_service.envoyer') {
+  if (
+    action === 'pharmacie.demande_service.create'
+    || action === 'pharmacie.demande_service.create_and_delivrer'
+    || action === 'pharmacie.demande_service.update'
+    || action === 'pharmacie.demande_service.envoyer'
+  ) {
     assertDemandePayload(next);
     await assertMedicamentsActifs(next.lignes);
   }

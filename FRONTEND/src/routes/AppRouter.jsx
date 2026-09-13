@@ -419,6 +419,14 @@ export default function AppRouter() {
               )}
             />
             <Route
+              path={ROUTES.PHARMACIE.DEMANDE_SERVICE_ANTERIEURE_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_SAISIE_ANTERIEURE}>
+                  <DemandeServiceFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
               path={ROUTES.PHARMACIE.DEMANDE_SERVICE_NEW}
               element={(
                 <PermissionGuard permission={PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_CREATE}>

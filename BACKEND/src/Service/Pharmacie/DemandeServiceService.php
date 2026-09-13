@@ -21,13 +21,18 @@ use App\Repository\DemandeServiceRepository;
 use App\Repository\MedicamentRepository;
 use App\Repository\ServiceRepository;
 use App\Repository\VisiteRepository;
+use App\Security\Permission\PharmaciePermissions;
+use App\Util\CalendarDate;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class DemandeServiceService
 {
+    private const TIMEZONE = CalendarDate::TIMEZONE;
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly DemandeServiceRepository $demandeServiceRepository,
@@ -62,8 +67,9 @@ final class DemandeServiceService
     public function create(UpsertDemandeServiceInput $input): DemandeService
     {
         $this->assertValid($input);
+        $dateHistorique = $this->resolveDateHistorique($input);
         $demande = (new DemandeService())
-            ->setNumero($this->nextNumero())
+            ->setNumero($this->nextNumero($dateHistorique))
             ->setStatut(DemandeService::STATUT_BROUILLON)
             ->setStatutPaiement(DemandeService::PAIEMENT_SANS_OBJET)
             ->setCreatedAt(new \DateTimeImmutable());
@@ -72,6 +78,35 @@ final class DemandeServiceService
         $this->entityManager->flush();
 
         return $demande;
+    }
+
+    public function createAndDelivrer(UpsertDemandeServiceInput $input): DemandeService
+    {
+        if (
+            !$this->security->isGranted(PharmaciePermissions::DEMANDE_SERVICE_ENVOYER)
+            || !$this->security->isGranted(PharmaciePermissions::DEMANDE_SERVICE_DELIVRER)
+        ) {
+            throw new AccessDeniedHttpException('Permissions requises pour délivrer un approvisionnement de service.');
+        }
+        if ($this->isSaisieAnterieure($input)) {
+            $this->assertCanSaisirAnterieure();
+        }
+
+        $connection = $this->entityManager->getConnection();
+        $connection->beginTransaction();
+        try {
+            $demande = $this->create($input);
+            $demande = $this->envoyer((int) $demande->getId());
+            $demande = $this->delivrer((int) $demande->getId());
+            $connection->commit();
+
+            return $demande;
+        } catch (\Throwable $exception) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     public function update(int $id, UpsertDemandeServiceInput $input): DemandeService
@@ -99,10 +134,13 @@ final class DemandeServiceService
     public function delivrer(int $id): DemandeService
     {
         $demande = $this->requireStatut($id, DemandeService::STATUT_ENVOYEE);
+        $historique = $this->isHistorique($demande);
         $total = 0.0;
         foreach ($demande->getLignes() as $ligne) {
             $medicament = $ligne->getMedicament();
-            $lot = $this->stockService->resolveFefo($medicament, $ligne->getQuantite());
+            $lot = $historique
+                ? $this->stockService->resolveFefoHistorique($medicament, $ligne->getQuantite())
+                : $this->stockService->resolveFefo($medicament, $ligne->getQuantite());
             $ligne->setLot($lot);
             $this->stockService->applySortie(
                 $lot,
@@ -110,16 +148,26 @@ final class DemandeServiceService
                 MouvementStock::TYPE_SORTIE_SERVICE,
                 MouvementStock::DOC_DEMANDE_SERVICE,
                 (int) $demande->getId(),
+                requireVendable: !$historique,
+                effectiveAt: $historique ? $this->effectiveAt($demande->getDateLivraison()) : null,
             );
-            $prix = $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+            if ($historique) {
+                $prix = $this->stockService->normalizePrix((string) $ligne->getPrixUnitaire());
+            } else {
+                $prix = $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+                $ligne->setPrixUnitaire($prix);
+            }
             $ligneTotal = round((float) $prix * $ligne->getQuantite(), 4);
-            $ligne->setPrixUnitaire($prix)->setPrixTotal(number_format($ligneTotal, 4, '.', ''));
+            $ligne->setPrixTotal(number_format($ligneTotal, 4, '.', ''));
             $total += $ligneTotal;
         }
+        $delivreeAt = $historique
+            ? ($demande->getDateLivraison() ?? $this->now())
+            : $this->now();
         $demande
             ->setStatut(DemandeService::STATUT_DELIVREE)
             ->setStatutPaiement(DemandeService::PAIEMENT_IMPAYEE)
-            ->setDelivreeAt(new \DateTimeImmutable())
+            ->setDelivreeAt($delivreeAt)
             ->setMontantTotal(number_format($total, 4, '.', ''))
             ->setMontantPaye('0.0000');
         $this->entityManager->flush();
@@ -199,7 +247,9 @@ final class DemandeServiceService
             'montantReste' => $demande->getMontantReste(),
             'modePaiement' => $demande->getModePaiement(),
             'motifRefus' => $demande->getMotifRefus(),
+            'dateLivraison' => $demande->getDateLivraison()?->format(\DateTimeInterface::ATOM),
             'delivreeAt' => $demande->getDelivreeAt()?->format(\DateTimeInterface::ATOM),
+            'historique' => $this->isHistorique($demande),
             'payeAt' => $demande->getPayeAt()?->format(\DateTimeInterface::ATOM),
             'lignesCount' => $demande->getLignes()->count(),
             'serviceId' => $service?->getId(),
@@ -268,9 +318,10 @@ final class DemandeServiceService
             ->setVisite($this->resolveVisiteHospitalisee($input->visiteId, $service));
         $demande->clearLignes();
         $total = 0.0;
+        $anterieure = $this->isSaisieAnterieure($input);
         foreach ($this->normalizeLignes($input->lignes) as $ligneInput) {
             $medicament = $this->requireMedicamentActif($ligneInput->medicamentId);
-            $prix = $this->stockService->normalizePrix((string) $medicament->getPrixVente());
+            $prix = $this->resolveLignePrix($medicament, $ligneInput->prixUnitaire, $anterieure);
             $ligneTotal = round((float) $prix * $ligneInput->quantite, 4);
             $total += $ligneTotal;
             $ligne = (new DemandeServiceLigne())
@@ -280,7 +331,9 @@ final class DemandeServiceService
                 ->setPrixTotal(number_format($ligneTotal, 4, '.', ''));
             $demande->addLigne($ligne);
         }
-        $demande->setMontantTotal(number_format($total, 4, '.', ''));
+        $demande
+            ->setMontantTotal(number_format($total, 4, '.', ''))
+            ->setDateLivraison($this->resolveDateHistorique($input));
     }
 
     private function resolveVisiteHospitalisee(?int $visiteId, Service $service): ?Visite
@@ -326,11 +379,77 @@ final class DemandeServiceService
         return $medicament;
     }
 
-    private function nextNumero(): string
+    private function nextNumero(?\DateTimeImmutable $date = null): string
     {
-        $prefix = 'DSV-' . (new \DateTimeImmutable())->format('Ymd') . '-';
+        $prefix = 'DSV-' . ($date ?? $this->now())->format('Ymd') . '-';
 
         return $prefix . str_pad((string) ($this->demandeServiceRepository->countNumeroPrefix($prefix) + 1), 4, '0', STR_PAD_LEFT);
+    }
+
+    private function resolveDateHistorique(UpsertDemandeServiceInput $input): ?\DateTimeImmutable
+    {
+        $day = VenteAnterieureRules::resolveDate(
+            $input->dateLivraison,
+            $this->security->isGranted(PharmaciePermissions::DEMANDE_SERVICE_SAISIE_ANTERIEURE),
+            $this->today()->format('Y-m-d'),
+        );
+
+        return null === $day ? null : $this->parseDateLivraison($day);
+    }
+
+    private function isSaisieAnterieure(UpsertDemandeServiceInput $input): bool
+    {
+        return VenteAnterieureRules::isAnterieure($input->dateLivraison, $this->today()->format('Y-m-d'));
+    }
+
+    private function isHistorique(DemandeService $demande): bool
+    {
+        $date = $demande->getDateLivraison() ?? $demande->getDelivreeAt();
+        if (!$date instanceof \DateTimeImmutable) {
+            return false;
+        }
+
+        return $date->format('Y-m-d') < $this->today()->format('Y-m-d');
+    }
+
+    private function parseDateLivraison(string $value): \DateTimeImmutable
+    {
+        $day = CalendarDate::toDateOnly($value);
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $day, new \DateTimeZone(self::TIMEZONE));
+        if (false === $date) {
+            throw new ConflictException('Date de livraison invalide.');
+        }
+
+        return $date->setTime(12, 0);
+    }
+
+    private function resolveLignePrix(Medicament $medicament, mixed $override, bool $autoriserPrixSaisi): string
+    {
+        return $this->stockService->normalizePrix(
+            VenteAnterieureRules::resolvePrixSource($medicament->getPrixVente(), $override, $autoriserPrixSaisi),
+        );
+    }
+
+    private function assertCanSaisirAnterieure(): void
+    {
+        if (!$this->security->isGranted(PharmaciePermissions::DEMANDE_SERVICE_SAISIE_ANTERIEURE)) {
+            throw new AccessDeniedHttpException('Permission requise pour enregistrer un approvisionnement de service antérieur.');
+        }
+    }
+
+    private function effectiveAt(?\DateTimeImmutable $date): \DateTimeImmutable
+    {
+        return $date instanceof \DateTimeImmutable ? $date : $this->now();
+    }
+
+    private function now(): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable('now', new \DateTimeZone(self::TIMEZONE));
+    }
+
+    private function today(): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable('today', new \DateTimeZone(self::TIMEZONE));
     }
 
     /**
@@ -348,6 +467,7 @@ final class DemandeServiceService
             $normalized[] = new DemandeServiceLigneInput(
                 (int) ($ligne['medicamentId'] ?? 0),
                 (int) ($ligne['quantite'] ?? 0),
+                $ligne['prixUnitaire'] ?? null,
             );
         }
 

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Input, Modal, ModalDialog, Option, Select, Stack, Typography,
+  Box, Button, Card, Chip, FormControl, FormHelperText, FormLabel, IconButton, Input, Modal, ModalDialog, Option, Select, Stack, Typography,
 } from '@mui/joy';
 import { ArrowLeft, Ban, Check, ClipboardList, Plus, Search, Send, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
@@ -10,13 +10,16 @@ import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import OfflineHint from '../../../offline/OfflineHint.jsx';
+import { isDesktopApp } from '../../../offline/desktop.js';
+import { useOffline } from '../../../offline/useOffline.js';
 import { LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { fetchMedicamentsActifsApi } from '../medicaments/medicamentsApi.js';
 import MedicamentAutocomplete from '../shared/MedicamentAutocomplete.jsx';
-import { formatPatientName, formatPrix } from '../shared/format.js';
+import { formatPatientName, formatPrix, todayIso } from '../shared/format.js';
 import { toSyncId } from '../../../offline/idMap.js';
 import { assertDemandePayload } from '../../../offline/pharmacyRules.js';
 import { fetchVisitesHospitaliseesApi } from '../ventes/ventesApi.js';
+import { DATE_STOCK_OUVERTURE } from '../ventes/venteConstants.js';
 import {
   DEMANDE_STATUT_COLORS,
   DEMANDE_STATUT_LABELS,
@@ -29,6 +32,8 @@ import {
   peutEncaisserDemande,
 } from './demandeConstants.js';
 import {
+  completeDemandeOfflineApi,
+  createAndDelivrerDemandeServiceApi,
   createDemandeServiceApi,
   deleteDemandeServiceApi,
   delivrerDemandeServiceApi,
@@ -40,14 +45,29 @@ import {
   updateDemandeServiceApi,
 } from './demandesServiceApi.js';
 
-function toPayload(form) {
+function dateOnly(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function yesterdayIso() {
+  const today = todayIso();
+  const date = new Date(`${today}T00:00:00`);
+  date.setDate(date.getDate() - 1);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function toPayload(form, anterieure) {
   return {
     serviceId: toSyncId(form.serviceId),
     visiteId: toSyncId(form.visiteId),
     motif: form.motif.trim() || null,
+    dateLivraison: anterieure ? (form.dateLivraison || null) : null,
     lignes: form.lignes.map((ligne) => ({
       medicamentId: toSyncId(ligne.medicamentId),
       quantite: Number(ligne.quantite),
+      prixUnitaire: anterieure && ligne.prixUnitaire !== '' ? Number(ligne.prixUnitaire) : undefined,
     })),
   };
 }
@@ -55,9 +75,12 @@ function toPayload(form) {
 export default function DemandeServiceFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
+  const { serverReachable, online } = useOffline();
   const isNew = !id;
+  const desktop = isDesktopApp();
   const canCreate = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_CREATE);
   const canUpdate = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_UPDATE);
   const canDelete = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_DELETE);
@@ -65,6 +88,8 @@ export default function DemandeServiceFormPage() {
   const canDelivrer = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_DELIVRER);
   const canRefuser = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_REFUSER);
   const canRegler = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_REGLER);
+  const canSaisirAnterieure = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_SAISIE_ANTERIEURE);
+  const [anterieure, setAnterieure] = useState(location.pathname.includes('/anterieures'));
 
   const [form, setForm] = useState(emptyDemandeForm);
   const [demande, setDemande] = useState(null);
@@ -86,6 +111,23 @@ export default function DemandeServiceFormPage() {
 
   const readOnly = demande && demande.statut !== 'BROUILLON';
   const canSave = isNew ? canCreate : canUpdate && !readOnly;
+  const canFinaliserAnterieure = anterieure
+    && canCreate
+    && canEnvoyer
+    && canDelivrer
+    && canSaisirAnterieure
+    && (isNew || demande?.statut === 'BROUILLON');
+
+  const medicamentMap = useMemo(
+    () => Object.fromEntries(medicaments.map((item) => [String(item.id), item])),
+    [medicaments],
+  );
+  const estimatedTotal = form.lignes.reduce((sum, ligne) => {
+    const medicament = medicamentMap[String(ligne.medicamentId)];
+    const prix = Number(anterieure && ligne.prixUnitaire !== '' ? ligne.prixUnitaire : (medicament?.prixVente ?? 0));
+    const qty = Number(ligne.quantite) || 0;
+    return sum + prix * qty;
+  }, 0);
 
   useEffect(() => {
     Promise.all([fetchServicesActifsPharmacieApi(), fetchMedicamentsActifsApi()])
@@ -106,14 +148,20 @@ export default function DemandeServiceFormPage() {
         if (cancelled) return;
         setDemande(data);
         setSelectedVisite(data.visite ?? null);
+        const loadedDate = dateOnly(data.dateLivraison || data.delivreeAt);
+        if (data.historique || (loadedDate && loadedDate < todayIso())) {
+          setAnterieure(true);
+        }
         setForm({
           serviceId: data.serviceId ? String(data.serviceId) : '',
           visiteId: data.visiteId ? String(data.visiteId) : '',
           motif: data.motif ?? '',
+          dateLivraison: loadedDate,
           lignes: (data.lignes ?? []).length
             ? data.lignes.map((ligne) => ({
               medicamentId: ligne.medicamentId ? String(ligne.medicamentId) : '',
               quantite: ligne.quantite ?? 1,
+              prixUnitaire: ligne.prixUnitaire ?? '',
             }))
             : [{ ...EMPTY_DEMANDE_LIGNE }],
         });
@@ -167,8 +215,30 @@ export default function DemandeServiceFormPage() {
     }
   };
 
+  const assertAnterieure = () => {
+    if (!anterieure) {
+      return true;
+    }
+    if (!canSaisirAnterieure) {
+      setError('Permission requise pour un approvisionnement antérieur.');
+      return false;
+    }
+    if (!form.dateLivraison) {
+      setError('Indiquez la date réelle de l’approvisionnement.');
+      return false;
+    }
+    if (!desktop && (!online || !serverReachable)) {
+      setError('La saisie antérieure nécessite une connexion au serveur, ou le poste bureau.');
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
-    const payload = toPayload(form);
+    if (!assertAnterieure()) {
+      return;
+    }
+    const payload = toPayload(form, anterieure);
     try {
       assertDemandePayload(payload);
     } catch (err) {
@@ -193,6 +263,56 @@ export default function DemandeServiceFormPage() {
     }
   };
 
+  const handleDelivrerAnterieure = async () => {
+    if (!assertAnterieure()) {
+      setConfirmAction(null);
+      return;
+    }
+    const payload = toPayload(form, anterieure);
+    try {
+      assertDemandePayload(payload);
+    } catch (err) {
+      setError(err.message);
+      setConfirmAction(null);
+      return;
+    }
+    setConfirmLoading(true);
+    setSaving(true);
+    setError('');
+    try {
+      if (isNew && desktop && (!online || !serverReachable)) {
+        const created = await completeDemandeOfflineApi(payload);
+        setDemande(created);
+        setConfirmAction(null);
+        showSuccess('Approvisionnement antérieur enregistré sur ce poste. Il sera synchronisé avec le serveur.');
+        return;
+      }
+      if (isNew) {
+        const created = await createAndDelivrerDemandeServiceApi(payload);
+        setDemande(created);
+        setConfirmAction(null);
+        showSuccess('Approvisionnement antérieur enregistré, stock décrémenté, créance ouverte.');
+        navigate(ROUTES.PHARMACIE.DEMANDE_SERVICE_DETAIL.replace(':id', String(created.id)), { replace: true });
+        return;
+      }
+      if (canSave) {
+        await updateDemandeServiceApi(id, payload);
+      }
+      if (demande?.statut === 'BROUILLON') {
+        await envoyerDemandeServiceApi(id);
+      }
+      const updated = await delivrerDemandeServiceApi(id);
+      setDemande(updated);
+      setConfirmAction(null);
+      showSuccess('Approvisionnement antérieur délivré, stock décrémenté.');
+    } catch (err) {
+      setError(err.message || 'Délivrance impossible.');
+    } finally {
+      setSaving(false);
+      setConfirmLoading(false);
+    }
+  };
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={2.5}>
@@ -206,15 +326,30 @@ export default function DemandeServiceFormPage() {
             </Button>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <ClipboardList size={24} color={LOTRU_PRIMARY[600]} />
-              <Typography level="h2" sx={{ fontWeight: 700 }}>{isNew ? 'Nouvelle demande' : demande?.numero ?? 'Demande'}</Typography>
+              <Box>
+                <Typography level="h2" sx={{ fontWeight: 700 }}>
+                  {isNew ? (anterieure ? 'Approvisionnement antérieur' : 'Nouvelle demande') : demande?.numero ?? 'Demande'}
+                </Typography>
+                {anterieure ? (
+                  <Typography level="body-md" sx={{ color: 'neutral.500' }}>
+                    Rattrapage : date réelle et prix pratiqué ce jour-là. Le stock actuel sera décrémenté, la créance reste ouverte.
+                  </Typography>
+                ) : null}
+              </Box>
               {demande?.statut ? <Chip size="sm" variant="soft" color={DEMANDE_STATUT_COLORS[demande.statut]}>{DEMANDE_STATUT_LABELS[demande.statut]}</Chip> : null}
               {demande?.statutPaiement ? <Chip size="sm" variant="soft" color={PAIEMENT_STATUT_COLORS[demande.statutPaiement]}>{PAIEMENT_STATUT_LABELS[demande.statutPaiement]}</Chip> : null}
+              {anterieure ? <Chip size="sm" variant="soft" color="warning">Antérieur</Chip> : null}
             </Stack>
           </Stack>
           <Stack direction="row" spacing={1} flexWrap="wrap">
             {canDelete && !isNew && !readOnly ? <Button variant="outlined" color="danger" startDecorator={<Trash2 size={16} />} onClick={() => setConfirmAction('delete')}>Supprimer</Button> : null}
             {canSave ? <Button onClick={handleSave} loading={saving}>Enregistrer</Button> : null}
-            {canEnvoyer && demande?.statut === 'BROUILLON' ? <Button startDecorator={<Send size={16} />} onClick={() => setConfirmAction('envoyer')}>Envoyer</Button> : null}
+            {canFinaliserAnterieure ? (
+              <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('delivrerAnterieure')} loading={saving}>
+                Enregistrer et délivrer
+              </Button>
+            ) : null}
+            {canEnvoyer && demande?.statut === 'BROUILLON' && !anterieure ? <Button startDecorator={<Send size={16} />} onClick={() => setConfirmAction('envoyer')}>Envoyer</Button> : null}
             {canDelivrer && demande?.statut === 'ENVOYEE' ? <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('delivrer')}>Délivrer</Button> : null}
             {canRefuser && demande?.statut === 'ENVOYEE' ? <Button variant="outlined" color="danger" startDecorator={<Ban size={16} />} onClick={() => { setMotifRefus(''); setRefusOpen(true); }}>Refuser</Button> : null}
             {canRegler && peutEncaisserDemande(demande) ? (
@@ -238,6 +373,19 @@ export default function DemandeServiceFormPage() {
           <>
             <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2.5 }}>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                {anterieure ? (
+                  <FormControl required sx={{ minWidth: 180 }}>
+                    <FormLabel>Date réelle de l’approvisionnement</FormLabel>
+                    <Input
+                      type="date"
+                      value={form.dateLivraison}
+                      onChange={(e) => setField('dateLivraison', e.target.value)}
+                      disabled={readOnly || saving}
+                      slotProps={{ input: { min: DATE_STOCK_OUVERTURE, max: yesterdayIso() } }}
+                    />
+                    <FormHelperText>Entre le 28/08/2026 et hier.</FormHelperText>
+                  </FormControl>
+                ) : null}
                 <FormControl required sx={{ flex: 1 }}>
                   <FormLabel>Service</FormLabel>
                   <Select
@@ -317,22 +465,59 @@ export default function DemandeServiceFormPage() {
                 {!readOnly ? <Button size="sm" variant="outlined" startDecorator={<Plus size={14} />} onClick={() => setForm((c) => ({ ...c, lignes: [...c.lignes, { ...EMPTY_DEMANDE_LIGNE }] }))}>Ajouter</Button> : null}
               </Stack>
               <Stack spacing={1.5}>
-                {form.lignes.map((ligne, index) => (
+                {form.lignes.map((ligne, index) => {
+                  const medicament = medicamentMap[String(ligne.medicamentId)];
+                  const unitPrice = anterieure && ligne.prixUnitaire !== ''
+                    ? Number(ligne.prixUnitaire)
+                    : Number(medicament?.prixVente ?? 0);
+                  const lineTotal = unitPrice * (Number(ligne.quantite) || 0);
+                  return (
                   <Stack key={`d-${index}`} direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'flex-end' }}>
                     <FormControl required sx={{ flex: 1 }}>
                       <FormLabel>Médicament</FormLabel>
-                      <MedicamentAutocomplete options={medicaments} valueId={ligne.medicamentId} disabled={readOnly || saving} onSelect={(item) => setLigne(index, 'medicamentId', item ? String(item.id) : '')} />
+                      <MedicamentAutocomplete
+                        options={medicaments}
+                        valueId={ligne.medicamentId}
+                        disabled={readOnly || saving}
+                        onSelect={(item) => {
+                          setForm((current) => ({
+                            ...current,
+                            lignes: current.lignes.map((row, i) => {
+                              if (i !== index) return row;
+                              return {
+                                ...row,
+                                medicamentId: item ? String(item.id) : '',
+                                prixUnitaire: anterieure && item ? String(item.prixVente ?? '') : row.prixUnitaire,
+                              };
+                            }),
+                          }));
+                        }}
+                      />
                     </FormControl>
                     <FormControl required sx={{ width: { md: 120 } }}>
                       <FormLabel>Qté</FormLabel>
                       <Input type="number" value={ligne.quantite} onChange={(e) => setLigne(index, 'quantite', e.target.value)} disabled={readOnly || saving} slotProps={{ input: { min: 1 } }} />
                     </FormControl>
+                    {anterieure ? (
+                      <FormControl required sx={{ width: { md: 140 } }}>
+                        <FormLabel>Prix du jour</FormLabel>
+                        <Input
+                          type="number"
+                          value={ligne.prixUnitaire}
+                          onChange={(e) => setLigne(index, 'prixUnitaire', e.target.value)}
+                          disabled={readOnly || saving}
+                          slotProps={{ input: { min: 0, step: '0.01' } }}
+                        />
+                      </FormControl>
+                    ) : null}
+                    <Typography level="body-sm" sx={{ minWidth: 110, pb: 1 }}>{formatPrix(lineTotal)}</Typography>
                     {!readOnly ? <IconButton variant="plain" color="danger" disabled={form.lignes.length === 1} onClick={() => setForm((c) => ({ ...c, lignes: c.lignes.filter((_, i) => i !== index) }))}><Trash2 size={16} /></IconButton> : null}
                   </Stack>
-                ))}
+                  );
+                })}
               </Stack>
               <Stack spacing={0.25} sx={{ mt: 2, textAlign: 'right' }}>
-                <Typography level="title-lg" sx={{ fontWeight: 700 }}>Total : {formatPrix(demande?.montantTotal)}</Typography>
+                <Typography level="title-lg" sx={{ fontWeight: 700 }}>Total : {formatPrix(demande?.montantTotal ?? estimatedTotal)}</Typography>
                 {demande && (demande.statutPaiement === 'PARTIELLE' || demande.statutPaiement === 'PAYEE' || Number(demande.montantPaye) > 0) ? (
                   <>
                     <Typography level="body-sm">Déjà encaissé : {formatPrix(montantPayeOf(demande))}</Typography>
@@ -349,6 +534,16 @@ export default function DemandeServiceFormPage() {
 
       <ConfirmModal open={confirmAction === 'envoyer'} title="Envoyer la demande" message="Le service pourra ensuite se voir délivrer le stock." confirmLabel="Envoyer" color="primary" loading={confirmLoading} onClose={() => setConfirmAction(null)} onConfirm={() => runAction(() => envoyerDemandeServiceApi(id), 'Demande envoyée.')} />
       <ConfirmModal open={confirmAction === 'delivrer'} title="Délivrer" message="Le stock sortira (FEFO) et une créance IMPAYEE sera ouverte." confirmLabel="Délivrer" color="success" loading={confirmLoading} onClose={() => setConfirmAction(null)} onConfirm={() => runAction(() => delivrerDemandeServiceApi(id), 'Demande délivrée.')} />
+      <ConfirmModal
+        open={confirmAction === 'delivrerAnterieure'}
+        title="Enregistrer l’approvisionnement antérieur"
+        message="Le stock sortira à la date indiquée (FEFO historique) avec le prix saisi. Une créance IMPAYEE sera ouverte."
+        confirmLabel="Enregistrer et délivrer"
+        color="success"
+        loading={confirmLoading}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={handleDelivrerAnterieure}
+      />
       <ConfirmModal open={confirmAction === 'delete'} title="Supprimer" message="Supprimer ce brouillon ?" confirmLabel="Supprimer" loading={confirmLoading} onClose={() => setConfirmAction(null)} onConfirm={async () => { setConfirmLoading(true); try { await deleteDemandeServiceApi(id); showSuccess('Supprimé.'); navigate(ROUTES.PHARMACIE.DEMANDES_SERVICE); } catch (err) { showError(err.message); } finally { setConfirmLoading(false); } }} />
 
       <Modal open={refusOpen} onClose={() => setRefusOpen(false)}>

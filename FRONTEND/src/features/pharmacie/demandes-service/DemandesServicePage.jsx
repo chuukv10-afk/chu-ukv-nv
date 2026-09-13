@@ -12,7 +12,7 @@ import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import PendingSyncChip from '../../../offline/PendingSyncChip.jsx';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
-import { formatPrix } from '../shared/format.js';
+import { formatDate, formatPrix } from '../shared/format.js';
 import {
   DEFAULT_DEMANDE_PAGE_SIZE,
   DEMANDE_PAGE_SIZE_OPTIONS,
@@ -31,6 +31,7 @@ export default function DemandesServicePage() {
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
   const canCreate = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_CREATE);
+  const canSaisirAnterieure = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_SAISIE_ANTERIEURE);
   const canDelete = hasPermission(PERMISSIONS.PHARMACIE.DEMANDE_SERVICE_DELETE);
 
   const [items, setItems] = useState([]);
@@ -98,14 +99,28 @@ export default function DemandesServicePage() {
               <Typography level="h2" sx={{ fontWeight: 700 }}>Demandes de service</Typography>
               <Typography level="body-md" sx={{ color: 'neutral.500' }}>
                 Le service prend d’abord, le règlement suit (créance).
+                {canSaisirAnterieure
+                  ? ' Un approvisionnement antérieur se saisit avec la date réelle et le prix du jour.'
+                  : ''}
               </Typography>
             </Box>
           </Stack>
-          {canCreate ? (
-            <Button startDecorator={<Plus size={16} />} onClick={() => navigate(ROUTES.PHARMACIE.DEMANDE_SERVICE_NEW)}>
-              Nouvelle demande
-            </Button>
-          ) : null}
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {canSaisirAnterieure ? (
+              <Button
+                variant="outlined"
+                startDecorator={<Plus size={16} />}
+                onClick={() => navigate(ROUTES.PHARMACIE.DEMANDE_SERVICE_ANTERIEURE_NEW)}
+              >
+                Approvisionnement antérieur
+              </Button>
+            ) : null}
+            {canCreate ? (
+              <Button startDecorator={<Plus size={16} />} onClick={() => navigate(ROUTES.PHARMACIE.DEMANDE_SERVICE_NEW)}>
+                Nouvelle demande
+              </Button>
+            ) : null}
+          </Stack>
         </Stack>
 
         <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2 }}>
@@ -121,10 +136,11 @@ export default function DemandesServicePage() {
         {listError ? <Typography level="body-sm" color="danger" sx={{ bgcolor: 'danger.50', p: 1.5, borderRadius: 'md' }}>{listError}</Typography> : null}
 
         <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto' }}>
-          <Table stickyHeader hoverRow sx={{ minWidth: 900 }}>
+          <Table stickyHeader hoverRow sx={{ minWidth: 1000 }}>
             <thead>
               <tr>
                 <th>Numéro</th>
+                <th>Date</th>
                 <th>Service</th>
                 <th>Patient</th>
                 <th>Montant</th>
@@ -135,12 +151,18 @@ export default function DemandesServicePage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
+                <tr><td colSpan={8}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={7}><Typography level="body-sm" sx={{ p: 2, color: LOTRU_NEUTRAL[600] }}>Aucune demande.</Typography></td></tr>
+                <tr><td colSpan={8}><Typography level="body-sm" sx={{ p: 2, color: LOTRU_NEUTRAL[600] }}>Aucune demande.</Typography></td></tr>
               ) : items.map((item) => (
                 <tr key={item.id}>
-                  <td><Typography level="body-sm" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.numero}</Typography></td>
+                  <td>
+                    <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Typography level="body-sm" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{item.numero}</Typography>
+                      {item.historique ? <Chip size="sm" variant="soft" color="warning">Antérieur</Chip> : null}
+                    </Stack>
+                  </td>
+                  <td>{formatDate(item.dateLivraison || item.delivreeAt || item.createdAt)}</td>
                   <td>{item.service?.libelle ?? '—'}</td>
                   <td>{item.visite?.patientName || item.visite?.patient ? (item.visite.patientName || [item.visite.patient?.nom, item.visite.patient?.prenom].filter(Boolean).join(' ')) : '—'}</td>
                   <td>{formatPrix(item.montantTotal)}</td>

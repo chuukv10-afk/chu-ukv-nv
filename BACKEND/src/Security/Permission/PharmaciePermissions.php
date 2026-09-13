@@ -57,6 +57,7 @@ final class PharmaciePermissions
     public const DEMANDE_SERVICE_DELIVRER = 'pharmacie.demande_service.delivrer';
     public const DEMANDE_SERVICE_REFUSER = 'pharmacie.demande_service.refuser';
     public const DEMANDE_SERVICE_REGLER = 'pharmacie.demande_service.regler';
+    public const DEMANDE_SERVICE_SAISIE_ANTERIEURE = 'pharmacie.demande_service.saisie_anterieure';
 
     public const AJUSTEMENT_CREATE = 'pharmacie.ajustement.create';
     public const RECETTE_READ = 'pharmacie.recette.read';
@@ -152,6 +153,11 @@ final class PharmaciePermissions
                 [
                     'code' => self::DEMANDE_SERVICE_REGLER,
                     'libelle' => 'Régler une créance service',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::DEMANDE_SERVICE_SAISIE_ANTERIEURE,
+                    'libelle' => 'Enregistrer un approvisionnement de service antérieur (date et prix du jour)',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
                 [

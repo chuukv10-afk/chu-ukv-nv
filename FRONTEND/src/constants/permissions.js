@@ -100,6 +100,7 @@ export const PERMISSIONS = {
     DEMANDE_SERVICE_DELIVRER: 'pharmacie.demande_service.delivrer',
     DEMANDE_SERVICE_REFUSER: 'pharmacie.demande_service.refuser',
     DEMANDE_SERVICE_REGLER: 'pharmacie.demande_service.regler',
+    DEMANDE_SERVICE_SAISIE_ANTERIEURE: 'pharmacie.demande_service.saisie_anterieure',
     AJUSTEMENT_CREATE: 'pharmacie.ajustement.create',
     RECETTE_READ: 'pharmacie.recette.read',
     STATISTIQUE_READ: 'pharmacie.statistique.read',

@@ -91,7 +91,7 @@ export async function buildLocalRecettes(params) {
       if (demande.statut !== 'DELIVREE' && demande.statutPaiement !== 'PAYEE' && demande.statutPaiement !== 'IMPAYEE') {
         continue;
       }
-      const date = demande.payeAt || demande.delivreeAt || demande.createdAt;
+      const date = demande.payeAt || demande.delivreeAt || demande.dateLivraison || demande.createdAt;
       if (!inRange(date, from, to)) continue;
       const item = {
         id: demande.id,
@@ -174,7 +174,7 @@ export async function buildLocalStatistiques(params) {
   const ventes = namedItems(await readNamedCache('pharmacie.ventes'))
     .filter((item) => item.statut === 'VALIDEE' && inRange(item.dateVente || item.createdAt, from, to));
   const demandes = namedItems(await readNamedCache('pharmacie.demandes'))
-    .filter((item) => item.statut === 'DELIVREE' && inRange(item.delivreeAt || item.createdAt, from, to));
+    .filter((item) => item.statut === 'DELIVREE' && inRange(item.delivreeAt || item.dateLivraison || item.createdAt, from, to));
   const mouvements = namedItems(await readNamedCache('pharmacie.mouvements'))
     .filter((item) => inRange(item.createdAt, from, to));
 
@@ -213,7 +213,7 @@ export async function buildLocalStatistiques(params) {
     perDay[day].revenue += Number(vente.montantTotal || 0);
   }
   for (const demande of demandes) {
-    const day = calendarDay(demande.delivreeAt || demande.createdAt);
+    const day = calendarDay(demande.delivreeAt || demande.dateLivraison || demande.createdAt);
     if (!perDay[day]) continue;
     perDay[day].services += 1;
     if (demande.statutPaiement === 'PAYEE' || demande.statutPaiement === 'PARTIELLE') {

@@ -178,6 +178,7 @@ final class SyncPushService
             'pharmacie.vente.annuler' => $this->venteAnnuler($payload),
             'pharmacie.vente.delete' => $this->venteDelete($payload),
             'pharmacie.demande_service.create' => $this->demandeCreate($payload),
+            'pharmacie.demande_service.create_and_delivrer' => $this->demandeCreateAndDelivrer($payload),
             'pharmacie.demande_service.update' => $this->demandeUpdate($payload),
             'pharmacie.demande_service.envoyer' => $this->demandeEnvoyer($payload),
             'pharmacie.demande_service.delivrer' => $this->demandeDelivrer($payload),
@@ -316,6 +317,17 @@ final class SyncPushService
     private function demandeCreate(array $payload): array
     {
         $demande = $this->demandeServiceService->create($this->demandeInput($payload));
+
+        return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function demandeCreateAndDelivrer(array $payload): array
+    {
+        $demande = $this->demandeServiceService->createAndDelivrer($this->demandeInput($payload));
 
         return ['demande_service', (string) $demande->getId(), $this->demandeServiceService->serializeDetail($demande)];
     }
@@ -767,6 +779,7 @@ final class SyncPushService
             $lignes[] = new DemandeServiceLigneInput(
                 medicamentId: (int) ($ligne['medicamentId'] ?? 0),
                 quantite: (int) ($ligne['quantite'] ?? 0),
+                prixUnitaire: $ligne['prixUnitaire'] ?? null,
             );
         }
 
@@ -775,6 +788,7 @@ final class SyncPushService
             motif: isset($payload['motif']) ? (string) $payload['motif'] : null,
             visiteId: isset($payload['visiteId']) ? (int) $payload['visiteId'] : null,
             lignes: $lignes,
+            dateLivraison: $this->syncDateLivraison($payload),
         );
     }
 
@@ -887,6 +901,16 @@ final class SyncPushService
     private function syncDateVente(array $payload): ?string
     {
         $raw = $payload['dateVente'] ?? $payload['optimistic']['dateVente'] ?? null;
+
+        return CalendarDate::forSyncVente($raw);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function syncDateLivraison(array $payload): ?string
+    {
+        $raw = $payload['dateLivraison'] ?? $payload['optimistic']['dateLivraison'] ?? null;
 
         return CalendarDate::forSyncVente($raw);
     }

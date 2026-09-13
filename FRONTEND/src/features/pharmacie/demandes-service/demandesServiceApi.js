@@ -5,6 +5,10 @@ import {
   callApiPost,
   callApiPut,
 } from '../../../api/apiClient.js';
+import { enqueueMutation } from '../../../offline/outbox.js';
+import { assertPharmacyWrite } from '../../../offline/pharmacyRules.js';
+import { decrementLocalStock } from '../../../offline/stockLocal.js';
+import { isHistoriqueDate, toDateVenteIso } from '../ventes/venteConstants.js';
 import { buildQueryString, paginatedResult, unwrapData } from '../shared/pharmacieApi.js';
 
 export async function fetchDemandesServiceApi(params = {}) {
@@ -20,6 +24,47 @@ export async function fetchDemandeServiceApi(id) {
 export async function createDemandeServiceApi(payload) {
   const response = await callApiPost(pharmacie.demandesService, payload);
   return unwrapData(response);
+}
+
+export async function createAndDelivrerDemandeServiceApi(payload) {
+  const response = await callApiPost(`${pharmacie.demandesService}/create-and-delivrer`, payload);
+  return unwrapData(response);
+}
+
+export async function completeDemandeOfflineApi(payload) {
+  const checked = await assertPharmacyWrite('pharmacie.demande_service.create_and_delivrer', payload);
+  if (checked.dateLivraison) checked.dateLivraison = String(checked.dateLivraison).slice(0, 10);
+  await decrementLocalStock(checked.lignes || []);
+  const now = new Date().toISOString();
+  const dateLivraison = toDateVenteIso(checked.dateLivraison, now);
+  const montantTotal = (checked.lignes || []).reduce((sum, ligne) => {
+    const prix = Number(ligne.prixUnitaire || 0);
+    const qty = Number(ligne.quantite || 0);
+    return sum + prix * qty;
+  }, 0);
+  return enqueueMutation({
+    action: 'pharmacie.demande_service.create_and_delivrer',
+    module: 'pharmacie',
+    endpoint: pharmacie.demandesService,
+    method: 'POST',
+    payload: checked,
+    optimistic: {
+      numero: 'OFF-DEM',
+      statut: 'DELIVREE',
+      statutPaiement: 'IMPAYEE',
+      serviceId: checked.serviceId,
+      visiteId: checked.visiteId,
+      motif: checked.motif,
+      lignes: checked.lignes || [],
+      montantTotal,
+      montantPaye: 0,
+      montantReste: montantTotal,
+      dateLivraison,
+      delivreeAt: dateLivraison,
+      historique: isHistoriqueDate(dateLivraison),
+      createdAt: now,
+    },
+  });
 }
 
 export async function updateDemandeServiceApi(id, payload) {

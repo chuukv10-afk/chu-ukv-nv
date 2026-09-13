@@ -31,36 +31,7 @@ class VenteRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('v')
             ->leftJoin('v.patient', 'p')->addSelect('p')
             ->orderBy('v.createdAt', 'DESC');
-
-        $normalizedSearch = null !== $search ? trim($search) : '';
-        if ('' !== $normalizedSearch) {
-            $qb
-                ->andWhere('LOWER(v.numero) LIKE :search OR LOWER(v.clientNom) LIKE :search OR LOWER(p.nom) LIKE :search OR LOWER(p.postNom) LIKE :search OR LOWER(p.prenom) LIKE :search')
-                ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
-        }
-
-        $normalizedType = null !== $type ? strtoupper(trim($type)) : '';
-        if ('BON_POUR' === $normalizedType) {
-            $qb->andWhere('v.statut = :nature')->setParameter('nature', Vente::STATUT_BON_POUR);
-        } elseif ('VENTE' === $normalizedType) {
-            $qb->andWhere('v.statut != :nature')->setParameter('nature', Vente::STATUT_BON_POUR);
-            if (null !== $statut && '' !== $statut && Vente::STATUT_BON_POUR !== $statut) {
-                $qb->andWhere('v.statut = :statut')->setParameter('statut', $statut);
-            }
-        } elseif (null !== $statut && '' !== $statut) {
-            $qb->andWhere('v.statut = :statut')->setParameter('statut', $statut);
-        }
-
-        if (null !== $dateFrom && '' !== $dateFrom) {
-            $qb
-                ->andWhere('COALESCE(v.dateVente, v.createdAt) >= :dateFrom')
-                ->setParameter('dateFrom', new \DateTimeImmutable($dateFrom . ' 00:00:00'));
-        }
-        if (null !== $dateTo && '' !== $dateTo) {
-            $qb
-                ->andWhere('COALESCE(v.dateVente, v.createdAt) <= :dateTo')
-                ->setParameter('dateTo', new \DateTimeImmutable($dateTo . ' 23:59:59'));
-        }
+        $this->applyListFilters($qb, $search, $statut, $dateFrom, $dateTo, $type);
 
         $countQb = clone $qb;
         $total = (int) $countQb->select('COUNT(v.id)')->resetDQLPart('orderBy')->getQuery()->getSingleScalarResult();
@@ -103,6 +74,31 @@ class VenteRepository extends ServiceEntityRepository
                 ->andWhere('LOWER(v.numero) LIKE :search OR LOWER(v.clientNom) LIKE :search OR LOWER(p.nom) LIKE :search OR LOWER(p.postNom) LIKE :search OR LOWER(p.prenom) LIKE :search')
                 ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
         }
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
+     * @return list<Vente>
+     */
+    public function findForExport(
+        ?string $search = null,
+        ?string $statut = null,
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+        ?string $type = null,
+    ): array {
+        $qb = $this->createQueryBuilder('v')
+            ->leftJoin('v.patient', 'p')->addSelect('p')
+            ->leftJoin('v.visite', 'vi')->addSelect('vi')
+            ->leftJoin('vi.service', 's')->addSelect('s')
+            ->leftJoin('v.lignes', 'l')->addSelect('l')
+            ->leftJoin('l.medicament', 'm')->addSelect('m')
+            ->addSelect('COALESCE(v.dateVente, v.createdAt) AS HIDDEN dateOrdre')
+            ->distinct()
+            ->orderBy('dateOrdre', 'DESC')
+            ->addOrderBy('v.id', 'DESC');
+        $this->applyListFilters($qb, $search, $statut, $dateFrom, $dateTo, $type);
 
         return $qb->getQuery()->getResult();
     }
@@ -160,5 +156,44 @@ class VenteRepository extends ServiceEntityRepository
             ->setParameter('prefix', $prefix . '%')
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    private function applyListFilters(
+        \Doctrine\ORM\QueryBuilder $qb,
+        ?string $search,
+        ?string $statut,
+        ?string $dateFrom,
+        ?string $dateTo,
+        ?string $type,
+    ): void {
+        $normalizedSearch = null !== $search ? trim($search) : '';
+        if ('' !== $normalizedSearch) {
+            $qb
+                ->andWhere('LOWER(v.numero) LIKE :search OR LOWER(v.clientNom) LIKE :search OR LOWER(p.nom) LIKE :search OR LOWER(p.postNom) LIKE :search OR LOWER(p.prenom) LIKE :search')
+                ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
+        }
+
+        $normalizedType = null !== $type ? strtoupper(trim($type)) : '';
+        if ('BON_POUR' === $normalizedType) {
+            $qb->andWhere('v.statut = :nature')->setParameter('nature', Vente::STATUT_BON_POUR);
+        } elseif ('VENTE' === $normalizedType) {
+            $qb->andWhere('v.statut != :nature')->setParameter('nature', Vente::STATUT_BON_POUR);
+            if (null !== $statut && '' !== $statut && Vente::STATUT_BON_POUR !== $statut) {
+                $qb->andWhere('v.statut = :statut')->setParameter('statut', $statut);
+            }
+        } elseif (null !== $statut && '' !== $statut) {
+            $qb->andWhere('v.statut = :statut')->setParameter('statut', $statut);
+        }
+
+        if (null !== $dateFrom && '' !== $dateFrom) {
+            $qb
+                ->andWhere('COALESCE(v.dateVente, v.createdAt) >= :dateFrom')
+                ->setParameter('dateFrom', new \DateTimeImmutable($dateFrom . ' 00:00:00'));
+        }
+        if (null !== $dateTo && '' !== $dateTo) {
+            $qb
+                ->andWhere('COALESCE(v.dateVente, v.createdAt) <= :dateTo')
+                ->setParameter('dateTo', new \DateTimeImmutable($dateTo . ' 23:59:59'));
+        }
     }
 }

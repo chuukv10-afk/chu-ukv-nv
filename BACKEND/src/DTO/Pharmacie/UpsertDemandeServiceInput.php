@@ -2,6 +2,7 @@
 
 namespace App\DTO\Pharmacie;
 
+use App\Util\CalendarDate;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final class UpsertDemandeServiceInput
@@ -20,6 +21,9 @@ final class UpsertDemandeServiceInput
         #[Assert\Valid]
         #[Assert\Count(min: 1, minMessage: 'Ajoutez au moins une ligne.')]
         public array $lignes = [],
+
+        public ?string $dateLivraison = null,
     ) {
+        $this->dateLivraison = CalendarDate::toDateOnly($this->dateLivraison);
     }
 }

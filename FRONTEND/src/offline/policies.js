@@ -20,6 +20,7 @@ export const WRITE_POLICIES = [
   { method: 'DELETE', test: (path) => /\/api\/v1\/pharmacie\/ventes\/[^/]+$/.test(path), action: 'pharmacie.vente.delete', module: 'pharmacie', idFromPath: (path) => idFrom(path, /ventes\/([^/]+)$/) },
 
   { method: 'POST', test: (path) => path === '/api/v1/pharmacie/demandes-service', action: 'pharmacie.demande_service.create', module: 'pharmacie' },
+  { method: 'POST', test: (path) => path === '/api/v1/pharmacie/demandes-service/create-and-delivrer', action: 'pharmacie.demande_service.create_and_delivrer', module: 'pharmacie' },
   { method: 'PUT', test: (path) => /\/api\/v1\/pharmacie\/demandes-service\/[^/]+$/.test(path), action: 'pharmacie.demande_service.update', module: 'pharmacie', idFromPath: (path) => idFrom(path, /demandes-service\/([^/]+)$/) },
   { method: 'POST', test: (path) => /\/demandes-service\/[^/]+\/envoyer$/.test(path), action: 'pharmacie.demande_service.envoyer', module: 'pharmacie', idFromPath: (path) => idFrom(path, /demandes-service\/([^/]+)\/envoyer$/) },
   { method: 'POST', test: (path) => /\/demandes-service\/[^/]+\/delivrer$/.test(path), action: 'pharmacie.demande_service.delivrer', module: 'pharmacie', idFromPath: (path) => idFrom(path, /demandes-service\/([^/]+)\/delivrer$/) },
