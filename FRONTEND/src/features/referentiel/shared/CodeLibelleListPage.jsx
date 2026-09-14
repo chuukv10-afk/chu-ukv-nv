@@ -46,6 +46,10 @@ export default function CodeLibelleListPage({
   exportPermission = null,
   exportEndpoint = null,
   buildExportParams = null,
+  extraFormDefaults = {},
+  mapExtraForm = null,
+  renderExtraFields = null,
+  extraColumn = null,
 }) {
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
@@ -110,7 +114,7 @@ export default function CodeLibelleListPage({
   const openCreate = () => {
     setFormMode('create');
     setEditing(null);
-    setFormValues(EMPTY_CODE_LIBELLE_FORM);
+    setFormValues({ ...EMPTY_CODE_LIBELLE_FORM, ...extraFormDefaults });
     setFormError('');
     setFormOpen(true);
   };
@@ -118,7 +122,11 @@ export default function CodeLibelleListPage({
   const openEdit = (item) => {
     setFormMode('edit');
     setEditing(item);
-    setFormValues({ code: item.code ?? '', libelle: item.libelle ?? '' });
+    setFormValues({
+      code: item.code ?? '',
+      libelle: item.libelle ?? '',
+      ...(mapExtraForm ? mapExtraForm(item) : extraFormDefaults),
+    });
     setFormError('');
     setFormOpen(true);
   };
@@ -132,7 +140,9 @@ export default function CodeLibelleListPage({
         showSuccess(createSuccessMessage);
         setPage(1);
       } else {
-        await api.update(editing.id, { libelle: payload.libelle });
+        const { libelle, ...extra } = payload;
+        delete extra.code;
+        await api.update(editing.id, { libelle, ...extra });
         showSuccess(updateSuccessMessage);
       }
       setFormOpen(false);
@@ -182,7 +192,7 @@ export default function CodeLibelleListPage({
     }
   };
 
-  const columnCount = showActions ? (usageCountKey ? 5 : 4) : (usageCountKey ? 4 : 3);
+  const columnCount = (showActions ? (usageCountKey ? 5 : 4) : (usageCountKey ? 4 : 3)) + (extraColumn ? 1 : 0);
 
   return (
     <Stack spacing={3}>
@@ -218,6 +228,7 @@ export default function CodeLibelleListPage({
                 <tr>
                   <th>Code</th>
                   <th>Libellé</th>
+                  {extraColumn ? <th>{extraColumn.header}</th> : null}
                   {usageCountKey ? <th>{usageCountLabel}</th> : null}
                   <th>Créé le</th>
                   {showActions ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
@@ -241,6 +252,7 @@ export default function CodeLibelleListPage({
                     <tr key={item.id}>
                       <td><Typography sx={{ fontWeight: 600 }}>{item.code}</Typography></td>
                       <td>{item.libelle}</td>
+                      {extraColumn ? <td>{extraColumn.render(item)}</td> : null}
                       {usageCountKey ? <td>{usageCount}</td> : null}
                       <td>{formatDate(item.createdAt)}</td>
                       {showActions ? (
@@ -294,6 +306,7 @@ export default function CodeLibelleListPage({
         editTitle={editTitle}
         codeMaxLength={codeMaxLength}
         libelleMaxLength={libelleMaxLength}
+        extraFields={renderExtraFields}
       />
 
       <CodeLibelleDeleteModal

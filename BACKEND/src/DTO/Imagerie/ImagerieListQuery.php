@@ -1,10 +1,10 @@
 <?php
 
-namespace App\DTO\Clinique;
+namespace App\DTO\Imagerie;
 
 use Symfony\Component\Validator\Constraints as Assert;
 
-final class ExamenListQuery
+final class ImagerieListQuery
 {
     public function __construct(
         #[Assert\Positive]
@@ -16,13 +16,14 @@ final class ExamenListQuery
         #[Assert\Length(max: 100)]
         public ?string $search = null,
 
-        #[Assert\Positive]
-        public ?int $typeExamenId = null,
-
-        public ?bool $imagerie = null,
+        #[Assert\Length(max: 20)]
+        public ?string $statut = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;
+        }
+        if ('' === $this->statut) {
+            $this->statut = null;
         }
     }
 }

@@ -80,6 +80,7 @@ final class ExamenService
             $query->limit,
             $query->search,
             $query->typeExamenId,
+            $query->imagerie,
         );
 
         return new PaginatedResult(
@@ -133,6 +134,7 @@ final class ExamenService
                 'id' => $examen->getTypeExamen()->getId(),
                 'code' => $examen->getTypeExamen()->getCode(),
                 'libelle' => $examen->getTypeExamen()->getLibelle(),
+                'imagerie' => $examen->getTypeExamen()->isImagerie(),
             ] : null,
             'demandeExamenCount' => $examen->getDemandeExamens()->count(),
             'createdAt' => $examen->getCreatedAt()?->format(\DateTimeInterface::ATOM),

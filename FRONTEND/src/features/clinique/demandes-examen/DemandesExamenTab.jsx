@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -19,12 +20,14 @@ import {
   Textarea,
   Typography,
 } from '@mui/joy';
-import { FlaskConical, HeartPulse, Plus, Search, XCircle } from 'lucide-react';
+import { FlaskConical, HeartPulse, Plus, ScanLine, Search, XCircle } from 'lucide-react';
 import { PERMISSIONS } from '../../../constants/permissions.js';
+import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { fetchExamensApi } from '../examens/examensApi.js';
+import { createEtudeImagerieApi } from '../imagerie/imagerieApi.js';
 import LinkedDiagnosticModal from './components/LinkedDiagnosticModal.jsx';
 import LinkedDiagnosticsCell from './components/LinkedDiagnosticsCell.jsx';
 import {
@@ -67,12 +70,15 @@ export default function DemandesExamenTab({
 }) {
   const { showSuccess, showError } = useToast();
   const { hasPermission } = usePermissions();
+  const navigate = useNavigate();
   const isConsultationMode = Boolean(consultationId);
   const allowCreate = canCreate && !readOnly && hasPermission(PERMISSIONS.CLINIQUE.DEMANDE_EXAMEN_CREATE);
   const allowCancel = canCancel && !readOnly && hasPermission(PERMISSIONS.CLINIQUE.DEMANDE_EXAMEN_CANCEL);
   const allowSaisie = canSaisie && hasPermission(PERMISSIONS.CLINIQUE.DEMANDE_EXAMEN_SAISIE_RESULTAT);
   const allowValidate = canValidate && hasPermission(PERMISSIONS.CLINIQUE.DEMANDE_EXAMEN_VALIDATE);
   const allowCreateDiagnostic = !readOnly && hasPermission(PERMISSIONS.CLINIQUE.DIAGNOSTIC_CREATE);
+  const canCreateImagerie = hasPermission(PERMISSIONS.CLINIQUE.IMAGERIE_CREATE);
+  const canReadImagerie = hasPermission(PERMISSIONS.CLINIQUE.IMAGERIE_READ);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -240,9 +246,26 @@ export default function DemandesExamenTab({
     }
   };
 
+  const handleOpenImagerie = async (record) => {
+    if (record.etudeImagerieId) {
+      navigate(ROUTES.CLINIQUE.IMAGERIE_DETAIL.replace(':id', String(record.etudeImagerieId)));
+      return;
+    }
+    setSaving(true);
+    try {
+      const created = await createEtudeImagerieApi({ demandeExamenId: record.id });
+      showSuccess('Dossier d\'imagerie ouvert.');
+      navigate(ROUTES.CLINIQUE.IMAGERIE_DETAIL.replace(':id', String(created.id)));
+    } catch (err) {
+      showError(err.message || 'Impossible d\'ouvrir le dossier d\'imagerie.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const showCreate = isConsultationMode && allowCreate;
   const showLabActions = allowSaisie || allowValidate;
-  const showRowActions = showCreate || allowCancel || showLabActions || allowCreateDiagnostic;
+  const showRowActions = showCreate || allowCancel || showLabActions || allowCreateDiagnostic || canCreateImagerie || canReadImagerie;
 
   return (
     <Stack spacing={2}>
@@ -365,6 +388,19 @@ export default function DemandesExamenTab({
                             >
                               <HeartPulse size={16} />
                             </IconButton>
+                          ) : null}
+                          {record.examen?.typeExamen?.imagerie && (canReadImagerie || canCreateImagerie) && (
+                            record.etudeImagerieId || record.statut !== 'ANNULEE'
+                          ) ? (
+                            <Button
+                              size="sm"
+                              variant="soft"
+                              startDecorator={<ScanLine size={14} />}
+                              disabled={saving || (!record.etudeImagerieId && !canCreateImagerie)}
+                              onClick={() => handleOpenImagerie(record)}
+                            >
+                              {record.etudeImagerieId ? 'Imagerie' : 'Ouvrir en imagerie'}
+                            </Button>
                           ) : null}
                           {allowCancel && record.canCancel ? (
                             <IconButton size="sm" variant="soft" color="danger" onClick={() => setConfirmCancelId(record.id)}>

@@ -72,7 +72,32 @@ final class TypeExamenService extends AbstractCodeLibelleCrudService
         return [
             ...parent::serializeSummary($entity),
             'examenCount' => $entity->getExamens()->count(),
+            'imagerie' => $entity->isImagerie(),
         ];
+    }
+
+    public function create(object $input): object
+    {
+        /** @var TypeExamen $entity */
+        $entity = parent::create($input);
+        if ($input instanceof \App\DTO\Referentiel\CreateTypeExamenInput) {
+            $entity->setImagerie($input->imagerie);
+            $this->eM->flush();
+        }
+
+        return $entity;
+    }
+
+    public function update(int $id, object $input): object
+    {
+        /** @var TypeExamen $entity */
+        $entity = parent::update($id, $input);
+        if ($input instanceof \App\DTO\Referentiel\UpdateTypeExamenInput && null !== $input->imagerie) {
+            $entity->setImagerie($input->imagerie);
+            $this->eM->flush();
+        }
+
+        return $entity;
     }
 
     protected function paginateEntities(int $page, int $limit, ?string $search): array

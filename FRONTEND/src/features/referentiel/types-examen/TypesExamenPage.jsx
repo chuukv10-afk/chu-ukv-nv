@@ -1,3 +1,4 @@
+import { Checkbox, Chip } from '@mui/joy';
 import { Microscope } from 'lucide-react';
 import { referentiel } from '../../../api/endpoints.js';
 import { PERMISSIONS } from '../../../constants/permissions.js';
@@ -33,6 +34,23 @@ export default function TypesExamenPage() {
       createSuccessMessage="Type d'examen créé avec succès."
       updateSuccessMessage="Type d'examen mis à jour avec succès."
       deleteSuccessMessage="Type d'examen supprimé avec succès."
+      extraFormDefaults={{ imagerie: false }}
+      mapExtraForm={(item) => ({ imagerie: Boolean(item.imagerie) })}
+      extraColumn={{
+        header: 'Imagerie',
+        render: (item) => (
+          <Chip size="sm" variant="soft" color={item.imagerie ? 'primary' : 'neutral'}>
+            {item.imagerie ? 'Oui' : 'Non'}
+          </Chip>
+        ),
+      }}
+      renderExtraFields={(form, onChange) => (
+        <Checkbox
+          label="Catégorie d'imagerie (radio, échographie, scanner, IRM)"
+          checked={Boolean(form.imagerie)}
+          onChange={(event) => onChange('imagerie', event.target.checked)}
+        />
+      )}
     />
   );
 }

@@ -51,6 +51,15 @@ final class CliniquePermissions
     public const APTITUDE_SIGN = 'clinique.aptitude.sign';
     public const APTITUDE_EXPORT = 'clinique.aptitude.export';
 
+    public const IMAGERIE_READ = 'clinique.imagerie.read';
+    public const IMAGERIE_CREATE = 'clinique.imagerie.create';
+    public const IMAGERIE_UPDATE = 'clinique.imagerie.update';
+    public const IMAGERIE_DELETE = 'clinique.imagerie.delete';
+    public const IMAGERIE_UPLOAD = 'clinique.imagerie.upload';
+    public const IMAGERIE_INTERPRET = 'clinique.imagerie.interpret';
+    public const IMAGERIE_VALIDATE = 'clinique.imagerie.validate';
+    public const IMAGERIE_EXPORT = 'clinique.imagerie.export';
+
     /**
      * @return list<array{code: string, libelle: string, module: string}>
      */
@@ -146,6 +155,48 @@ final class CliniquePermissions
                 [
                     'code' => self::APTITUDE_EXPORT,
                     'libelle' => 'Exporter / imprimer un certificat d\'aptitude physique',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+            ],
+            [
+                [
+                    'code' => self::IMAGERIE_READ,
+                    'libelle' => 'Consulter le journal d\'imagerie',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::IMAGERIE_CREATE,
+                    'libelle' => 'Créer une étude d\'imagerie',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::IMAGERIE_UPDATE,
+                    'libelle' => 'Modifier une étude d\'imagerie',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::IMAGERIE_DELETE,
+                    'libelle' => 'Supprimer une étude d\'imagerie',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::IMAGERIE_UPLOAD,
+                    'libelle' => 'Téléverser des images médicales',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::IMAGERIE_INTERPRET,
+                    'libelle' => 'Interpréter une étude d\'imagerie',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::IMAGERIE_VALIDATE,
+                    'libelle' => 'Valider un compte-rendu d\'imagerie',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::IMAGERIE_EXPORT,
+                    'libelle' => 'Imprimer un compte-rendu d\'imagerie',
                     'module' => Permission::MODULE_CLINIQUE,
                 ],
             ],

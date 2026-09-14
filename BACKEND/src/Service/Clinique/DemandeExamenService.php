@@ -287,8 +287,10 @@ final class DemandeExamenService
                     'id' => $typeExamen->getId(),
                     'code' => $typeExamen->getCode(),
                     'libelle' => $typeExamen->getLibelle(),
+                    'imagerie' => $typeExamen->isImagerie(),
                 ],
             ],
+            'etudeImagerieId' => $demande->getEtudeImagerie()?->getId(),
             'prescripteur' => null === $prescripteur ? null : [
                 'id' => (string) $prescripteur->getId(),
                 'fullName' => $this->formatPersonnelName($prescripteur),

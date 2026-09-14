@@ -51,6 +51,9 @@ class DemandeExamen
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Personnel $prescripteur = null;
 
+    #[ORM\OneToOne(mappedBy: 'demandeExamen', targetEntity: EtudeImagerie::class)]
+    private ?EtudeImagerie $etudeImagerie = null;
+
     /**
      * @var Collection<int, Diagnostic>
      */
@@ -161,6 +164,11 @@ class DemandeExamen
         $this->prescripteur = $prescripteur;
 
         return $this;
+    }
+
+    public function getEtudeImagerie(): ?EtudeImagerie
+    {
+        return $this->etudeImagerie;
     }
 
     /**

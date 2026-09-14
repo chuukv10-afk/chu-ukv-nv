@@ -89,26 +89,12 @@ final class ObjectStorage
 
     public function presignPut(string $key, string $mimeType, int $expiresSeconds = 900): string
     {
-        if (!$this->isS3()) {
-            throw new ServiceUnavailableHttpException(null, 'Le stockage cloud n\'est pas actif.');
-        }
+        return $this->presign('PutObject', $key, $expiresSeconds, ['ContentType' => $mimeType]);
+    }
 
-        try {
-            $command = $this->client()->getCommand('PutObject', [
-                'Bucket' => $this->bucket,
-                'Key' => $this->s3Key($this->normalizeKey($key)),
-                'ContentType' => $mimeType,
-            ]);
-            $request = $this->client()->createPresignedRequest($command, '+' . max(60, $expiresSeconds) . ' seconds');
-
-            return (string) $request->getUri();
-        } catch (AwsException $exception) {
-            $this->logger?->error('Échec URL présignée S3.', [
-                'key' => $key,
-                'message' => $exception->getAwsErrorMessage() ?: $exception->getMessage(),
-            ]);
-            throw new ServiceUnavailableHttpException(null, 'Impossible de préparer l\'envoi vers le cloud (S3).');
-        }
+    public function presignGet(string $key, int $expiresSeconds = 900): string
+    {
+        return $this->presign('GetObject', $key, $expiresSeconds);
     }
 
     public function lastModified(string $key, array $legacyKeys = []): ?int
@@ -218,6 +204,33 @@ final class ObjectStorage
         $path = $this->localPath($relative);
         if (is_file($path)) {
             unlink($path);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $extra
+     */
+    private function presign(string $commandName, string $key, int $expiresSeconds, array $extra = []): string
+    {
+        if (!$this->isS3()) {
+            throw new ServiceUnavailableHttpException(null, 'Le stockage cloud n\'est pas actif.');
+        }
+
+        try {
+            $command = $this->client()->getCommand($commandName, array_merge([
+                'Bucket' => $this->bucket,
+                'Key' => $this->s3Key($this->normalizeKey($key)),
+            ], $extra));
+            $request = $this->client()->createPresignedRequest($command, '+' . max(60, $expiresSeconds) . ' seconds');
+
+            return (string) $request->getUri();
+        } catch (AwsException $exception) {
+            $this->logger?->error('Échec URL présignée S3.', [
+                'key' => $key,
+                'command' => $commandName,
+                'message' => $exception->getAwsErrorMessage() ?: $exception->getMessage(),
+            ]);
+            throw new ServiceUnavailableHttpException(null, 'Impossible de préparer l\'accès au fichier cloud (S3).');
         }
     }
 

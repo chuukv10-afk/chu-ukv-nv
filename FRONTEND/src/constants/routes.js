@@ -70,6 +70,9 @@ export const ROUTES = {
     APTITUDE_NEW: '/clinique/aptitudes/nouveau',
     APTITUDE_STATS: '/clinique/aptitudes/statistiques',
     APTITUDE_DETAIL: '/clinique/aptitudes/:id',
+    IMAGERIE: '/clinique/imagerie',
+    IMAGERIE_NEW: '/clinique/imagerie/nouveau',
+    IMAGERIE_DETAIL: '/clinique/imagerie/:id',
   },
 
   PATIENT: {

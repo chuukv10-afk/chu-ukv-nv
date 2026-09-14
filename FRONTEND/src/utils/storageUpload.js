@@ -3,11 +3,13 @@ export async function uploadViaPreparedUrl({
   prepare,
   confirm,
   localUpload,
+  mimeType,
 }) {
+  const type = mimeType || file.type;
   let prepared = null;
   try {
     prepared = await prepare({
-      mimeType: file.type,
+      mimeType: type,
       size: file.size,
     });
   } catch (error) {
@@ -19,7 +21,7 @@ export async function uploadViaPreparedUrl({
   if (prepared?.mode === 's3' && prepared.uploadUrl) {
     const put = await fetch(prepared.uploadUrl, {
       method: 'PUT',
-      headers: { 'Content-Type': file.type },
+      headers: { 'Content-Type': type },
       body: file,
     });
     if (!put.ok) {

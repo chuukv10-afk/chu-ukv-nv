@@ -24,6 +24,9 @@ class TypeExamen
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $imagerie = false;
+
     /**
      * @var Collection<int, Examen>
      */
@@ -72,6 +75,18 @@ class TypeExamen
     public function setCreatedAt(\DateTimeImmutable $createdAt): static
     {
         $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    public function isImagerie(): bool
+    {
+        return $this->imagerie;
+    }
+
+    public function setImagerie(bool $imagerie): static
+    {
+        $this->imagerie = $imagerie;
 
         return $this;
     }

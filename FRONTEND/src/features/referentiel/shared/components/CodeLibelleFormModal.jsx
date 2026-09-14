@@ -18,6 +18,7 @@ export default function CodeLibelleFormModal({
   editTitle = 'Modifier',
   codeMaxLength = 8,
   libelleMaxLength = 100,
+  extraFields = null,
 }) {
   const [form, setForm] = useState(initialValues);
   const isEdit = mode === 'edit';
@@ -30,9 +31,11 @@ export default function CodeLibelleFormModal({
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    const { code, libelle, ...extra } = form;
     onSubmit({
-      code: form.code.trim().toUpperCase(),
-      libelle: form.libelle.trim(),
+      code: String(code || '').trim().toUpperCase(),
+      libelle: String(libelle || '').trim(),
+      ...extra,
     });
   };
 
@@ -54,13 +57,14 @@ export default function CodeLibelleFormModal({
             {error ? <Typography level="body-sm" color="danger" sx={{ bgcolor: 'danger.50', p: 1.5, borderRadius: 'md' }}>{error}</Typography> : null}
             <FormControl required>
               <FormLabel>Code</FormLabel>
-              <Input value={form.code} onChange={(e) => handleChange('code', e.target.value.toUpperCase())} disabled={loading || isEdit} slotProps={{ input: { maxLength: codeMaxLength } }} />
+              <Input value={form.code ?? ''} onChange={(e) => handleChange('code', e.target.value.toUpperCase())} disabled={loading || isEdit} slotProps={{ input: { maxLength: codeMaxLength } }} />
               {isEdit ? <FormHelperText>Le code n&apos;est pas modifiable.</FormHelperText> : null}
             </FormControl>
             <FormControl required>
               <FormLabel>Libellé</FormLabel>
-              <Input value={form.libelle} onChange={(e) => handleChange('libelle', e.target.value)} disabled={loading} slotProps={{ input: { maxLength: libelleMaxLength } }} />
+              <Input value={form.libelle ?? ''} onChange={(e) => handleChange('libelle', e.target.value)} disabled={loading} slotProps={{ input: { maxLength: libelleMaxLength } }} />
             </FormControl>
+            {typeof extraFields === 'function' ? extraFields(form, handleChange) : extraFields}
             <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ pt: 1 }}>
               <Button variant="plain" color="neutral" onClick={onClose} disabled={loading}>Annuler</Button>
               <Button type="submit" loading={loading}>{isEdit ? 'Enregistrer' : 'Créer'}</Button>

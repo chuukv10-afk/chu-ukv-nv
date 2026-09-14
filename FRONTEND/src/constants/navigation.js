@@ -274,6 +274,13 @@ export const NAV_SECTIONS = [
         icon: 'heartbeat',
       },
       {
+        label: 'Imagerie',
+        to: ROUTES.CLINIQUE.IMAGERIE,
+        permission: PERMISSIONS.CLINIQUE.IMAGERIE_READ,
+        module: 'CLINIQUE',
+        icon: 'scan',
+      },
+      {
         label: 'Statistique Aptitude Physique',
         to: ROUTES.CLINIQUE.APTITUDE_STATS,
         permission: PERMISSIONS.CLINIQUE.APTITUDE_READ,

@@ -19,7 +19,7 @@ class ExamenRepository extends ServiceEntityRepository
     /**
      * @return array{items: list<Examen>, total: int}
      */
-    public function paginate(int $page, int $limit, ?string $search = null, ?int $typeExamenId = null): array
+    public function paginate(int $page, int $limit, ?string $search = null, ?int $typeExamenId = null, ?bool $imagerie = null): array
     {
         $qb = $this->createQueryBuilder('e')
             ->leftJoin('e.typeExamen', 't')
@@ -39,6 +39,10 @@ class ExamenRepository extends ServiceEntityRepository
             $qb
                 ->andWhere('t.id = :typeExamenId')
                 ->setParameter('typeExamenId', $typeExamenId);
+        }
+
+        if (true === $imagerie) {
+            $qb->andWhere('t.imagerie = :imagerie')->setParameter('imagerie', true);
         }
 
         $countQb = clone $qb;

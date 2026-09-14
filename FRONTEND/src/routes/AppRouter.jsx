@@ -60,6 +60,8 @@ import TourDeSalleHubPage from '../features/clinique/tour-de-salle/TourDeSalleHu
 import TourDeSalleFichePage from '../features/clinique/tour-de-salle/TourDeSalleFichePage.jsx';
 import DemandesExamenPage from '../features/clinique/demandes-examen/DemandesExamenPage.jsx';
 import AptitudesPage from '../features/clinique/aptitude/AptitudesPage.jsx';
+import ImageriePage from '../features/clinique/imagerie/ImageriePage.jsx';
+import ImagerieDetailPage from '../features/clinique/imagerie/ImagerieDetailPage.jsx';
 import AptitudeFormPage from '../features/clinique/aptitude/AptitudeFormPage.jsx';
 import AptitudeStatsPage from '../features/clinique/aptitude/AptitudeStatsPage.jsx';
 import ProfilePage from '../features/profile/ProfilePage.jsx';
@@ -211,6 +213,30 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.CLINIQUE.APTITUDE_READ}>
                   <AptitudesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.CLINIQUE.IMAGERIE_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.CLINIQUE.IMAGERIE_CREATE}>
+                  <ImageriePage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.CLINIQUE.IMAGERIE_DETAIL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.CLINIQUE.IMAGERIE_READ}>
+                  <ImagerieDetailPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.CLINIQUE.IMAGERIE}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.CLINIQUE.IMAGERIE_READ}>
+                  <ImageriePage />
                 </PermissionGuard>
               )}
             />

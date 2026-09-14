@@ -58,6 +58,7 @@ export const clinique = {
   diagnostics: '/api/v1/clinique/diagnostics',
   demandesExamen: '/api/v1/clinique/demandes-examen',
   aptitudes: '/api/v1/clinique/aptitudes',
+  imagerie: '/api/v1/imagerie/etudes',
 };
 
 export const patient = {
