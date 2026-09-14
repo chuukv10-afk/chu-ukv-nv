@@ -1,3 +1,5 @@
+import { ROUTES } from '../../../constants/routes.js';
+
 export const IMAGERIE_STATUTS = [
   { value: 'EN_ATTENTE', label: 'En attente', color: 'neutral' },
   { value: 'IMAGES', label: 'Images chargées', color: 'primary' },
@@ -20,3 +22,9 @@ export const DEFAULT_IMAGERIE_PAGE_SIZE = 10;
 export const IMAGERIE_PAGE_SIZE_OPTIONS = [10, 25, 50];
 export const IMAGERIE_MAX_SIZE_BYTES = 50 * 1024 * 1024;
 export const IMAGERIE_ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf';
+export const IMAGERIE_INTERPRET_STATUTS = 'IMAGES,INTERPRETE,VALIDE';
+
+export function imagerieDetailPath(id, tab = 'images') {
+  const path = ROUTES.CLINIQUE.IMAGERIE_DETAIL.replace(':id', String(id));
+  return tab && tab !== 'images' ? `${path}?tab=${tab}` : path;
+}

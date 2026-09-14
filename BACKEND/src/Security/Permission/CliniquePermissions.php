@@ -186,7 +186,7 @@ final class CliniquePermissions
                 ],
                 [
                     'code' => self::IMAGERIE_INTERPRET,
-                    'libelle' => 'Interpréter une étude d\'imagerie',
+                    'libelle' => 'Voir et rédiger l\'interprétation d\'imagerie',
                     'module' => Permission::MODULE_CLINIQUE,
                 ],
                 [

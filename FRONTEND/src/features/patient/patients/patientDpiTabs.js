@@ -6,9 +6,10 @@ export const PATIENT_DPI_TAB_KEYS = {
   antecedents: 2,
   diagnostics: 3,
   examens: 4,
-  visites: 5,
-  consultations: 6,
-  hospitalisation: 7,
+  imagerie: 5,
+  visites: 6,
+  consultations: 7,
+  hospitalisation: 8,
 };
 
 const TAB_KEY_BY_INDEX = Object.fromEntries(

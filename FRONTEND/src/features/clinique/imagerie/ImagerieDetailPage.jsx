@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Stack, Textarea, Typography,
+  Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Stack, Tab, TabList, TabPanel, Tabs, Textarea, Typography,
 } from '@mui/joy';
-import { ArrowLeft, Check, FileText, Printer, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FileText, Printer, Stethoscope, Trash2, Upload } from 'lucide-react';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
@@ -12,6 +12,7 @@ import { useToast } from '../../../hooks/useToast.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { fetchAuthenticatedAvatarUrl } from '../../../utils/avatar.js';
 import { formatDateTime, formatPatientName } from '../../pharmacie/shared/format.js';
+import { buildPatientDpiPath } from '../../patient/patients/patientDpiTabs.js';
 import {
   IMAGERIE_ACCEPT,
   IMAGERIE_MAX_SIZE_BYTES,
@@ -66,7 +67,9 @@ function MedicalImage({ src, viewUrl, alt, mimeType }) {
 export default function ImagerieDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { hasPermission } = usePermissions();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { hasPermission, hasAnyPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
   const canUpload = hasPermission(PERMISSIONS.CLINIQUE.IMAGERIE_UPLOAD);
   const canInterpret = hasPermission(PERMISSIONS.CLINIQUE.IMAGERIE_INTERPRET);
@@ -74,12 +77,28 @@ export default function ImagerieDetailPage() {
   const canExport = hasPermission(PERMISSIONS.CLINIQUE.IMAGERIE_EXPORT);
   const canDelete = hasPermission(PERMISSIONS.CLINIQUE.IMAGERIE_DELETE);
   const canUpdate = hasPermission(PERMISSIONS.CLINIQUE.IMAGERIE_UPDATE);
+  const canSeeInterpretationPerm = hasAnyPermission([
+    PERMISSIONS.CLINIQUE.IMAGERIE_INTERPRET,
+    PERMISSIONS.CLINIQUE.IMAGERIE_VALIDATE,
+    PERMISSIONS.CLINIQUE.IMAGERIE_EXPORT,
+  ]);
 
   const [etude, setEtude] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [report, setReport] = useState({ technique: '', constatations: '', conclusion: '' });
   const [confirmAction, setConfirmAction] = useState(null);
+  const canSeeInterpretation = canSeeInterpretationPerm && etude?.canSeeInterpretation !== false;
+  const requestedTab = searchParams.get('tab') === 'interpretation' ? 'interpretation' : 'images';
+  const activeTab = canSeeInterpretation ? requestedTab : 'images';
+
+  const goBack = () => {
+    if (location.state?.fromDpi) {
+      navigate(buildPatientDpiPath(location.state.fromDpi, 'imagerie'));
+      return;
+    }
+    navigate(ROUTES.CLINIQUE.IMAGERIE);
+  };
 
   const locked = etude?.statut === 'VALIDE' || etude?.statut === 'ANNULEE';
 
@@ -102,6 +121,20 @@ export default function ImagerieDetailPage() {
   }, [id, navigate]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!canSeeInterpretation && requestedTab === 'interpretation') {
+      setSearchParams({}, { replace: true });
+    }
+  }, [canSeeInterpretation, requestedTab, setSearchParams]);
+
+  const handleTabChange = (_, value) => {
+    if (value === 'interpretation') {
+      setSearchParams({ tab: 'interpretation' }, { replace: true });
+      return;
+    }
+    setSearchParams({}, { replace: true });
+  };
 
   const handleUpload = async (event) => {
     const files = Array.from(event.target.files || []);
@@ -155,7 +188,7 @@ export default function ImagerieDetailPage() {
       } else if (action === 'delete') {
         await deleteEtudeImagerieApi(id);
         showSuccess('Étude supprimée.');
-        navigate(ROUTES.CLINIQUE.IMAGERIE);
+        goBack();
       }
     } catch (err) {
       showError(err.message || 'Action impossible.');
@@ -171,8 +204,8 @@ export default function ImagerieDetailPage() {
   return (
     <Stack spacing={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
-        <Button variant="plain" color="neutral" startDecorator={<ArrowLeft size={16} />} onClick={() => navigate(ROUTES.CLINIQUE.IMAGERIE)}>
-          Journal
+        <Button variant="plain" color="neutral" startDecorator={<ArrowLeft size={16} />} onClick={goBack}>
+          {location.state?.fromDpi ? 'Dossier patient' : 'Journal'}
         </Button>
         <Chip color={IMAGERIE_STATUT_COLORS[etude.statut] || 'neutral'} variant="soft">
           {IMAGERIE_STATUT_LABELS[etude.statut] || etude.statut}
@@ -185,85 +218,107 @@ export default function ImagerieDetailPage() {
           {etude.patient?.fullName || formatPatientName(etude.patient)} — {etude.examen?.libelle} — {formatDateTime(etude.createdAt)}
         </Typography>
         {etude.indication ? <Typography sx={{ mt: 1 }}><strong>Indication :</strong> {etude.indication}</Typography> : null}
-        <Typography level="body-xs" sx={{ mt: 1, color: LOTRU_NEUTRAL[500] }}>
-          Le partage de ce dossier vers d'autres services sera disponible prochainement.
-        </Typography>
       </Card>
 
-      <Card variant="outlined">
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography level="title-lg" startDecorator={<Upload size={18} />}>Images médicales</Typography>
-          {canUpload && !locked ? (
-            <Button component="label" size="sm" loading={saving} sx={{ bgcolor: LOTRU_PRIMARY[500] }}>
-              Ajouter
-              <input hidden type="file" accept={IMAGERIE_ACCEPT} multiple onChange={handleUpload} />
-            </Button>
+      <Tabs value={activeTab} onChange={handleTabChange}>
+        <TabList>
+          <Tab value="images"><Upload size={16} style={{ marginRight: 6 }} />Images</Tab>
+          {canSeeInterpretation ? (
+            <Tab value="interpretation"><Stethoscope size={16} style={{ marginRight: 6 }} />Interprétation</Tab>
           ) : null}
-        </Stack>
-        <Stack direction="row" flexWrap="wrap" gap={1.5} sx={{ mt: 1.5 }}>
-          {(etude.images || []).length === 0 ? (
-            <Typography level="body-sm">Aucune image. JPG, PNG, WebP ou PDF — 50 Mo max, envoi sécurisé vers S3.</Typography>
-          ) : etude.images.map((image) => (
-            <Box key={image.id} sx={{ width: 240, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 'sm' }}>
-              {String(image.mimeType || '').startsWith('image/') ? (
-                <MedicalImage src={image.url} viewUrl={image.viewUrl} alt={image.originalName} mimeType={image.mimeType} />
-              ) : (
-                <Typography startDecorator={<FileText size={14} />}>{image.originalName}</Typography>
-              )}
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.5 }}>
-                <Typography level="body-xs">{image.originalName}</Typography>
-                {canUpload && !locked ? (
-                  <IconButton size="sm" color="danger" variant="plain" onClick={async () => {
-                    try {
-                      setEtude(await deleteEtudeImageApi(id, image.id));
-                    } catch (err) {
-                      showError(err.message || 'Suppression impossible.');
-                    }
-                  }}
-                  >
-                    <Trash2 size={14} />
-                  </IconButton>
+        </TabList>
+
+        <TabPanel value="images" sx={{ p: 0, pt: 2 }}>
+          <Card variant="outlined">
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography level="title-lg">Images médicales</Typography>
+              {canUpload && !locked ? (
+                <Button component="label" size="sm" loading={saving} sx={{ bgcolor: LOTRU_PRIMARY[500] }}>
+                  Ajouter
+                  <input hidden type="file" accept={IMAGERIE_ACCEPT} multiple onChange={handleUpload} />
+                </Button>
+              ) : null}
+            </Stack>
+            <Stack direction="row" flexWrap="wrap" gap={1.5} sx={{ mt: 1.5 }}>
+              {(etude.images || []).length === 0 ? (
+                <Typography level="body-sm">Aucune image. JPG, PNG, WebP ou PDF — 50 Mo max, envoi sécurisé vers S3.</Typography>
+              ) : etude.images.map((image) => (
+                <Box key={image.id} sx={{ width: 240, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 'sm' }}>
+                  {String(image.mimeType || '').startsWith('image/') ? (
+                    <MedicalImage src={image.url} viewUrl={image.viewUrl} alt={image.originalName} mimeType={image.mimeType} />
+                  ) : (
+                    <Typography startDecorator={<FileText size={14} />}>{image.originalName}</Typography>
+                  )}
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.5 }}>
+                    <Typography level="body-xs">{image.originalName}</Typography>
+                    {canUpload && !locked ? (
+                      <IconButton size="sm" color="danger" variant="plain" onClick={async () => {
+                        try {
+                          setEtude(await deleteEtudeImageApi(id, image.id));
+                        } catch (err) {
+                          showError(err.message || 'Suppression impossible.');
+                        }
+                      }}
+                      >
+                        <Trash2 size={14} />
+                      </IconButton>
+                    ) : null}
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+            <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 2 }}>
+              {canUpdate && !locked ? (
+                <Button variant="outlined" color="warning" onClick={() => setConfirmAction('annuler')}>Annuler l'étude</Button>
+              ) : null}
+              {canDelete && !locked ? (
+                <Button variant="outlined" color="danger" onClick={() => setConfirmAction('delete')}>Supprimer</Button>
+              ) : null}
+            </Stack>
+          </Card>
+        </TabPanel>
+
+        {canSeeInterpretation ? (
+          <TabPanel value="interpretation" sx={{ p: 0, pt: 2 }}>
+            <Card variant="outlined">
+              <Typography level="title-lg">Interprétation médicale</Typography>
+              <Typography level="body-sm" sx={{ color: LOTRU_NEUTRAL[600], mt: 0.5 }}>
+                Réservé aux médecins autorisés. Le manipulateur radio ne voit pas ce compte-rendu.
+              </Typography>
+              <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+                <FormControl>
+                  <FormLabel>Technique</FormLabel>
+                  <Textarea minRows={2} value={report.technique} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, technique: e.target.value }))} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Constatations</FormLabel>
+                  <Textarea minRows={4} value={report.constatations} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, constatations: e.target.value }))} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Conclusion</FormLabel>
+                  <Textarea minRows={3} value={report.conclusion} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, conclusion: e.target.value }))} />
+                </FormControl>
+              </Stack>
+              {etude.interpretePar?.nom ? (
+                <Typography level="body-xs" sx={{ mt: 1.5, color: LOTRU_NEUTRAL[500] }}>
+                  Interprété par {etude.interpretePar.nom}{etude.interpreteAt ? ` — ${formatDateTime(etude.interpreteAt)}` : ''}
+                </Typography>
+              ) : null}
+              <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 2 }}>
+                {canInterpret && !locked ? (
+                  <Button loading={saving} onClick={handleInterpret} sx={{ bgcolor: LOTRU_PRIMARY[500] }}>Enregistrer l'interprétation</Button>
+                ) : null}
+                {canValidate && etude.statut === 'INTERPRETE' ? (
+                  <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('valider')}>Valider</Button>
+                ) : null}
+                {canExport && (etude.statut === 'INTERPRETE' || etude.statut === 'VALIDE') ? (
+                  <Button variant="outlined" startDecorator={<Printer size={16} />} onClick={() => openEtudeImageriePdfApi(id)}>Imprimer</Button>
                 ) : null}
               </Stack>
-            </Box>
-          ))}
-        </Stack>
-      </Card>
-
-      <Card variant="outlined">
-        <Typography level="title-lg">Interprétation médicale</Typography>
-        <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-          <FormControl>
-            <FormLabel>Technique</FormLabel>
-            <Textarea minRows={2} value={report.technique} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, technique: e.target.value }))} />
-          </FormControl>
-          <FormControl>
-            <FormLabel>Constatations</FormLabel>
-            <Textarea minRows={4} value={report.constatations} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, constatations: e.target.value }))} />
-          </FormControl>
-          <FormControl>
-            <FormLabel>Conclusion</FormLabel>
-            <Textarea minRows={3} value={report.conclusion} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, conclusion: e.target.value }))} />
-          </FormControl>
-        </Stack>
-        <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 2 }}>
-          {canInterpret && !locked ? (
-            <Button loading={saving} onClick={handleInterpret} sx={{ bgcolor: LOTRU_PRIMARY[500] }}>Enregistrer l'interprétation</Button>
-          ) : null}
-          {canValidate && etude.statut === 'INTERPRETE' ? (
-            <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('valider')}>Valider</Button>
-          ) : null}
-          {canExport && (etude.statut === 'INTERPRETE' || etude.statut === 'VALIDE') ? (
-            <Button variant="outlined" startDecorator={<Printer size={16} />} onClick={() => openEtudeImageriePdfApi(id)}>Imprimer</Button>
-          ) : null}
-          {canUpdate && !locked ? (
-            <Button variant="outlined" color="warning" onClick={() => setConfirmAction('annuler')}>Annuler l'étude</Button>
-          ) : null}
-          {canDelete && !locked ? (
-            <Button variant="outlined" color="danger" onClick={() => setConfirmAction('delete')}>Supprimer</Button>
-          ) : null}
-        </Stack>
-      </Card>
+            </Card>
+          </TabPanel>
+        ) : null}
+      </Tabs>
 
       <ConfirmModal
         open={Boolean(confirmAction)}

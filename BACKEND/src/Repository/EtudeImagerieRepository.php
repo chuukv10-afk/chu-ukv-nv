@@ -6,6 +6,7 @@ use App\Entity\EtudeImagerie;
 use App\Repository\Trait\NumeroPrefixRepositoryTrait;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @extends ServiceEntityRepository<EtudeImagerie>
@@ -22,7 +23,7 @@ class EtudeImagerieRepository extends ServiceEntityRepository
     /**
      * @return array{items: list<EtudeImagerie>, total: int}
      */
-    public function paginate(int $page, int $limit, ?string $search, ?string $statut): array
+    public function paginate(int $page, int $limit, ?string $search, ?string $statut, ?string $patientId = null, ?string $statuts = null): array
     {
         $qb = $this->createQueryBuilder('e')
             ->leftJoin('e.patient', 'p')->addSelect('p')
@@ -38,6 +39,21 @@ class EtudeImagerieRepository extends ServiceEntityRepository
         }
         if (null !== $statut && '' !== trim($statut)) {
             $qb->andWhere('e.statut = :statut')->setParameter('statut', strtoupper(trim($statut)));
+        } elseif (null !== $statuts && '' !== trim($statuts)) {
+            $values = array_values(array_filter(array_map(
+                static fn (string $value): string => strtoupper(trim($value)),
+                explode(',', $statuts),
+            )));
+            if ($values !== []) {
+                $qb->andWhere('e.statut IN (:statuts)')->setParameter('statuts', $values);
+            }
+        }
+        if (null !== $patientId && '' !== trim($patientId)) {
+            try {
+                $qb->andWhere('p.id = :patientId')->setParameter('patientId', Uuid::fromString($patientId), 'uuid');
+            } catch (\InvalidArgumentException) {
+                $qb->andWhere('1 = 0');
+            }
         }
 
         $countQb = clone $qb;

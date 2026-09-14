@@ -18,12 +18,23 @@ final class ImagerieListQuery
 
         #[Assert\Length(max: 20)]
         public ?string $statut = null,
+
+        public ?string $patientId = null,
+
+        #[Assert\Length(max: 80)]
+        public ?string $statuts = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;
         }
         if ('' === $this->statut) {
             $this->statut = null;
+        }
+        if ('' === $this->patientId) {
+            $this->patientId = null;
+        }
+        if ('' === $this->statuts) {
+            $this->statuts = null;
         }
     }
 }

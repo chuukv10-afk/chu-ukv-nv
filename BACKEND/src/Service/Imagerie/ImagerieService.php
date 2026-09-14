@@ -19,6 +19,7 @@ use App\Repository\DemandeExamenRepository;
 use App\Repository\EtudeImagerieRepository;
 use App\Repository\ExamenRepository;
 use App\Repository\PatientRepository;
+use App\Security\Permission\CliniquePermissions;
 use App\Service\Storage\ObjectStorage;
 use App\Service\Storage\StoredFile;
 use Doctrine\ORM\EntityManagerInterface;
@@ -55,7 +56,7 @@ final class ImagerieService
     public function paginate(ImagerieListQuery $query): PaginatedResult
     {
         $this->assertValid($query);
-        $result = $this->etudeRepository->paginate($query->page, $query->limit, $query->search, $query->statut);
+        $result = $this->etudeRepository->paginate($query->page, $query->limit, $query->search, $query->statut, $query->patientId, $query->statuts);
 
         return new PaginatedResult(
             array_map(fn (EtudeImagerie $etude): array => $this->serializeSummary($etude), $result['items']),
@@ -157,7 +158,7 @@ final class ImagerieService
 
         $demande = $etude->getDemandeExamen();
         if ($demande instanceof DemandeExamen && DemandeExamen::STATUT_VALIDE !== $demande->getStatut()) {
-            $demande->setResultat(mb_substr($etude->getConclusion() ?? '', 0, DemandeExamen::RESULTAT_MAX_LENGTH));
+            $demande->setResultat('Compte-rendu disponible dans Imagerie (accès restreint).');
             if (in_array($demande->getStatut(), [DemandeExamen::STATUT_DEMANDE, DemandeExamen::STATUT_EN_COURS], true)) {
                 $demande->setStatut(DemandeExamen::STATUT_RESULTAT_DISPONIBLE);
             }
@@ -349,12 +350,15 @@ final class ImagerieService
     public function serializeDetail(EtudeImagerie $etude): array
     {
         $data = $this->serializeSummary($etude);
-        $data['technique'] = $etude->getTechnique();
-        $data['constatations'] = $etude->getConstatations();
-        $data['conclusion'] = $etude->getConclusion();
-        $data['interpretePar'] = $this->serializePersonnel($etude->getInterpretePar());
-        $data['validePar'] = $this->serializePersonnel($etude->getValidePar());
-        $data['valideAt'] = $etude->getValideAt()?->format(\DateTimeInterface::ATOM);
+        $canSeeInterpretation = $this->canSeeInterpretation();
+        $data['canSeeInterpretation'] = $canSeeInterpretation;
+        $data['technique'] = $canSeeInterpretation ? $etude->getTechnique() : null;
+        $data['constatations'] = $canSeeInterpretation ? $etude->getConstatations() : null;
+        $data['conclusion'] = $canSeeInterpretation ? $etude->getConclusion() : null;
+        $data['interpretePar'] = $canSeeInterpretation ? $this->serializePersonnel($etude->getInterpretePar()) : null;
+        $data['validePar'] = $canSeeInterpretation ? $this->serializePersonnel($etude->getValidePar()) : null;
+        $data['valideAt'] = $canSeeInterpretation ? $etude->getValideAt()?->format(\DateTimeInterface::ATOM) : null;
+        $data['interpreteAt'] = $canSeeInterpretation ? $etude->getInterpreteAt()?->format(\DateTimeInterface::ATOM) : null;
         $data['images'] = [];
         foreach ($etude->getImages() as $image) {
             $apiUrl = sprintf(
@@ -452,6 +456,13 @@ final class ImagerieService
                 $personnel->getPrenom(),
             ]))),
         ];
+    }
+
+    private function canSeeInterpretation(): bool
+    {
+        return $this->security->isGranted(CliniquePermissions::IMAGERIE_INTERPRET)
+            || $this->security->isGranted(CliniquePermissions::IMAGERIE_VALIDATE)
+            || $this->security->isGranted(CliniquePermissions::IMAGERIE_EXPORT);
     }
 
     private function currentPersonnel(): ?Personnel

@@ -3,7 +3,7 @@ import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'rea
 import {
   Box, Breadcrumbs, Button, Card, Chip, FormControl, FormLabel, Input, Link, Option, Select, Stack, Tab, TabList, TabPanel, Tabs, Typography,
 } from '@mui/joy';
-import { ArrowLeft, BedDouble, CalendarClock, ClipboardList, FlaskConical, FolderOpen, HeartPulse, Pencil, Plus, RotateCcw, UserRound } from 'lucide-react';
+import { ArrowLeft, BedDouble, CalendarClock, ClipboardList, FlaskConical, FolderOpen, HeartPulse, Pencil, Plus, RotateCcw, ScanLine, UserRound } from 'lucide-react';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner.jsx';
 import { ROUTES } from '../../../constants/routes.js';
 import { PERMISSIONS } from '../../../constants/permissions.js';
@@ -43,6 +43,7 @@ import {
 import AntecedentsTab from '../antecedents/AntecedentsTab.jsx';
 import DiagnosticsTab from '../../clinique/diagnostics/DiagnosticsTab.jsx';
 import DemandesExamenTab from '../../clinique/demandes-examen/DemandesExamenTab.jsx';
+import PatientImagerieTab from '../../clinique/imagerie/PatientImagerieTab.jsx';
 import PatientConsultationsTab from './components/PatientConsultationsTab.jsx';
 import {
   patientDpiTabKeyFromIndex,
@@ -87,6 +88,7 @@ export default function PatientDpiPage() {
   const canDeleteAntecedent = hasPermission(PERMISSIONS.PATIENT.DPI_ANTECEDENT_DELETE);
   const canReadDiagnostic = hasPermission(PERMISSIONS.CLINIQUE.DIAGNOSTIC_READ);
   const canReadDemandeExamen = hasPermission(PERMISSIONS.CLINIQUE.DEMANDE_EXAMEN_READ);
+  const canReadImagerie = hasPermission(PERMISSIONS.CLINIQUE.IMAGERIE_READ);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -372,6 +374,7 @@ export default function PatientDpiPage() {
             <Tab disabled={!canReadAntecedent}><UserRound size={16} style={{ marginRight: 6 }} />Antécédents</Tab>
             <Tab disabled={!canReadDiagnostic}><HeartPulse size={16} style={{ marginRight: 6 }} />Diagnostics</Tab>
             <Tab disabled={!canReadDemandeExamen}><FlaskConical size={16} style={{ marginRight: 6 }} />Examens</Tab>
+            <Tab disabled={!canReadImagerie}><ScanLine size={16} style={{ marginRight: 6 }} />Imagerie</Tab>
             <Tab><CalendarClock size={16} style={{ marginRight: 6 }} />Visites</Tab>
             <Tab disabled={!canReadConsultation}><ClipboardList size={16} style={{ marginRight: 6 }} />Consultations</Tab>
             <Tab disabled={!canReadVisite}><BedDouble size={16} style={{ marginRight: 6 }} />Hospitalisation</Tab>
@@ -463,6 +466,16 @@ export default function PatientDpiPage() {
           </TabPanel>
 
           <TabPanel value={5} sx={{ p: 0, pt: 2 }}>
+            {canReadImagerie ? (
+              <PatientImagerieTab patientId={patientId} patientName={patient.fullName} />
+            ) : (
+              <Typography level="body-sm" color="warning" sx={{ bgcolor: 'warning.50', p: 1.5, borderRadius: 'md' }}>
+                Permission insuffisante pour consulter l&apos;imagerie.
+              </Typography>
+            )}
+          </TabPanel>
+
+          <TabPanel value={6} sx={{ p: 0, pt: 2 }}>
             <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2.5 }}>
               <Stack spacing={2}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1.5}>
@@ -528,11 +541,11 @@ export default function PatientDpiPage() {
             </Card>
           </TabPanel>
 
-          <TabPanel value={6} sx={{ p: 0, pt: 2 }}>
+          <TabPanel value={7} sx={{ p: 0, pt: 2 }}>
             <PatientConsultationsTab patientId={patientId} />
           </TabPanel>
 
-          <TabPanel value={7} sx={{ p: 0, pt: 2 }}>
+          <TabPanel value={8} sx={{ p: 0, pt: 2 }}>
             {canReadVisite ? (
               <PatientHospitalisationsTab
                 visites={visites}

@@ -248,14 +248,18 @@ export default function DemandesExamenTab({
 
   const handleOpenImagerie = async (record) => {
     if (record.etudeImagerieId) {
-      navigate(ROUTES.CLINIQUE.IMAGERIE_DETAIL.replace(':id', String(record.etudeImagerieId)));
+      navigate(ROUTES.CLINIQUE.IMAGERIE_DETAIL.replace(':id', String(record.etudeImagerieId)), {
+        state: patientId ? { fromDpi: patientId } : undefined,
+      });
       return;
     }
     setSaving(true);
     try {
       const created = await createEtudeImagerieApi({ demandeExamenId: record.id });
       showSuccess('Dossier d\'imagerie ouvert.');
-      navigate(ROUTES.CLINIQUE.IMAGERIE_DETAIL.replace(':id', String(created.id)));
+      navigate(ROUTES.CLINIQUE.IMAGERIE_DETAIL.replace(':id', String(created.id)), {
+        state: patientId ? { fromDpi: patientId } : undefined,
+      });
     } catch (err) {
       showError(err.message || 'Impossible d\'ouvrir le dossier d\'imagerie.');
     } finally {
