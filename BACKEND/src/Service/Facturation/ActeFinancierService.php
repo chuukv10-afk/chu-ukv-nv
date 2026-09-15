@@ -4,10 +4,14 @@ namespace App\Service\Facturation;
 
 use App\DTO\Common\PaginatedResult;
 use App\DTO\Facturation\FacturationListQuery;
+use App\DTO\Facturation\UpsertActeFinancierInput;
 use App\Entity\ActeFinancier;
+use App\Entity\ActeFinancierVisite;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
 use App\Repository\ActeFinancierRepository;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -15,8 +19,10 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 final class ActeFinancierService
 {
     public function __construct(
+        private readonly EntityManagerInterface $entityManager,
         private readonly ActeFinancierRepository $acteFinancierRepository,
         private readonly GrilleTarifaireImportService $grilleTarifaireImportService,
+        private readonly TarificationService $tarificationService,
         private readonly ValidatorInterface $validator,
     ) {
     }
@@ -76,6 +82,63 @@ final class ActeFinancierService
         return $acte;
     }
 
+    public function create(UpsertActeFinancierInput $input): ActeFinancier
+    {
+        $this->assertValid($input);
+        $service = trim($input->serviceGrille);
+        $libelle = trim($input->libelle);
+        $this->assertUniqueServiceLibelle($service, $libelle, null);
+
+        $acte = (new ActeFinancier())
+            ->setCode($this->buildCode($service, $libelle))
+            ->setCreatedAt(new \DateTimeImmutable())
+            ->setUnite(ActeFinancier::UNITE_FC);
+        $this->apply($acte, $input);
+
+        $this->entityManager->persist($acte);
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            throw new ConflictException('Un acte avec ce service et ce libellé existe déjà.');
+        }
+
+        return $acte;
+    }
+
+    public function update(int $id, UpsertActeFinancierInput $input): ActeFinancier
+    {
+        $this->assertValid($input);
+        $acte = $this->getById($id);
+        $service = trim($input->serviceGrille);
+        $libelle = trim($input->libelle);
+        $this->assertUniqueServiceLibelle($service, $libelle, $acte->getId());
+        $this->apply($acte, $input);
+
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            throw new ConflictException('Un acte avec ce service et ce libellé existe déjà.');
+        }
+
+        return $acte;
+    }
+
+    public function delete(int $id): void
+    {
+        $acte = $this->getById($id);
+        if (ActeFinancier::CODE_CONSULTATION === $acte->getCode()) {
+            throw new ConflictException('L\'acte consultation de référence ne peut pas être supprimé.');
+        }
+
+        $usageCount = (int) $this->entityManager->getRepository(ActeFinancierVisite::class)->count(['acte' => $acte]);
+        if ($usageCount > 0) {
+            throw new ConflictException('Cet acte est déjà utilisé sur des visites. Désactivez-le plutôt que de le supprimer.');
+        }
+
+        $this->entityManager->remove($acte);
+        $this->entityManager->flush();
+    }
+
     /**
      * @return array{imported: int, updated: int, skipped: int, total: int}
      */
@@ -120,11 +183,75 @@ final class ActeFinancierService
     /** @return array<string, mixed> */
     public function buildMeta(): array
     {
+        $known = TarificationService::serviceGrilles();
+        $existing = $this->acteFinancierRepository->listServiceGrilles();
+        $serviceGrilles = array_values(array_unique(array_merge($known, $existing)));
+        sort($serviceGrilles);
+
         return [
-            'statuts' => [ActeFinancier::STATUT_ACTIF, ActeFinancier::STATUT_INACTIF],
+            'statuts' => ActeFinancier::getStatuts(),
             'unites' => [ActeFinancier::UNITE_FC],
-            'serviceGrilles' => $this->acteFinancierRepository->listServiceGrilles(),
+            'serviceGrilles' => $serviceGrilles,
         ];
+    }
+
+    private function apply(ActeFinancier $acte, UpsertActeFinancierInput $input): void
+    {
+        $statut = strtoupper(trim($input->statut));
+        if (!in_array($statut, ActeFinancier::getStatuts(), true)) {
+            throw new ConflictException('Statut invalide.');
+        }
+
+        $sousCategorie = trim((string) $input->sousCategorie);
+
+        $acte
+            ->setServiceGrille(trim($input->serviceGrille))
+            ->setSousCategorie('' === $sousCategorie ? null : $sousCategorie)
+            ->setLibelle(trim($input->libelle))
+            ->setTarifA0($this->money($input->tarifA0, 'A0'))
+            ->setTarifA1($this->money($input->tarifA1, 'A1'))
+            ->setTarif($this->money($input->tarifA, 'A'))
+            ->setTarifB($this->money($input->tarifB, 'B'))
+            ->setTarifC($this->money($input->tarifC, 'C'))
+            ->setUnite(ActeFinancier::UNITE_FC)
+            ->setStatut($statut);
+    }
+
+    private function assertUniqueServiceLibelle(string $service, string $libelle, ?int $excludeId): void
+    {
+        $existing = $this->acteFinancierRepository->findOneBy([
+            'serviceGrille' => $service,
+            'libelle' => $libelle,
+        ]);
+        if (null !== $existing && $existing->getId() !== $excludeId) {
+            throw new ConflictException('Un acte avec ce service et ce libellé existe déjà.');
+        }
+    }
+
+    private function buildCode(string $service, string $libelle): string
+    {
+        $prefix = $this->tarificationService->prefixForService($service);
+        $hash = strtoupper(substr(sha1($service . '|' . $libelle), 0, 8));
+        $code = $prefix . '-' . $hash;
+
+        if (null === $this->acteFinancierRepository->findOneBy(['code' => $code])) {
+            return $code;
+        }
+
+        return $prefix . '-' . strtoupper(substr(sha1($service . '|' . $libelle . '|' . uniqid('', true)), 0, 8));
+    }
+
+    private function money(string $value, string $label): string
+    {
+        $normalized = str_replace([' ', ','], ['', '.'], trim($value));
+        if ('' === $normalized) {
+            return '0.00';
+        }
+        if (!is_numeric($normalized) || (float) $normalized < 0) {
+            throw new ConflictException(sprintf('Tarif %s invalide.', $label));
+        }
+
+        return number_format((float) $normalized, 2, '.', '');
     }
 
     private function assertValid(object $value): void

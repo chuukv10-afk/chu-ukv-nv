@@ -15,6 +15,9 @@ final class FacturationPermissions
     public const STRUCTURE_DELETE = 'facturation.structure.delete';
 
     public const ACTE_READ = 'facturation.acte.read';
+    public const ACTE_CREATE = 'facturation.acte.create';
+    public const ACTE_UPDATE = 'facturation.acte.update';
+    public const ACTE_DELETE = 'facturation.acte.delete';
     public const ACTE_IMPORT = 'facturation.acte.import';
     public const ACTE_EXPORT = 'facturation.acte.export';
 
@@ -47,6 +50,21 @@ final class FacturationPermissions
             [
                 'code' => self::ACTE_READ,
                 'libelle' => 'Lire la grille tarifaire',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::ACTE_CREATE,
+                'libelle' => 'Créer un acte tarifaire',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::ACTE_UPDATE,
+                'libelle' => 'Modifier un acte tarifaire',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::ACTE_DELETE,
+                'libelle' => 'Supprimer un acte tarifaire',
                 'module' => Permission::MODULE_FACTURATION,
             ],
             [

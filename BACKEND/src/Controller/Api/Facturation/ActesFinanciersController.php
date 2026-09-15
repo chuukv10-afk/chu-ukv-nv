@@ -5,6 +5,7 @@ namespace App\Controller\Api\Facturation;
 use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Facturation\FacturationListQuery;
+use App\DTO\Facturation\UpsertActeFinancierInput;
 use App\Exception\ConflictException;
 use App\Security\Permission\FacturationPermissions;
 use App\Service\Export\TableExportService;
@@ -15,6 +16,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapQueryString;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -47,6 +49,19 @@ final class ActesFinanciersController extends AbstractController
     public function meta(ActeFinancierService $acteFinancierService): JsonResponse
     {
         return $this->apiSuccess($acteFinancierService->buildMeta(), 'Métadonnées grille tarifaire récupérées.');
+    }
+
+    #[Route('', name: 'api_facturation_actes_financiers_create', methods: ['POST'])]
+    #[IsGranted(FacturationPermissions::ACTE_CREATE)]
+    public function create(
+        ActeFinancierService $acteFinancierService,
+        #[MapRequestPayload] UpsertActeFinancierInput $input,
+    ): JsonResponse {
+        return $this->apiSuccess(
+            $acteFinancierService->serializeSummary($acteFinancierService->create($input)),
+            'Acte tarifaire créé avec succès.',
+            Response::HTTP_CREATED,
+        );
     }
 
     #[Route('/export', name: 'api_facturation_actes_financiers_export', methods: ['GET'])]
@@ -93,5 +108,27 @@ final class ActesFinanciersController extends AbstractController
             $acteFinancierService->serializeSummary($acteFinancierService->getById($id)),
             'Acte tarifaire récupéré avec succès.',
         );
+    }
+
+    #[Route('/{id}', name: 'api_facturation_actes_financiers_update', methods: ['PUT'], requirements: ['id' => '\d+'])]
+    #[IsGranted(FacturationPermissions::ACTE_UPDATE)]
+    public function update(
+        ActeFinancierService $acteFinancierService,
+        int $id,
+        #[MapRequestPayload] UpsertActeFinancierInput $input,
+    ): JsonResponse {
+        return $this->apiSuccess(
+            $acteFinancierService->serializeSummary($acteFinancierService->update($id, $input)),
+            'Acte tarifaire mis à jour avec succès.',
+        );
+    }
+
+    #[Route('/{id}', name: 'api_facturation_actes_financiers_delete', methods: ['DELETE'], requirements: ['id' => '\d+'])]
+    #[IsGranted(FacturationPermissions::ACTE_DELETE)]
+    public function delete(ActeFinancierService $acteFinancierService, int $id): JsonResponse
+    {
+        $acteFinancierService->delete($id);
+
+        return $this->apiSuccess(message: 'Acte tarifaire supprimé avec succès.');
     }
 }

@@ -162,7 +162,6 @@ HTML;
     private function baseStyles(string $orientation): string
     {
         $pageSize = 'landscape' === $orientation ? 'A4 landscape' : 'A4 portrait';
-        $contentTop = 'landscape' === $orientation ? '128px' : '140px';
         $footerBottom = 'landscape' === $orientation ? '78px' : '86px';
 
         return <<<CSS
@@ -175,7 +174,7 @@ HTML;
 
 @page {
     size: {$pageSize};
-    margin: {$contentTop} 28px {$footerBottom} 28px;
+    margin: 24px 28px {$footerBottom} 28px;
 }
 
 body {
@@ -186,11 +185,10 @@ body {
 }
 
 .chu-header {
-    position: fixed;
-    top: -108px;
-    left: 0;
-    right: 0;
-    height: 108px;
+    position: relative;
+    margin: 0 0 4px 0;
+    page-break-inside: avoid;
+    page-break-after: avoid;
 }
 
 .chu-header-inner {
@@ -291,7 +289,7 @@ body {
     font-weight: bold;
     text-transform: uppercase;
     text-align: center;
-    margin: 18px 0 16px;
+    margin: 10px 0 14px;
     color: #1E5AA8;
 }
 

@@ -20,6 +20,14 @@ class ActeFinancier
     public const LIBELLE_CONSULTATION_JOUR = 'Consultation médicale Jour';
     public const LIBELLE_CONSULTATION_NUIT = 'Consultation médicale Nuit';
 
+    /**
+     * @return list<string>
+     */
+    public static function getStatuts(): array
+    {
+        return [self::STATUT_ACTIF, self::STATUT_INACTIF];
+    }
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
