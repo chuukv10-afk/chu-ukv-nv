@@ -45,6 +45,8 @@ export const ROUTES = {
     CREANCES: '/pharmacie/creances',
     RECETTES: '/pharmacie/recettes',
     AJUSTEMENTS: '/pharmacie/ajustements',
+    INVENTAIRES: '/pharmacie/inventaires',
+    INVENTAIRE_DETAIL: '/pharmacie/inventaires/:id',
     ALERTES: '/pharmacie/alertes',
     STATISTIQUES: '/pharmacie/statistiques',
   },
@@ -78,6 +80,11 @@ export const ROUTES = {
   PATIENT: {
     LIST: '/patients',
     DPI: '/patients/:patientId/dpi',
+  },
+
+  FACTURATION: {
+    STRUCTURES: '/facturation/structures',
+    ACTES: '/facturation/grille',
   },
 
   ADMIN: {

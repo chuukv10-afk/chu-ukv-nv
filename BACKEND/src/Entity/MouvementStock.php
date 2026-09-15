@@ -29,6 +29,7 @@ class MouvementStock implements BlameableInterface
     public const DOC_VENTE = 'VENTE';
     public const DOC_DEMANDE_SERVICE = 'DEMANDE_SERVICE';
     public const DOC_AJUSTEMENT = 'AJUSTEMENT';
+    public const DOC_INVENTAIRE = 'INVENTAIRE';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

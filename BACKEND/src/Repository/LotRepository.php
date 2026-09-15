@@ -53,6 +53,25 @@ class LotRepository extends ServiceEntityRepository
         return ['items' => $items, 'total' => $total];
     }
 
+    /**
+     * Lots avec reste, y compris périmés, pour une campagne d'inventaire. Exclut les lots bloqués.
+     *
+     * @return list<Lot>
+     */
+    public function findPourInventaire(): array
+    {
+        return $this->createQueryBuilder('l')
+            ->leftJoin('l.medicament', 'm')->addSelect('m')
+            ->andWhere('l.quantiteRestante > 0')
+            ->andWhere('l.statut != :bloque')
+            ->setParameter('bloque', Lot::STATUT_BLOQUE)
+            ->orderBy('m.libelle', 'ASC')
+            ->addOrderBy('l.datePeremption', 'ASC')
+            ->addOrderBy('l.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function findOneByMedicamentAndNumero(Medicament $medicament, string $numeroLot): ?Lot
     {
         return $this->findOneBy([

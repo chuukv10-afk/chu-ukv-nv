@@ -27,10 +27,12 @@ import {
   PATIENT_STATUS_COLORS,
   PATIENT_STATUS_LABELS,
 } from './patientConstants.js';
+import { CATEGORIE_TARIFAIRE_LABELS } from '../../facturation/facturationConstants.js';
 import {
   createPatientApi,
   deletePatientApi,
   fetchPatientApi,
+  fetchPatientMetaApi,
   fetchPatientsApi,
   updatePatientApi,
 } from './patientsApi.js';
@@ -93,6 +95,7 @@ export default function PatientsPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [editing, setEditing] = useState(null);
+  const [structures, setStructures] = useState([]);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(null);
@@ -131,6 +134,12 @@ export default function PatientsPage() {
 
   useEffect(() => { load(page); }, [load, page]);
 
+  useEffect(() => {
+    fetchPatientMetaApi()
+      .then((meta) => setStructures(Array.isArray(meta.structures) ? meta.structures : []))
+      .catch(() => setStructures([]));
+  }, []);
+
   const openCreate = () => {
     setFormMode('create');
     setEditing(null);
@@ -159,6 +168,9 @@ export default function PatientsPage() {
         groupeSanguin: detail.groupeSanguin ?? '',
         personneAprevenir: detail.personneAprevenir ?? '',
         contactAPrevenir: detail.contactAPrevenir ?? '',
+        categorieTarifaire: detail.categorieTarifaire ?? '',
+        structureId: detail.structure?.id ? String(detail.structure.id) : '',
+        numeroAffiliation: detail.numeroAffiliation ?? '',
         status: detail.status ?? 'ACTIF',
       });
     } catch (error) {
@@ -311,6 +323,7 @@ export default function PatientsPage() {
                     <th>Sexe</th>
                     <th>Date naiss.</th>
                     <th>Téléphone</th>
+                    <th>Catégorie</th>
                     <th>Statut</th>
                     <th>DPI</th>
                     {showActions ? <th style={{ width: 120 }}>Actions</th> : null}
@@ -319,13 +332,13 @@ export default function PatientsPage() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={showActions ? 8 : 7}>
+                      <td colSpan={showActions ? 9 : 8}>
                         <Typography level="body-sm" sx={{ py: 3, textAlign: 'center' }}>Chargement…</Typography>
                       </td>
                     </tr>
                   ) : items.length === 0 ? (
                     <tr>
-                      <td colSpan={showActions ? 8 : 7}>
+                      <td colSpan={showActions ? 9 : 8}>
                         <Typography level="body-sm" sx={{ py: 3, textAlign: 'center', color: 'neutral.500' }}>
                           Aucun patient trouvé.
                         </Typography>
@@ -344,6 +357,7 @@ export default function PatientsPage() {
                       <td>{PATIENT_SEX_LABELS[item.sexe] ?? item.sexe}</td>
                       <td>{formatDate(item.dateNaissance)}</td>
                       <td>{item.telephone ?? '—'}</td>
+                      <td>{CATEGORIE_TARIFAIRE_LABELS[item.categorieTarifaire] ?? item.categorieTarifaire ?? '—'}</td>
                       <td>
                         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                           <StatusChip status={item.status} />
@@ -404,6 +418,7 @@ export default function PatientsPage() {
         initialValues={formValues}
         loading={formLoading}
         error={formError}
+        structures={structures}
         readOnlyIdentity={formMode === 'edit' && editing?.status === 'DECEDE'}
         onClose={() => setFormOpen(false)}
         onSubmit={handleSubmit}

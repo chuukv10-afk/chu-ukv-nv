@@ -21,6 +21,8 @@ import MaladiesPage from '../features/clinique/maladies/MaladiesPage.jsx';
 import VisitesPage from '../features/clinique/visites/VisitesPage.jsx';
 import PatientsPage from '../features/patient/patients/PatientsPage.jsx';
 import PatientDpiPage from '../features/patient/patients/PatientDpiPage.jsx';
+import StructuresPage from '../features/facturation/StructuresPage.jsx';
+import ActesFinanciersPage from '../features/facturation/ActesFinanciersPage.jsx';
 import RolesPage from '../features/admin/roles/RolesPage.jsx';
 import PermissionsPage from '../features/admin/permissions/PermissionsPage.jsx';
 import RolePermissionsPage from '../features/admin/role-permissions/RolePermissionsPage.jsx';
@@ -47,6 +49,8 @@ import DemandesServicePage from '../features/pharmacie/demandes-service/Demandes
 import DemandeServiceFormPage from '../features/pharmacie/demandes-service/DemandeServiceFormPage.jsx';
 import CreancesPage from '../features/pharmacie/demandes-service/CreancesPage.jsx';
 import AjustementsPage from '../features/pharmacie/ajustements/AjustementsPage.jsx';
+import InventairesPage from '../features/pharmacie/inventaires/InventairesPage.jsx';
+import InventaireDetailPage from '../features/pharmacie/inventaires/InventaireDetailPage.jsx';
 import AlertesPage from '../features/pharmacie/alertes/AlertesPage.jsx';
 import RecettesPage from '../features/pharmacie/recettes/RecettesPage.jsx';
 import StatistiquesPage from '../features/pharmacie/statistiques/StatistiquesPage.jsx';
@@ -277,6 +281,22 @@ export default function AppRouter() {
               )}
             />
             <Route
+              path={ROUTES.FACTURATION.STRUCTURES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.FACTURATION.STRUCTURE_READ}>
+                  <StructuresPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.FACTURATION.ACTES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.FACTURATION.ACTE_READ}>
+                  <ActesFinanciersPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
               path={ROUTES.PATIENT.DPI}
               element={(
                 <PermissionGuard permission={PERMISSIONS.PATIENT.DPI_READ}>
@@ -489,6 +509,22 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.PHARMACIE.RECETTE_READ}>
                   <RecettesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.INVENTAIRE_DETAIL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.INVENTAIRE_READ}>
+                  <InventaireDetailPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.PHARMACIE.INVENTAIRES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.PHARMACIE.INVENTAIRE_READ}>
+                  <InventairesPage />
                 </PermissionGuard>
               )}
             />

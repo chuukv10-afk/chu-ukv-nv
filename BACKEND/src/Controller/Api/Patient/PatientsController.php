@@ -8,8 +8,6 @@ use App\DTO\Patient\CreatePatientInput;
 use App\DTO\Patient\PatientListQuery;
 use App\DTO\Patient\UpdateDpiInput;
 use App\DTO\Patient\UpdatePatientInput;
-use App\Entity\Dpi;
-use App\Entity\Patient;
 use App\Security\Permission\PatientPermissions;
 use App\Service\Export\TableExportService;
 use App\Service\Patient\PatientService;
@@ -51,11 +49,7 @@ final class PatientsController extends AbstractController
     public function meta(): JsonResponse
     {
         return $this->apiSuccess(
-            [
-                'statuses' => Patient::getStatuses(),
-                'sexes' => Patient::getSexes(),
-                'dpiStatuts' => Dpi::getStatuts(),
-            ],
+            $patientService->buildMeta(),
             'Métadonnées patients récupérées avec succès.',
         );
     }
@@ -82,6 +76,9 @@ final class PatientsController extends AbstractController
                 'Statut patient',
                 'Statut DPI',
                 'Groupe sanguin',
+                'Catégorie tarifaire',
+                'Structure',
+                'N° affiliation',
                 'Adresse',
                 'Personne à prévenir',
                 'Contact urgence',

@@ -8,6 +8,12 @@ import {
   PATIENT_SEXES,
   PATIENT_STATUSES,
 } from '../patientConstants.js';
+import {
+  allowedStructureTypesFor,
+  CATEGORIES_TARIFAIRES,
+  STRUCTURE_TYPE_LABELS,
+  structureRequiredFor,
+} from '../../../facturation/facturationConstants.js';
 
 const MODAL_SX = { borderRadius: 'xl', maxWidth: 560, p: 0, overflow: 'hidden', boxShadow: 'lg' };
 
@@ -20,6 +26,7 @@ export default function PatientFormModal({
   readOnlyIdentity = false,
   onClose,
   onSubmit,
+  structures = [],
 }) {
   const [form, setForm] = useState(initialValues);
   const isEdit = mode === 'edit';
@@ -31,10 +38,19 @@ export default function PatientFormModal({
     }
   }, [open, initialValues]);
 
-  const handleChange = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const handleChange = (field, value) => {
+    setForm((current) => {
+      const next = { ...current, [field]: value };
+      if (field === 'categorieTarifaire' && !structureRequiredFor(value)) {
+        next.structureId = '';
+      }
+      return next;
+    });
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    const requiresStructure = structureRequiredFor(form.categorieTarifaire);
     onSubmit({
       nom: form.nom.trim(),
       postNom: form.postNom.trim(),
@@ -47,6 +63,9 @@ export default function PatientFormModal({
       groupeSanguin: form.groupeSanguin?.trim() || null,
       personneAprevenir: form.personneAprevenir?.trim() || null,
       contactAPrevenir: form.contactAPrevenir?.trim() || null,
+      categorieTarifaire: form.categorieTarifaire,
+      structureId: requiresStructure && form.structureId ? Number(form.structureId) : null,
+      numeroAffiliation: form.numeroAffiliation?.trim() || null,
       status: form.status,
     });
   };
@@ -142,6 +161,50 @@ export default function PatientFormModal({
                 <Input value={form.contactAPrevenir} onChange={(e) => handleChange('contactAPrevenir', e.target.value)} disabled={identityDisabled} slotProps={{ input: { maxLength: 20 } }} />
               </FormControl>
             </Stack>
+            <FormControl required>
+              <FormLabel>Catégorie tarifaire</FormLabel>
+              <Select
+                value={form.categorieTarifaire || ''}
+                onChange={(_, value) => handleChange('categorieTarifaire', value ?? '')}
+                disabled={loading}
+                placeholder="Choisir…"
+              >
+                {CATEGORIES_TARIFAIRES.map((item) => (
+                  <Option key={item.value} value={item.value}>{item.label}</Option>
+                ))}
+              </Select>
+            </FormControl>
+            {structureRequiredFor(form.categorieTarifaire) ? (
+              <FormControl required>
+                <FormLabel>Structure</FormLabel>
+                <Select
+                  value={form.structureId === '' || form.structureId == null ? '' : String(form.structureId)}
+                  onChange={(_, value) => handleChange('structureId', value ?? '')}
+                  disabled={loading}
+                  placeholder="Choisir…"
+                >
+                  {structures
+                    .filter((item) => allowedStructureTypesFor(form.categorieTarifaire).includes(item.type))
+                    .map((item) => (
+                      <Option key={item.id} value={String(item.id)}>
+                        {item.libelle} ({STRUCTURE_TYPE_LABELS[item.type] ?? item.type})
+                      </Option>
+                    ))}
+                </Select>
+                <FormHelperText>Obligatoire pour A1 (mutuelle) et C (ONG, assurance, entreprise…).</FormHelperText>
+              </FormControl>
+            ) : null}
+            {form.categorieTarifaire === 'A1' || form.categorieTarifaire === 'C' ? (
+              <FormControl>
+                <FormLabel>N° d’affilié / police</FormLabel>
+                <Input
+                  value={form.numeroAffiliation ?? ''}
+                  onChange={(e) => handleChange('numeroAffiliation', e.target.value)}
+                  disabled={loading}
+                  slotProps={{ input: { maxLength: 50 } }}
+                />
+              </FormControl>
+            ) : null}
             {isEdit ? (
               <FormControl required>
                 <FormLabel>Statut</FormLabel>

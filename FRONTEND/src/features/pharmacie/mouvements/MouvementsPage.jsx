@@ -16,6 +16,7 @@ import MedicamentAutocomplete from '../shared/MedicamentAutocomplete.jsx';
 import { PERIOD_OPTIONS, resolvePeriodRange } from '../shared/period.js';
 import {
   DEFAULT_MOUVEMENT_PAGE_SIZE,
+  MOUVEMENT_DOCUMENT_LABELS,
   MOUVEMENT_PAGE_SIZE_OPTIONS,
   MOUVEMENT_TYPE_LABELS,
 } from './mouvementConstants.js';
@@ -198,7 +199,7 @@ export default function MouvementsPage() {
                   <td>{item.medicament ? `${item.medicament.code} — ${item.medicament.libelle}` : '—'}</td>
                   <td>{item.lot?.numeroLot ?? '—'}</td>
                   <td>{item.quantite}</td>
-                  <td>{item.documentType} #{item.documentId}</td>
+                  <td>{MOUVEMENT_DOCUMENT_LABELS[item.documentType] ?? item.documentType} #{item.documentId}</td>
                   <td>{item.motif || '—'}</td>
                 </tr>
               ))}

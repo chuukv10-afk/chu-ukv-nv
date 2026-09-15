@@ -2,6 +2,7 @@
 
 namespace App\DTO\Patient;
 
+use App\Entity\CategorieTarifaire;
 use App\Entity\Patient;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
@@ -44,6 +45,16 @@ final class UpdatePatientInput
 
         #[Assert\Length(max: 20)]
         public ?string $contactAPrevenir = null,
+
+        #[Assert\NotBlank(message: 'La catégorie tarifaire est obligatoire.')]
+        #[Assert\Choice(callback: [CategorieTarifaire::class, 'codes'], message: 'Catégorie tarifaire invalide.')]
+        public string $categorieTarifaire = '',
+
+        #[Assert\Positive]
+        public ?int $structureId = null,
+
+        #[Assert\Length(max: 50)]
+        public ?string $numeroAffiliation = null,
 
         #[Assert\NotBlank(message: 'Le statut est obligatoire.')]
         public string $status = Patient::STATUS_ACTIF,

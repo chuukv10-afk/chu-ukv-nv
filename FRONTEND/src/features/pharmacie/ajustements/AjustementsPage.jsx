@@ -3,7 +3,9 @@ import {
   Box, Button, Card, FormControl, FormHelperText, FormLabel, Input, Option, Select, Stack, Typography,
 } from '@mui/joy';
 import { SlidersHorizontal } from 'lucide-react';
+import { Link as RouterLink } from 'react-router-dom';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
+import { ROUTES } from '../../../constants/routes.js';
 import { useToast } from '../../../hooks/useToast.js';
 import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
@@ -91,7 +93,12 @@ export default function AjustementsPage() {
           <Box>
             <Typography level="h2" sx={{ fontWeight: 700 }}>Ajustements de stock</Typography>
             <Typography level="body-md" sx={{ color: 'neutral.500' }}>
-              Pertes, péremption ou correction d’inventaire. Un motif est obligatoire.
+              Pertes, péremption ou correction hors campagne d’inventaire. Un motif est obligatoire.
+              Pour un inventaire complet, ouvrez{' '}
+              <Typography component={RouterLink} to={ROUTES.PHARMACIE.INVENTAIRES} sx={{ color: 'primary.600', fontWeight: 600 }}>
+                Inventaire
+              </Typography>
+              .
             </Typography>
           </Box>
         </Stack>

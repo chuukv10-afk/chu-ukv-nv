@@ -33,7 +33,11 @@ final class SeedFacturationDefaultsCommand extends Command
             $acte = (new ActeFinancier())
                 ->setCode(ActeFinancier::CODE_CONSULTATION)
                 ->setLibelle('Consultation médicale')
-                ->setTarif('0.0000')
+                ->setTarif('0.00')
+                ->setTarifA0('0.00')
+                ->setTarifA1('0.00')
+                ->setTarifB('0.00')
+                ->setTarifC('0.00')
                 ->setUnite(ActeFinancier::UNITE_FC)
                 ->setStatut(ActeFinancier::STATUT_ACTIF)
                 ->setCreatedAt(new \DateTimeImmutable());

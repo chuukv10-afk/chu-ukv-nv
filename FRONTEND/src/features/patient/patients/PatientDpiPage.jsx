@@ -35,8 +35,10 @@ import {
   PATIENT_STATUS_COLORS,
   PATIENT_STATUS_LABELS,
 } from './patientConstants.js';
+import { CATEGORIE_TARIFAIRE_LABELS } from '../../facturation/facturationConstants.js';
 import {
   fetchPatientDpiApi,
+  fetchPatientMetaApi,
   updatePatientApi,
   updatePatientDpiApi,
 } from './patientsApi.js';
@@ -115,6 +117,7 @@ export default function PatientDpiPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [structures, setStructures] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,6 +134,12 @@ export default function PatientDpiPage() {
   }, [patientId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetchPatientMetaApi()
+      .then((meta) => setStructures(Array.isArray(meta.structures) ? meta.structures : []))
+      .catch(() => setStructures([]));
+  }, []);
 
   const loadVisites = useCallback(async () => {
     const dpiId = data?.dpi?.id ?? data?.patient?.dpi?.id;
@@ -323,6 +332,9 @@ export default function PatientDpiPage() {
     groupeSanguin: patient.groupeSanguin ?? '',
     personneAprevenir: patient.personneAprevenir ?? '',
     contactAPrevenir: patient.contactAPrevenir ?? '',
+    categorieTarifaire: patient.categorieTarifaire ?? '',
+    structureId: patient.structure?.id ? String(patient.structure.id) : '',
+    numeroAffiliation: patient.numeroAffiliation ?? '',
     status: patient.status ?? 'ACTIF',
   };
 
@@ -389,6 +401,9 @@ export default function PatientDpiPage() {
               <InfoRow label="Téléphone" value={patient.telephone} />
               <InfoRow label="Adresse" value={patient.adresse} />
               <InfoRow label="Groupe sanguin" value={patient.groupeSanguin} />
+              <InfoRow label="Catégorie tarifaire" value={CATEGORIE_TARIFAIRE_LABELS[patient.categorieTarifaire] ?? patient.categorieTarifaire} />
+              <InfoRow label="Structure" value={patient.structure?.libelle} />
+              <InfoRow label="N° affilié / police" value={patient.numeroAffiliation} />
               <InfoRow label="Personne à prévenir" value={patient.personneAprevenir} />
               <InfoRow label="Contact urgence" value={patient.contactAPrevenir} />
             </Card>
@@ -575,6 +590,7 @@ export default function PatientDpiPage() {
         initialValues={formValues}
         loading={formLoading}
         error={formError}
+        structures={structures}
         readOnlyIdentity={patient.status === 'DECEDE'}
         onClose={() => setFormOpen(false)}
         onSubmit={handlePatientUpdate}

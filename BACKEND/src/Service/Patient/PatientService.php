@@ -7,12 +7,15 @@ use App\DTO\Patient\CreatePatientInput;
 use App\DTO\Patient\PatientListQuery;
 use App\DTO\Patient\UpdateDpiInput;
 use App\DTO\Patient\UpdatePatientInput;
+use App\Entity\CategorieTarifaire;
 use App\Entity\Dpi;
 use App\Entity\Patient;
+use App\Entity\Structure;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
 use App\Repository\DpiRepository;
 use App\Repository\PatientRepository;
+use App\Repository\StructureRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
@@ -24,6 +27,7 @@ final class PatientService
         private readonly EntityManagerInterface $entityManager,
         private readonly PatientRepository $patientRepository,
         private readonly DpiRepository $dpiRepository,
+        private readonly StructureRepository $structureRepository,
         private readonly ValidatorInterface $validator,
     ) {
     }
@@ -89,6 +93,9 @@ final class PatientService
             $patient->getStatus(),
             $dpi?->getStatut(),
             $patient->getGroupeSanguin(),
+            $patient->getCategorieTarifaire(),
+            $patient->getStructure()?->getLibelle(),
+            $patient->getNumeroAffiliation(),
             $patient->getAdresse(),
             $patient->getPersonneAprevenir(),
             $patient->getContactAPrevenir(),
@@ -117,6 +124,12 @@ final class PatientService
             ->setPersonneAprevenir($this->normalizeOptionalText($input->personneAprevenir))
             ->setContactAPrevenir($this->normalizeOptionalText($input->contactAPrevenir))
             ->setStatus(Patient::normalizeStatus($input->status));
+        $this->applyCategorieTarifaire(
+            $patient,
+            $input->categorieTarifaire,
+            $input->structureId,
+            $input->numeroAffiliation,
+        );
 
         $dpi = (new Dpi())
             ->setNumDossier($this->generateNumDossier())
@@ -145,6 +158,12 @@ final class PatientService
             $newStatus = Patient::normalizeStatus($input->status);
             if ($newStatus !== Patient::STATUS_DECEDE) {
                 $patient->setStatus($newStatus);
+                $this->applyCategorieTarifaire(
+                    $patient,
+                    $input->categorieTarifaire,
+                    $input->structureId,
+                    $input->numeroAffiliation,
+                );
                 $this->entityManager->flush();
 
                 return $patient;
@@ -168,6 +187,12 @@ final class PatientService
             ->setPersonneAprevenir($this->normalizeOptionalText($input->personneAprevenir))
             ->setContactAPrevenir($this->normalizeOptionalText($input->contactAPrevenir))
             ->setStatus(Patient::normalizeStatus($input->status));
+        $this->applyCategorieTarifaire(
+            $patient,
+            $input->categorieTarifaire,
+            $input->structureId,
+            $input->numeroAffiliation,
+        );
 
         if (Patient::STATUS_DECEDE === Patient::normalizeStatus($input->status)) {
             $dpi = $patient->getDpi();
@@ -245,6 +270,9 @@ final class PatientService
             'dateNaissance' => $patient->getDateNaissance()?->format('Y-m-d'),
             'numDossier' => $dpi?->getNumDossier(),
             'dpiStatut' => $dpi?->getStatut(),
+            'categorieTarifaire' => $patient->getCategorieTarifaire(),
+            'numeroAffiliation' => $patient->getNumeroAffiliation(),
+            'structure' => $this->serializeStructure($patient->getStructure()),
             'visiteCount' => $dpi?->getVisites()->count() ?? 0,
             'antecedentCount' => $dpi?->getAntecedents()->count() ?? 0,
             'createdAt' => $patient->getCreatedAt()?->format(\DateTimeInterface::ATOM),
@@ -294,6 +322,78 @@ final class PatientService
             'patient' => $this->serializeDetail($patient),
             'dpi' => $this->serializeDpi($dpi),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    public function buildMeta(): array
+    {
+        return [
+            'statuses' => Patient::getStatuses(),
+            'sexes' => Patient::getSexes(),
+            'dpiStatuts' => Dpi::getStatuts(),
+            'categoriesTarifaires' => CategorieTarifaire::definitions(),
+            'structureTypes' => Structure::getTypes(),
+            'structures' => array_map(
+                [$this, 'serializeStructure'],
+                $this->structureRepository->findActifs(),
+            ),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function serializeStructure(?Structure $structure): ?array
+    {
+        if (null === $structure) {
+            return null;
+        }
+
+        return [
+            'id' => $structure->getId(),
+            'code' => $structure->getCode(),
+            'libelle' => $structure->getLibelle(),
+            'type' => $structure->getType(),
+            'statut' => $structure->getStatut(),
+        ];
+    }
+
+    private function applyCategorieTarifaire(
+        Patient $patient,
+        string $categorieTarifaire,
+        ?int $structureId,
+        ?string $numeroAffiliation,
+    ): void {
+        $categorie = CategorieTarifaire::normalize($categorieTarifaire);
+        if (!CategorieTarifaire::isValid($categorie)) {
+            throw new ConflictException('Catégorie tarifaire invalide.');
+        }
+
+        $structure = null;
+        if (null !== $structureId) {
+            $structure = $this->structureRepository->find($structureId);
+            if (null === $structure) {
+                throw new NotFoundException('Structure non trouvée.');
+            }
+            if (!$structure->isActif()) {
+                throw new ConflictException('Cette structure est inactive.');
+            }
+        }
+
+        if (CategorieTarifaire::requiresStructure($categorie)) {
+            if (null === $structure) {
+                throw new ConflictException('Une structure est obligatoire pour cette catégorie.');
+            }
+            $allowed = CategorieTarifaire::allowedStructureTypes($categorie);
+            if (!in_array((string) $structure->getType(), $allowed, true)) {
+                throw new ConflictException('Le type de structure ne correspond pas à la catégorie choisie.');
+            }
+        } elseif (null !== $structure) {
+            throw new ConflictException('Cette catégorie ne nécessite pas de structure.');
+        }
+
+        $patient
+            ->setCategorieTarifaire($categorie)
+            ->setStructure($structure)
+            ->setNumeroAffiliation($this->normalizeOptionalText($numeroAffiliation));
     }
 
     private function assertDeletable(Patient $patient): void

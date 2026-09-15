@@ -60,6 +60,10 @@ final class PharmaciePermissions
     public const DEMANDE_SERVICE_SAISIE_ANTERIEURE = 'pharmacie.demande_service.saisie_anterieure';
 
     public const AJUSTEMENT_CREATE = 'pharmacie.ajustement.create';
+    public const INVENTAIRE_READ = 'pharmacie.inventaire.read';
+    public const INVENTAIRE_CREATE = 'pharmacie.inventaire.create';
+    public const INVENTAIRE_SAISIR = 'pharmacie.inventaire.saisir';
+    public const INVENTAIRE_CLOTURER = 'pharmacie.inventaire.cloturer';
     public const RECETTE_READ = 'pharmacie.recette.read';
     public const STATISTIQUE_READ = 'pharmacie.statistique.read';
     public const MOUVEMENT_EXPORT = 'pharmacie.mouvement.export';
@@ -163,6 +167,26 @@ final class PharmaciePermissions
                 [
                     'code' => self::AJUSTEMENT_CREATE,
                     'libelle' => 'Créer un ajustement de stock',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::INVENTAIRE_READ,
+                    'libelle' => 'Consulter les campagnes d\'inventaire pharmacie',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::INVENTAIRE_CREATE,
+                    'libelle' => 'Ouvrir ou supprimer une campagne d\'inventaire pharmacie',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::INVENTAIRE_SAISIR,
+                    'libelle' => 'Saisir les quantités et marquer un produit comme compté',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::INVENTAIRE_CLOTURER,
+                    'libelle' => 'Clôturer une campagne d\'inventaire pharmacie',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
                 [

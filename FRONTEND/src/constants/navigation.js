@@ -180,6 +180,12 @@ export const NAV_SECTIONS = [
         icon: 'wallet',
       },
       {
+        label: 'Inventaire',
+        to: ROUTES.PHARMACIE.INVENTAIRES,
+        permission: PERMISSIONS.PHARMACIE.INVENTAIRE_READ,
+        icon: 'clipboardCheck',
+      },
+      {
         label: 'Ajustements',
         to: ROUTES.PHARMACIE.AJUSTEMENTS,
         permission: PERMISSIONS.PHARMACIE.AJUSTEMENT_CREATE,
@@ -300,6 +306,25 @@ export const NAV_SECTIONS = [
         permission: PERMISSIONS.PATIENT.PATIENT_READ,
         module: 'PATIENT',
         icon: 'users',
+      },
+    ],
+  },
+  {
+    id: 'facturation',
+    title: 'Facturation',
+    module: 'FACTURATION',
+    items: [
+      {
+        label: 'Structures',
+        to: ROUTES.FACTURATION.STRUCTURES,
+        permission: PERMISSIONS.FACTURATION.STRUCTURE_READ,
+        icon: 'handshake',
+      },
+      {
+        label: 'Grille tarifaire',
+        to: ROUTES.FACTURATION.ACTES,
+        permission: PERMISSIONS.FACTURATION.ACTE_READ,
+        icon: 'wallet',
       },
     ],
   },

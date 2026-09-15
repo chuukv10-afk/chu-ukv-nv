@@ -10,5 +10,13 @@ export const MOUVEMENT_TYPE_LABELS = {
   AJUSTEMENT_MOINS: 'Ajustement −',
 };
 
+export const MOUVEMENT_DOCUMENT_LABELS = {
+  RECEPTION: 'Réception',
+  VENTE: 'Vente',
+  DEMANDE_SERVICE: 'Demande service',
+  AJUSTEMENT: 'Ajustement',
+  INVENTAIRE: 'Inventaire',
+};
+
 export const DEFAULT_MOUVEMENT_PAGE_SIZE = 15;
 export const MOUVEMENT_PAGE_SIZE_OPTIONS = [15, 25, 50];

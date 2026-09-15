@@ -8,6 +8,7 @@ use App\Entity\Role;
 use App\Repository\PermissionRepository;
 use App\Security\Permission\AdminPermissions;
 use App\Security\Permission\CliniquePermissions;
+use App\Security\Permission\FacturationPermissions;
 use App\Security\Permission\OrganisationPermissions;
 use App\Security\Permission\PatientPermissions;
 use App\Security\Permission\IntendancePermissions;
@@ -39,6 +40,7 @@ final class PermissionProvisioner
             ReferentielPermissions::allDefinitions(),
             CliniquePermissions::allDefinitions(),
             PatientPermissions::allDefinitions(),
+            FacturationPermissions::allDefinitions(),
             PharmaciePermissions::allDefinitions(),
             IntendancePermissions::allDefinitions(),
             AdminPermissions::allDefinitions(),

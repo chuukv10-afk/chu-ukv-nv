@@ -59,6 +59,19 @@ class Visite
     #[ORM\OneToMany(targetEntity: ActeFinancierVisite::class, mappedBy: 'visite')]
     private Collection $acteFinancierVisites;
 
+    #[ORM\Column(length: 3, nullable: true)]
+    private ?string $categorieTarifaire = null;
+
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $numeroAffiliation = null;
+
+    #[ORM\Column(length: 150, nullable: true)]
+    private ?string $structureLibelle = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Structure $structure = null;
+
     #[ORM\OneToOne(mappedBy: 'visite', cascade: ['persist', 'remove'])]
     private ?Triage $triage = null;
 
@@ -330,6 +343,54 @@ class Visite
                 $acteFinancierVisite->setVisite(null);
             }
         }
+
+        return $this;
+    }
+
+    public function getCategorieTarifaire(): ?string
+    {
+        return $this->categorieTarifaire;
+    }
+
+    public function setCategorieTarifaire(?string $categorieTarifaire): static
+    {
+        $this->categorieTarifaire = $categorieTarifaire;
+
+        return $this;
+    }
+
+    public function getNumeroAffiliation(): ?string
+    {
+        return $this->numeroAffiliation;
+    }
+
+    public function setNumeroAffiliation(?string $numeroAffiliation): static
+    {
+        $this->numeroAffiliation = $numeroAffiliation;
+
+        return $this;
+    }
+
+    public function getStructureLibelle(): ?string
+    {
+        return $this->structureLibelle;
+    }
+
+    public function setStructureLibelle(?string $structureLibelle): static
+    {
+        $this->structureLibelle = $structureLibelle;
+
+        return $this;
+    }
+
+    public function getStructure(): ?Structure
+    {
+        return $this->structure;
+    }
+
+    public function setStructure(?Structure $structure): static
+    {
+        $this->structure = $structure;
 
         return $this;
     }

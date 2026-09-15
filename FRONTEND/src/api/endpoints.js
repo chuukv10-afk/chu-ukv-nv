@@ -29,6 +29,7 @@ export const pharmacie = {
   servicesActifs: '/api/v1/pharmacie/services-actifs',
   demandesService: '/api/v1/pharmacie/demandes-service',
   ajustements: '/api/v1/pharmacie/ajustements',
+  inventaires: '/api/v1/pharmacie/inventaires',
   recettes: '/api/v1/pharmacie/recettes',
   statistiques: '/api/v1/pharmacie/statistiques',
 };
@@ -63,6 +64,11 @@ export const clinique = {
 
 export const patient = {
   list: '/api/v1/patients',
+};
+
+export const facturation = {
+  structures: '/api/v1/facturation/structures',
+  actes: '/api/v1/facturation/actes-financiers',
 };
 
 export const dashboard = {

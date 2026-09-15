@@ -59,5 +59,8 @@ export const EMPTY_PATIENT_FORM = {
   groupeSanguin: '',
   personneAprevenir: '',
   contactAPrevenir: '',
+  categorieTarifaire: '',
+  structureId: '',
+  numeroAffiliation: '',
   status: 'ACTIF',
 };

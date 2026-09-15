@@ -7,7 +7,6 @@ use App\DTO\Clinique\TriageSigneVitalInput;
 use App\DTO\Clinique\UpdateVisiteInput;
 use App\DTO\Clinique\VisiteListQuery;
 use App\DTO\Common\PaginatedResult;
-use App\Entity\ActeFinancier;
 use App\Entity\ActeFinancierVisite;
 use App\Entity\Consultation;
 use App\Entity\Dpi;
@@ -20,7 +19,6 @@ use App\Entity\TriageMesure;
 use App\Entity\Visite;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
-use App\Repository\ActeFinancierRepository;
 use App\Repository\ConsultationRepository;
 use App\Repository\DpiRepository;
 use App\Repository\LitRepository;
@@ -31,6 +29,7 @@ use App\Security\Permission\CliniquePermissions;
 use App\Security\Permission\ReferentielPermissions;
 use App\Security\PermissionChecker;
 use App\Security\PersonnelAccessScope;
+use App\Service\Facturation\TarificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -46,9 +45,9 @@ final class VisiteService
         private readonly ServiceRepository $serviceRepository,
         private readonly LitRepository $litRepository,
         private readonly SigneVitalRepository $signeVitalRepository,
-        private readonly ActeFinancierRepository $acteFinancierRepository,
         private readonly ConsultationRepository $consultationRepository,
         private readonly ConsultationService $consultationService,
+        private readonly TarificationService $tarificationService,
         private readonly ValidatorInterface $validator,
         private readonly PermissionChecker $permissionChecker,
         private readonly Security $security,
@@ -193,6 +192,7 @@ final class VisiteService
         }
 
         $visite->setTriage($triage);
+        $this->tarificationService->snapshotPatientOntoVisite($visite, $dpi->getPatient());
         $this->entityManager->persist($visite);
 
         if (Triage::TYPE_CONSULTATION === $typeEntree) {
@@ -299,6 +299,8 @@ final class VisiteService
             'numDossier' => $dpi?->getNumDossier(),
             'patientId' => null !== $patient?->getId() ? (string) $patient->getId() : null,
             'patientName' => $patient?->getFullName(),
+            'categorieTarifaire' => $visite->getCategorieTarifaire(),
+            'structureLibelle' => $visite->getStructureLibelle(),
             'serviceId' => $service?->getId(),
             'service' => null !== $service ? [
                 'id' => $service->getId(),
@@ -841,16 +843,12 @@ final class VisiteService
 
     private function persistConsultationActe(Visite $visite): void
     {
-        $acte = $this->acteFinancierRepository->findOneBy([
-            'code' => ActeFinancier::CODE_CONSULTATION,
-            'statut' => ActeFinancier::STATUT_ACTIF,
-        ]);
-
+        $acte = $this->tarificationService->resolveConsultationActe($visite);
         if (null === $acte) {
-            throw new ConflictException('L\'acte financier CONSULTATION est introuvable. Exécutez app:facturation:seed-defaults.');
+            return;
         }
 
-        $tarif = (string) $acte->getTarif();
+        $tarif = $acte->tarifPour($visite->getCategorieTarifaire());
         $acteVisite = (new ActeFinancierVisite())
             ->setVisite($visite)
             ->setActe($acte)
