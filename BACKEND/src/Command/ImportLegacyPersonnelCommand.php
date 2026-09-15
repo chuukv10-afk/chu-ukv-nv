@@ -43,6 +43,8 @@ final class ImportLegacyPersonnelCommand extends Command
 
         if (!is_readable($file)) {
             $io->error(sprintf('Fichier introuvable : %s', $file));
+            $io->writeln('Copiez le JSON sur le serveur, puis :');
+            $io->writeln('  php bin/console app:personnel:import-legacy-sigai --file=/var/www/chu-ukv-nv/BACKEND/imports/sigai_agents_mapped.json');
 
             return Command::FAILURE;
         }
@@ -92,6 +94,19 @@ final class ImportLegacyPersonnelCommand extends Command
 
     private function defaultJsonPath(): string
     {
-        return dirname($this->projectDir, 2) . DIRECTORY_SEPARATOR . 'docs' . DIRECTORY_SEPARATOR . 'imports' . DIRECTORY_SEPARATOR . 'sigai_agents_mapped.json';
+        $filename = 'sigai_agents_mapped.json';
+        $candidates = [
+            $this->projectDir . DIRECTORY_SEPARATOR . 'imports' . DIRECTORY_SEPARATOR . $filename,
+            dirname($this->projectDir) . DIRECTORY_SEPARATOR . 'docs' . DIRECTORY_SEPARATOR . 'imports' . DIRECTORY_SEPARATOR . $filename,
+            dirname($this->projectDir, 2) . DIRECTORY_SEPARATOR . 'docs' . DIRECTORY_SEPARATOR . 'imports' . DIRECTORY_SEPARATOR . $filename,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $candidates[0];
     }
 }
