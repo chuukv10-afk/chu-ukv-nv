@@ -17,6 +17,7 @@ use App\Exception\NotFoundException;
 use App\Repository\InventairePharmacieRepository;
 use App\Repository\LotRepository;
 use App\Util\CalendarDate;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
@@ -141,7 +142,7 @@ final class InventairePharmacieService
         }
 
         $inventaire->recomputeProgress();
-        $this->entityManager->flush();
+        $this->flushLotUniqueness();
 
         return $this->getById($inventaireId);
     }
@@ -168,7 +169,7 @@ final class InventairePharmacieService
         $inventaire = $this->requireEnCours($inventaireId);
         $lignesProduit = $this->requireLignesProduit($inventaire, $medicamentId);
         $this->appliquerCorrections($lignesProduit, $input->prixVente, $this->normalizeLignes($input->lignes));
-        $this->entityManager->flush();
+        $this->flushLotUniqueness();
 
         return $this->getById($inventaireId);
     }
@@ -503,7 +504,9 @@ final class InventairePharmacieService
         }
 
         foreach ($saisies as $saisie) {
-            if (null === $saisie->datePeremption || '' === $saisie->datePeremption) {
+            $hasNumero = null !== $saisie->numeroLot && '' !== $saisie->numeroLot;
+            $hasDate = null !== $saisie->datePeremption && '' !== $saisie->datePeremption;
+            if (!$hasNumero && !$hasDate) {
                 continue;
             }
             $ligne = $parId[$saisie->ligneId] ?? null;
@@ -514,10 +517,42 @@ final class InventairePharmacieService
             if (null === $lot) {
                 throw new ConflictException(sprintf('Le lot %s n\'existe plus.', $ligne->getNumeroLot()));
             }
-            $date = $this->stockService->parseDate($saisie->datePeremption, 'Date de péremption');
-            $lot->setDatePeremption($date);
-            $ligne->setDatePeremption($date);
-            $this->stockService->refreshStatut($lot);
+            if ($hasNumero) {
+                $this->appliquerNumeroLot($lot, $ligne, $saisie->numeroLot);
+            }
+            if ($hasDate) {
+                $date = $this->stockService->parseDate($saisie->datePeremption, 'Date de péremption');
+                $lot->setDatePeremption($date);
+                $ligne->setDatePeremption($date);
+                $this->stockService->refreshStatut($lot);
+            }
+        }
+    }
+
+    private function appliquerNumeroLot(\App\Entity\Lot $lot, InventairePharmacieLigne $ligne, string $numeroLot): void
+    {
+        $numero = strtoupper(trim($numeroLot));
+        if ('' === $numero) {
+            throw new ConflictException('Le numéro de lot est obligatoire.');
+        }
+        $medicament = $lot->getMedicament();
+        if (null === $medicament) {
+            throw new ConflictException('Lot sans médicament.');
+        }
+        $existing = $this->lotRepository->findOneByMedicamentAndNumero($medicament, $numero);
+        if (null !== $existing && $existing->getId() !== $lot->getId()) {
+            throw new ConflictException('Ce numéro de lot existe déjà pour ce médicament.');
+        }
+        $lot->setNumeroLot($numero);
+        $ligne->setNumeroLot($numero);
+    }
+
+    private function flushLotUniqueness(): void
+    {
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            throw new ConflictException('Ce numéro de lot existe déjà pour ce médicament.');
         }
     }
 
@@ -535,10 +570,12 @@ final class InventairePharmacieService
             }
             $quantite = $ligne['quantiteComptee'] ?? null;
             $datePeremption = $ligne['datePeremption'] ?? null;
+            $numeroLot = $ligne['numeroLot'] ?? null;
             $normalized[] = new CompterInventaireLigneSaisieInput(
                 (int) ($ligne['ligneId'] ?? 0),
                 null === $quantite || '' === $quantite ? null : (int) $quantite,
                 null === $datePeremption || '' === $datePeremption ? null : (string) $datePeremption,
+                null === $numeroLot || '' === $numeroLot ? null : (string) $numeroLot,
             );
         }
 

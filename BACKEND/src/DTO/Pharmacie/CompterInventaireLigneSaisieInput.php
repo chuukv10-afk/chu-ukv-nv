@@ -14,10 +14,17 @@ final class CompterInventaireLigneSaisieInput
         public ?int $quantiteComptee = null,
 
         public ?string $datePeremption = null,
+
+        #[Assert\Length(max: 40)]
+        public ?string $numeroLot = null,
     ) {
         if (null !== $this->datePeremption) {
             $normalized = UpsertVenteInput::toDateOnly($this->datePeremption);
             $this->datePeremption = (null === $normalized || '' === $normalized) ? null : $normalized;
+        }
+        if (null !== $this->numeroLot) {
+            $numero = strtoupper(trim($this->numeroLot));
+            $this->numeroLot = '' === $numero ? null : $numero;
         }
     }
 }

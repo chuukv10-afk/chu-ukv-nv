@@ -41,6 +41,10 @@ function isoDate(value) {
   return value ? String(value).slice(0, 10) : '';
 }
 
+function normalizeLotNumero(value) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
 function prixDisplay(value) {
   if (value === null || value === undefined || value === '') return '';
   const amount = Number(value);
@@ -65,6 +69,7 @@ export default function InventaireDetailPage() {
   const [drafts, setDrafts] = useState({});
   const [prixDrafts, setPrixDrafts] = useState({});
   const [dateDrafts, setDateDrafts] = useState({});
+  const [lotDrafts, setLotDrafts] = useState({});
   const [savingKey, setSavingKey] = useState('');
   const [exportLoading, setExportLoading] = useState(null);
   const [pendingProduit, setPendingProduit] = useState(null);
@@ -124,8 +129,12 @@ export default function InventaireDetailPage() {
       .map((ligne) => {
         const payload = { ligneId: ligne.id };
         const dateValue = dateDrafts[ligne.id];
+        const lotValue = lotDrafts[ligne.id];
         if (dateValue && isoDate(dateValue) !== isoDate(ligne.datePeremption)) {
           payload.datePeremption = isoDate(dateValue);
+        }
+        if (lotValue !== undefined && normalizeLotNumero(lotValue) !== normalizeLotNumero(ligne.numeroLot)) {
+          payload.numeroLot = normalizeLotNumero(lotValue);
         }
         if (includeQty) {
           const qty = parseQty(drafts[ligne.id]);
@@ -133,7 +142,7 @@ export default function InventaireDetailPage() {
         }
         return payload;
       })
-      .filter((ligne) => includeQty || Boolean(ligne.datePeremption))
+      .filter((ligne) => includeQty || Boolean(ligne.datePeremption) || Boolean(ligne.numeroLot))
   );
 
   const applyInventaire = (data, medicamentId) => {
@@ -192,24 +201,43 @@ export default function InventaireDetailPage() {
     }
   };
 
-  const handleCorrigerDate = async (produit, ligne) => {
+  const handleCorrigerLigne = async (produit, ligne) => {
     if (!canEdit || !inventaire) return;
     const medicamentId = produit.medicament?.id;
-    const draft = dateDrafts[ligne.id];
-    if (!medicamentId || draft === undefined || isoDate(draft) === isoDate(ligne.datePeremption)) return;
-    setSavingKey(`date-${ligne.id}`);
+    if (!medicamentId) return;
+    const payload = { ligneId: ligne.id };
+    const lotValue = lotDrafts[ligne.id];
+    const dateValue = dateDrafts[ligne.id];
+    if (lotValue !== undefined && normalizeLotNumero(lotValue) !== normalizeLotNumero(ligne.numeroLot)) {
+      const numeroLot = normalizeLotNumero(lotValue);
+      if (!numeroLot) {
+        showError('Le numéro de lot est obligatoire.');
+        return;
+      }
+      payload.numeroLot = numeroLot;
+    }
+    if (dateValue !== undefined && isoDate(dateValue) !== isoDate(ligne.datePeremption)) {
+      payload.datePeremption = isoDate(dateValue);
+    }
+    if (!payload.numeroLot && !payload.datePeremption) return;
+    setSavingKey(`ligne-${ligne.id}`);
     try {
       const data = await corrigerProduitInventaireApi(inventaire.id, medicamentId, {
-        lignes: [{ ligneId: ligne.id, datePeremption: isoDate(draft) }],
+        lignes: [payload],
       });
       applyInventaire(data, medicamentId);
+      setLotDrafts((prev) => {
+        const next = { ...prev };
+        delete next[ligne.id];
+        return next;
+      });
       setDateDrafts((prev) => {
         const next = { ...prev };
         delete next[ligne.id];
         return next;
       });
     } catch (err) {
-      showError(err.message || 'Date de péremption non enregistrée.');
+      showError(err.message || 'Lot non enregistré.');
     } finally {
       setSavingKey('');
     }
@@ -322,8 +350,8 @@ export default function InventaireDetailPage() {
               <LinearProgress determinate value={progress} color={progress === 100 ? 'success' : 'primary'} />
               {enCours ? (
                 <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                  Saisissez la quantité, le prix de vente ou la péremption, puis marquez le produit comme compté.
-                  Prix et dates sont enregistrés dès que vous quittez le champ.
+                  Saisissez la quantité, le n° de lot, le prix de vente ou la péremption, puis marquez le produit comme compté.
+                  Prix, n° de lot et dates sont enregistrés dès que vous quittez le champ.
                 </Typography>
               ) : null}
             </Stack>
@@ -415,15 +443,35 @@ export default function InventaireDetailPage() {
                                 ? ligne.ecart
                                 : (cible - ligne.quantiteSysteme);
                               const dateValue = dateDrafts[ligne.id] ?? isoDate(ligne.datePeremption);
+                              const lotValue = lotDrafts[ligne.id] ?? (ligne.numeroLot ?? '');
                               return (
                                 <tr key={ligne.id}>
                                   <td>
-                                    <Typography level="body-sm" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                      {ligne.numeroLot}
-                                    </Typography>
-                                    {ligne.statutLot === 'PERIME' ? (
-                                      <Chip size="sm" variant="soft" color="danger">Périmé</Chip>
-                                    ) : null}
+                                    {canEdit ? (
+                                      <Stack spacing={0.5}>
+                                        <Input
+                                          size="sm"
+                                          value={lotValue}
+                                          disabled={savingKey === `ligne-${ligne.id}`}
+                                          onChange={(event) => setLotDrafts((prev) => ({ ...prev, [ligne.id]: event.target.value }))}
+                                          onBlur={() => handleCorrigerLigne(produit, ligne)}
+                                          slotProps={{ input: { maxLength: 40, style: { textTransform: 'uppercase', fontFamily: 'monospace' } } }}
+                                          sx={{ maxWidth: 160 }}
+                                        />
+                                        {ligne.statutLot === 'PERIME' ? (
+                                          <Chip size="sm" variant="soft" color="danger">Périmé</Chip>
+                                        ) : null}
+                                      </Stack>
+                                    ) : (
+                                      <Stack spacing={0.25}>
+                                        <Typography level="body-sm" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                          {ligne.numeroLot}
+                                        </Typography>
+                                        {ligne.statutLot === 'PERIME' ? (
+                                          <Chip size="sm" variant="soft" color="danger">Périmé</Chip>
+                                        ) : null}
+                                      </Stack>
+                                    )}
                                   </td>
                                   <td>
                                     {canEdit ? (
@@ -431,9 +479,9 @@ export default function InventaireDetailPage() {
                                         type="date"
                                         size="sm"
                                         value={dateValue}
-                                        disabled={savingKey === `date-${ligne.id}`}
+                                        disabled={savingKey === `ligne-${ligne.id}`}
                                         onChange={(event) => setDateDrafts((prev) => ({ ...prev, [ligne.id]: event.target.value }))}
-                                        onBlur={() => handleCorrigerDate(produit, ligne)}
+                                        onBlur={() => handleCorrigerLigne(produit, ligne)}
                                         sx={{ maxWidth: 170 }}
                                       />
                                     ) : formatDate(ligne.datePeremption)}

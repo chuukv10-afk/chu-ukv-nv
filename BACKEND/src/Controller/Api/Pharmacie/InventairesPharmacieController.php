@@ -90,7 +90,7 @@ final class InventairesPharmacieController extends AbstractController
     ): JsonResponse {
         return $this->apiSuccess(
             $inventaireService->serializeDetail($inventaireService->corrigerProduit($id, $medicamentId, $input)),
-            'Prix de vente et péremption mis à jour.',
+            'Lot mis à jour.',
         );
     }
 
