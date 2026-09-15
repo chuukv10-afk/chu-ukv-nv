@@ -2,19 +2,23 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Accordion, AccordionDetails, AccordionGroup, AccordionSummary,
-  Box, Button, Card, Chip, IconButton, Input, LinearProgress, Option, Select,
-  Stack, Table, Typography,
+  Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Input, LinearProgress,
+  Option, Select, Stack, Table, Typography,
 } from '@mui/joy';
 import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Search } from 'lucide-react';
+import AppPagination from '../../../components/ui/AppPagination.jsx';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
+import ExportButtons from '../../../components/export/ExportButtons.jsx';
 import OfflineHint from '../../../offline/OfflineHint.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
-import { formatDate, formatDateTime } from '../shared/format.js';
+import { formatDate, formatDateTime, formatPrix } from '../shared/format.js';
 import {
+  DEFAULT_INVENTAIRE_DETAIL_PAGE_SIZE,
+  INVENTAIRE_DETAIL_PAGE_SIZE_OPTIONS,
   INVENTAIRE_STATUT_COLORS,
   INVENTAIRE_STATUT_LABELS,
   formatPersonnelName,
@@ -22,6 +26,8 @@ import {
 import {
   cloturerInventaireApi,
   compterProduitInventaireApi,
+  corrigerProduitInventaireApi,
+  exportInventaireApi,
   fetchInventaireApi,
 } from './inventairesApi.js';
 
@@ -29,6 +35,16 @@ function parseQty(raw) {
   if (raw === undefined || raw === null || String(raw).trim() === '') return null;
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;
+}
+
+function isoDate(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function prixDisplay(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const amount = Number(value);
+  return Number.isNaN(amount) ? String(value) : String(amount);
 }
 
 export default function InventaireDetailPage() {
@@ -44,8 +60,13 @@ export default function InventaireDetailPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [filtre, setFiltre] = useState('a_compter');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_INVENTAIRE_DETAIL_PAGE_SIZE);
   const [drafts, setDrafts] = useState({});
+  const [prixDrafts, setPrixDrafts] = useState({});
+  const [dateDrafts, setDateDrafts] = useState({});
   const [savingKey, setSavingKey] = useState('');
+  const [exportLoading, setExportLoading] = useState(null);
   const [pendingProduit, setPendingProduit] = useState(null);
   const [pendingCloture, setPendingCloture] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -66,6 +87,7 @@ export default function InventaireDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   const enCours = inventaire?.statut === 'EN_COURS';
+  const canEdit = enCours && canSaisir;
   const produits = inventaire?.produits ?? [];
   const progress = inventaire && inventaire.produitsCount > 0
     ? Math.round((inventaire.produitsComptes / inventaire.produitsCount) * 100)
@@ -84,16 +106,46 @@ export default function InventaireDetailPage() {
     });
   }, [produits, search, filtre]);
 
-  const buildLignesPayload = (produit) => (
+  useEffect(() => { setPage(1); }, [search, filtre, limit]);
+
+  const totalPages = filtered.length > 0 ? Math.ceil(filtered.length / limit) : 0;
+
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const pageItems = filtered.slice((page - 1) * limit, page * limit);
+
+  const buildLignesPayload = (produit, { includeQty = false } = {}) => (
     (produit.lignes ?? [])
-      .filter((ligne) => !ligne.compte)
+      .filter((ligne) => (includeQty ? !ligne.compte : true))
       .map((ligne) => {
         const payload = { ligneId: ligne.id };
-        const qty = parseQty(drafts[ligne.id]);
-        if (qty !== null) payload.quantiteComptee = qty;
+        const dateValue = dateDrafts[ligne.id];
+        if (dateValue && isoDate(dateValue) !== isoDate(ligne.datePeremption)) {
+          payload.datePeremption = isoDate(dateValue);
+        }
+        if (includeQty) {
+          const qty = parseQty(drafts[ligne.id]);
+          if (qty !== null) payload.quantiteComptee = qty;
+        }
         return payload;
       })
+      .filter((ligne) => includeQty || Boolean(ligne.datePeremption))
   );
+
+  const applyInventaire = (data, medicamentId) => {
+    setInventaire(data);
+    if (medicamentId) {
+      setPrixDrafts((prev) => {
+        const next = { ...prev };
+        delete next[medicamentId];
+        return next;
+      });
+    }
+  };
 
   const handleConfirmProduit = async () => {
     if (!pendingProduit || !inventaire) return;
@@ -102,10 +154,15 @@ export default function InventaireDetailPage() {
     setConfirmLoading(true);
     setSavingKey(`p-${medicamentId}`);
     try {
-      const data = await compterProduitInventaireApi(inventaire.id, medicamentId, {
-        lignes: buildLignesPayload(pendingProduit),
-      });
-      setInventaire(data);
+      const prixValue = prixDrafts[medicamentId];
+      const payload = {
+        lignes: buildLignesPayload(pendingProduit, { includeQty: true }),
+      };
+      if (prixValue !== undefined && prixDisplay(prixValue) !== prixDisplay(pendingProduit.medicament?.prixVente)) {
+        payload.prixVente = String(prixValue).trim();
+      }
+      const data = await compterProduitInventaireApi(inventaire.id, medicamentId, payload);
+      applyInventaire(data, medicamentId);
       setPendingProduit(null);
       showSuccess(`${pendingProduit.medicament?.libelle ?? 'Produit'} marqué comme compté.`);
     } catch (err) {
@@ -113,6 +170,61 @@ export default function InventaireDetailPage() {
     } finally {
       setConfirmLoading(false);
       setSavingKey('');
+    }
+  };
+
+  const handleCorrigerPrix = async (produit) => {
+    if (!canEdit || !inventaire) return;
+    const medicamentId = produit.medicament?.id;
+    if (!medicamentId) return;
+    const draft = prixDrafts[medicamentId];
+    if (draft === undefined || prixDisplay(draft) === prixDisplay(produit.medicament?.prixVente)) return;
+    setSavingKey(`prix-${medicamentId}`);
+    try {
+      const data = await corrigerProduitInventaireApi(inventaire.id, medicamentId, {
+        prixVente: String(draft).trim(),
+      });
+      applyInventaire(data, medicamentId);
+    } catch (err) {
+      showError(err.message || 'Prix de vente non enregistré.');
+    } finally {
+      setSavingKey('');
+    }
+  };
+
+  const handleCorrigerDate = async (produit, ligne) => {
+    if (!canEdit || !inventaire) return;
+    const medicamentId = produit.medicament?.id;
+    const draft = dateDrafts[ligne.id];
+    if (!medicamentId || draft === undefined || isoDate(draft) === isoDate(ligne.datePeremption)) return;
+    setSavingKey(`date-${ligne.id}`);
+    try {
+      const data = await corrigerProduitInventaireApi(inventaire.id, medicamentId, {
+        lignes: [{ ligneId: ligne.id, datePeremption: isoDate(draft) }],
+      });
+      applyInventaire(data, medicamentId);
+      setDateDrafts((prev) => {
+        const next = { ...prev };
+        delete next[ligne.id];
+        return next;
+      });
+    } catch (err) {
+      showError(err.message || 'Date de péremption non enregistrée.');
+    } finally {
+      setSavingKey('');
+    }
+  };
+
+  const handleExport = async (format) => {
+    if (!inventaire) return;
+    setExportLoading(format);
+    try {
+      await exportInventaireApi(inventaire.id, format);
+      showSuccess(format === 'pdf' ? 'Fiche PDF ouverte dans le navigateur.' : 'Fiche Excel téléchargée.');
+    } catch (err) {
+      showError(err.message || 'Export impossible.');
+    } finally {
+      setExportLoading(null);
     }
   };
 
@@ -165,16 +277,21 @@ export default function InventaireDetailPage() {
               </Typography>
             </Box>
           </Stack>
-          {enCours && canCloturer ? (
-            <Button
-              color="success"
-              startDecorator={<Check size={16} />}
-              onClick={() => setPendingCloture(true)}
-              disabled={(inventaire?.produitsComptes ?? 0) < (inventaire?.produitsCount ?? 0)}
-            >
-              Clôturer
-            </Button>
-          ) : null}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+            {inventaire ? (
+              <ExportButtons onExport={handleExport} loading={exportLoading} size="sm" />
+            ) : null}
+            {enCours && canCloturer ? (
+              <Button
+                color="success"
+                startDecorator={<Check size={16} />}
+                onClick={() => setPendingCloture(true)}
+                disabled={(inventaire?.produitsComptes ?? 0) < (inventaire?.produitsCount ?? 0)}
+              >
+                Clôturer
+              </Button>
+            ) : null}
+          </Stack>
         </Stack>
 
         {enCours ? (
@@ -205,9 +322,8 @@ export default function InventaireDetailPage() {
               <LinearProgress determinate value={progress} color={progress === 100 ? 'success' : 'primary'} />
               {enCours ? (
                 <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                  Saisissez la quantité physique si elle diffère, puis marquez le produit comme compté.
-                  Sans saisie, le stock actuel est accepté. Un écart écrit un ajustement tout de suite.
-                  Un lot trouvé hors SI s’enregistre en réception.
+                  Saisissez la quantité, le prix de vente ou la péremption, puis marquez le produit comme compté.
+                  Prix et dates sont enregistrés dès que vous quittez le champ.
                 </Typography>
               ) : null}
             </Stack>
@@ -238,116 +354,153 @@ export default function InventaireDetailPage() {
             {produits.length === 0 ? 'Aucun lot dans cette campagne.' : 'Aucun produit pour ce filtre.'}
           </Typography>
         ) : (
-          <AccordionGroup sx={{ gap: 1, '& .MuiAccordion-root': { borderRadius: 'lg', border: '1px solid', borderColor: 'neutral.outlinedBorder' } }}>
-            {filtered.map((produit) => {
-              const med = produit.medicament ?? {};
-              const medicamentId = med.id;
-              return (
-                <Accordion key={medicamentId} defaultExpanded={!produit.compte && filtre === 'a_compter' && filtered.length <= 8}>
-                  <AccordionSummary indicator={<ChevronDown size={18} />}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} justifyContent="space-between" sx={{ width: '100%', pr: 1 }}>
-                      <Box>
-                        <Typography level="title-sm" sx={{ fontWeight: 700 }}>{med.libelle}</Typography>
-                        <Typography level="body-xs" sx={{ color: 'neutral.500', fontFamily: 'monospace' }}>
-                          {med.code}{med.dosage ? ` · ${med.dosage}` : ''}{med.forme ? ` · ${med.forme}` : ''}
-                        </Typography>
-                      </Box>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                          {produit.lignesComptees}/{produit.lignesCount} lots · SI {produit.quantiteSysteme} · actuel {produit.quantiteActuelle}
-                        </Typography>
-                        <Chip size="sm" variant="soft" color={produit.compte ? 'success' : 'warning'}>
-                          {produit.compte ? 'Compté' : 'À compter'}
-                        </Chip>
-                      </Stack>
-                    </Stack>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Stack spacing={1.5}>
-                      <Table sx={{ minWidth: 720 }}>
-                        <thead>
-                          <tr>
-                            <th>Lot</th>
-                            <th>Péremption</th>
-                            <th>Qté à l’ouverture</th>
-                            <th>Qté actuelle</th>
-                            <th>Qté comptée</th>
-                            <th>Écart</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(produit.lignes ?? []).map((ligne) => {
-                            const draft = drafts[ligne.id];
-                            const cible = ligne.compte
-                              ? ligne.quantiteComptee
-                              : (parseQty(draft) ?? ligne.quantiteActuelle);
-                            const ecart = ligne.compte
-                              ? ligne.ecart
-                              : (cible - ligne.quantiteSysteme);
-                            return (
-                              <tr key={ligne.id}>
-                                <td>
-                                  <Typography level="body-sm" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                    {ligne.numeroLot}
-                                  </Typography>
-                                  {ligne.statutLot === 'PERIME' ? (
-                                    <Chip size="sm" variant="soft" color="danger">Périmé</Chip>
-                                  ) : null}
-                                </td>
-                                <td>{formatDate(ligne.datePeremption)}</td>
-                                <td>{ligne.quantiteSysteme}</td>
-                                <td>{ligne.quantiteActuelle}</td>
-                                <td>
-                                  {ligne.compte ? (
-                                    <Stack spacing={0.25}>
-                                      <Typography level="body-sm" sx={{ fontWeight: 600 }}>{ligne.quantiteComptee}</Typography>
-                                      <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                                        {formatDateTime(ligne.compteAt)} · {formatPersonnelName(ligne.comptePar)}
-                                      </Typography>
-                                    </Stack>
-                                  ) : (
-                                    <Input
-                                      type="number"
-                                      size="sm"
-                                      placeholder={String(ligne.quantiteActuelle)}
-                                      value={draft ?? ''}
-                                      disabled={!canSaisir || !enCours}
-                                      onChange={(event) => setDrafts((prev) => ({ ...prev, [ligne.id]: event.target.value }))}
-                                      slotProps={{ input: { min: 0 } }}
-                                      sx={{ maxWidth: 120 }}
-                                    />
-                                  )}
-                                </td>
-                                <td>
-                                  <Typography
-                                    level="body-sm"
-                                    sx={{ fontWeight: 600, color: ecart === 0 ? 'neutral.600' : (ecart > 0 ? 'success.600' : 'danger.600') }}
-                                  >
-                                    {ecart > 0 ? `+${ecart}` : ecart}
-                                  </Typography>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </Table>
-                      {enCours && canSaisir && !produit.compte ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button
-                            startDecorator={<Check size={16} />}
-                            loading={savingKey === `p-${medicamentId}`}
-                            onClick={() => setPendingProduit(produit)}
-                          >
-                            Marquer comme compté
-                          </Button>
+          <>
+            <AccordionGroup sx={{ gap: 1, '& .MuiAccordion-root': { borderRadius: 'lg', border: '1px solid', borderColor: 'neutral.outlinedBorder' } }}>
+              {pageItems.map((produit) => {
+                const med = produit.medicament ?? {};
+                const medicamentId = med.id;
+                const prixValue = prixDrafts[medicamentId] ?? prixDisplay(med.prixVente);
+                return (
+                  <Accordion key={medicamentId}>
+                    <AccordionSummary indicator={<ChevronDown size={18} />}>
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} justifyContent="space-between" sx={{ width: '100%', pr: 1 }}>
+                        <Box>
+                          <Typography level="title-sm" sx={{ fontWeight: 700 }}>{med.libelle}</Typography>
+                          <Typography level="body-xs" sx={{ color: 'neutral.500', fontFamily: 'monospace' }}>
+                            {med.code}{med.dosage ? ` · ${med.dosage}` : ''}{med.forme ? ` · ${med.forme}` : ''} · {formatPrix(med.prixVente)}
+                          </Typography>
                         </Box>
-                      ) : null}
-                    </Stack>
-                  </AccordionDetails>
-                </Accordion>
-              );
-            })}
-          </AccordionGroup>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                            {produit.lignesComptees}/{produit.lignesCount} lots · SI {produit.quantiteSysteme} · actuel {produit.quantiteActuelle}
+                          </Typography>
+                          <Chip size="sm" variant="soft" color={produit.compte ? 'success' : 'warning'}>
+                            {produit.compte ? 'Compté' : 'À compter'}
+                          </Chip>
+                        </Stack>
+                      </Stack>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Stack spacing={1.5}>
+                        <FormControl sx={{ maxWidth: 220 }} onClick={(event) => event.stopPropagation()}>
+                          <FormLabel>Prix de vente</FormLabel>
+                          <Input
+                            type="number"
+                            size="sm"
+                            value={prixValue}
+                            disabled={!canEdit}
+                            onChange={(event) => setPrixDrafts((prev) => ({ ...prev, [medicamentId]: event.target.value }))}
+                            onBlur={() => handleCorrigerPrix(produit)}
+                            slotProps={{ input: { min: 0, step: '0.01' } }}
+                          />
+                        </FormControl>
+                        <Table sx={{ minWidth: 860 }}>
+                          <thead>
+                            <tr>
+                              <th>Lot</th>
+                              <th>Péremption</th>
+                              <th>Qté à l’ouverture</th>
+                              <th>Qté actuelle</th>
+                              <th>Qté comptée</th>
+                              <th>Écart</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(produit.lignes ?? []).map((ligne) => {
+                              const draft = drafts[ligne.id];
+                              const cible = ligne.compte
+                                ? ligne.quantiteComptee
+                                : (parseQty(draft) ?? ligne.quantiteActuelle);
+                              const ecart = ligne.compte
+                                ? ligne.ecart
+                                : (cible - ligne.quantiteSysteme);
+                              const dateValue = dateDrafts[ligne.id] ?? isoDate(ligne.datePeremption);
+                              return (
+                                <tr key={ligne.id}>
+                                  <td>
+                                    <Typography level="body-sm" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                      {ligne.numeroLot}
+                                    </Typography>
+                                    {ligne.statutLot === 'PERIME' ? (
+                                      <Chip size="sm" variant="soft" color="danger">Périmé</Chip>
+                                    ) : null}
+                                  </td>
+                                  <td>
+                                    {canEdit ? (
+                                      <Input
+                                        type="date"
+                                        size="sm"
+                                        value={dateValue}
+                                        disabled={savingKey === `date-${ligne.id}`}
+                                        onChange={(event) => setDateDrafts((prev) => ({ ...prev, [ligne.id]: event.target.value }))}
+                                        onBlur={() => handleCorrigerDate(produit, ligne)}
+                                        sx={{ maxWidth: 170 }}
+                                      />
+                                    ) : formatDate(ligne.datePeremption)}
+                                  </td>
+                                  <td>{ligne.quantiteSysteme}</td>
+                                  <td>{ligne.quantiteActuelle}</td>
+                                  <td>
+                                    {ligne.compte ? (
+                                      <Stack spacing={0.25}>
+                                        <Typography level="body-sm" sx={{ fontWeight: 600 }}>{ligne.quantiteComptee}</Typography>
+                                        <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                                          {formatDateTime(ligne.compteAt)} · {formatPersonnelName(ligne.comptePar)}
+                                        </Typography>
+                                      </Stack>
+                                    ) : (
+                                      <Input
+                                        type="number"
+                                        size="sm"
+                                        placeholder={String(ligne.quantiteActuelle)}
+                                        value={draft ?? ''}
+                                        disabled={!canEdit}
+                                        onChange={(event) => setDrafts((prev) => ({ ...prev, [ligne.id]: event.target.value }))}
+                                        slotProps={{ input: { min: 0 } }}
+                                        sx={{ maxWidth: 120 }}
+                                      />
+                                    )}
+                                  </td>
+                                  <td>
+                                    <Typography
+                                      level="body-sm"
+                                      sx={{ fontWeight: 600, color: ecart === 0 ? 'neutral.600' : (ecart > 0 ? 'success.600' : 'danger.600') }}
+                                    >
+                                      {ecart > 0 ? `+${ecart}` : ecart}
+                                    </Typography>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </Table>
+                        {canEdit && !produit.compte ? (
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Button
+                              startDecorator={<Check size={16} />}
+                              loading={savingKey === `p-${medicamentId}`}
+                              onClick={() => setPendingProduit(produit)}
+                            >
+                              Marquer comme compté
+                            </Button>
+                          </Box>
+                        ) : null}
+                      </Stack>
+                    </AccordionDetails>
+                  </Accordion>
+                );
+              })}
+            </AccordionGroup>
+            <AppPagination
+              page={page}
+              totalPages={totalPages}
+              total={filtered.length}
+              limit={limit}
+              limitOptions={INVENTAIRE_DETAIL_PAGE_SIZE_OPTIONS}
+              onPageChange={setPage}
+              onLimitChange={(value) => { if (value) setLimit(value); }}
+            />
+          </>
         )}
       </Stack>
 

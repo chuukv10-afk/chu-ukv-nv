@@ -2,15 +2,18 @@
 
 namespace App\Controller\Api\Pharmacie;
 
+use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Pharmacie\CompterInventaireLigneInput;
 use App\DTO\Pharmacie\CompterInventaireProduitInput;
 use App\DTO\Pharmacie\CreateInventairePharmacieInput;
 use App\DTO\Pharmacie\PharmacieListQuery;
 use App\Security\Permission\PharmaciePermissions;
+use App\Service\Export\TableExportService;
 use App\Service\Pharmacie\InventairePharmacieService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
@@ -22,6 +25,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 final class InventairesPharmacieController extends AbstractController
 {
     use JsonResponseTrait;
+    use ExportResponseTrait;
 
     #[Route('', name: 'api_pharmacie_inventaires_index', methods: ['GET'])]
     #[IsGranted(PharmaciePermissions::INVENTAIRE_READ)]
@@ -51,6 +55,42 @@ final class InventairesPharmacieController extends AbstractController
             $inventaireService->serializeDetail($inventaireService->create($input)),
             'Campagne d\'inventaire ouverte. Les lots en stock ont été figés.',
             Response::HTTP_CREATED,
+        );
+    }
+
+    #[Route('/{id}/export', name: 'api_pharmacie_inventaires_export', methods: ['GET'], requirements: ['id' => '\d+'])]
+    #[IsGranted(PharmaciePermissions::INVENTAIRE_READ)]
+    public function export(
+        Request $request,
+        TableExportService $tableExportService,
+        InventairePharmacieService $inventaireService,
+        int $id,
+    ): Response {
+        $inventaire = $inventaireService->getById($id);
+
+        return $this->createTableExportResponse(
+            $request,
+            $tableExportService,
+            $inventaireService->exportHeaders(),
+            $inventaireService->buildExportRows($inventaire),
+            $inventaireService->exportTitle($inventaire),
+            $inventaireService->exportFilenamePrefix($inventaire),
+            'Aucune ligne d\'inventaire.',
+            pdfOrientation: 'landscape',
+        );
+    }
+
+    #[Route('/{id}/produits/{medicamentId}/corriger', name: 'api_pharmacie_inventaires_corriger_produit', methods: ['POST'], requirements: ['id' => '\d+', 'medicamentId' => '\d+'])]
+    #[IsGranted(PharmaciePermissions::INVENTAIRE_SAISIR)]
+    public function corrigerProduit(
+        InventairePharmacieService $inventaireService,
+        int $id,
+        int $medicamentId,
+        #[MapRequestPayload] CompterInventaireProduitInput $input = new CompterInventaireProduitInput(),
+    ): JsonResponse {
+        return $this->apiSuccess(
+            $inventaireService->serializeDetail($inventaireService->corrigerProduit($id, $medicamentId, $input)),
+            'Prix de vente et péremption mis à jour.',
         );
     }
 

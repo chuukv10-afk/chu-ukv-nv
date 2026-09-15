@@ -12,6 +12,11 @@ final class CompterInventaireProduitInput
     public function __construct(
         #[Assert\Valid]
         public array $lignes = [],
+
+        public ?string $prixVente = null,
     ) {
+        if (null !== $this->prixVente && '' === trim($this->prixVente)) {
+            $this->prixVente = null;
+        }
     }
 }

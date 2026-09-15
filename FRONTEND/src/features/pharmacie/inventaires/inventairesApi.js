@@ -4,6 +4,7 @@ import {
   callApiGet,
   callApiPost,
 } from '../../../api/apiClient.js';
+import { exportResourceApi } from '../../../utils/exportApi.js';
 import { buildQueryString, paginatedResult, unwrapData } from '../shared/pharmacieApi.js';
 
 export async function fetchInventairesApi(params = {}) {
@@ -35,6 +36,18 @@ export async function compterLigneInventaireApi(inventaireId, ligneId, payload =
     payload,
   );
   return unwrapData(response);
+}
+
+export async function corrigerProduitInventaireApi(inventaireId, medicamentId, payload = {}) {
+  const response = await callApiPost(
+    `${pharmacie.inventaires}/${inventaireId}/produits/${medicamentId}/corriger`,
+    payload,
+  );
+  return unwrapData(response);
+}
+
+export async function exportInventaireApi(id, format) {
+  await exportResourceApi(`${pharmacie.inventaires}/${id}`, format);
 }
 
 export async function cloturerInventaireApi(id) {

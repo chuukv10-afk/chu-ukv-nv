@@ -15,6 +15,8 @@ export const INVENTAIRE_STATUT_COLORS = INVENTAIRE_STATUTS.reduce((acc, item) =>
 
 export const DEFAULT_INVENTAIRE_PAGE_SIZE = 10;
 export const INVENTAIRE_PAGE_SIZE_OPTIONS = [10, 25, 50];
+export const DEFAULT_INVENTAIRE_DETAIL_PAGE_SIZE = 25;
+export const INVENTAIRE_DETAIL_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export function inventaireDetailPath(id) {
   return `/pharmacie/inventaires/${id}`;

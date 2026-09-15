@@ -10,7 +10,6 @@ use App\DTO\Pharmacie\CreateInventairePharmacieInput;
 use App\DTO\Pharmacie\PharmacieListQuery;
 use App\Entity\InventairePharmacie;
 use App\Entity\InventairePharmacieLigne;
-use App\Entity\Lot;
 use App\Entity\MouvementStock;
 use App\Entity\Personnel;
 use App\Exception\ConflictException;
@@ -101,18 +100,11 @@ final class InventairePharmacieService
         $saisies = $this->normalizeLignes($input->lignes);
         $saisiesParLigne = [];
         foreach ($saisies as $saisie) {
-            $saisiesParLigne[$saisie->ligneId] = $saisie->quantiteComptee;
+            $saisiesParLigne[$saisie->ligneId] = $saisie;
         }
 
-        $lignesProduit = [];
-        foreach ($inventaire->getLignes() as $ligne) {
-            if ($ligne->getMedicament()?->getId() === $medicamentId) {
-                $lignesProduit[] = $ligne;
-            }
-        }
-        if ([] === $lignesProduit) {
-            throw new NotFoundException('Ce médicament n\'est pas dans la campagne.');
-        }
+        $lignesProduit = $this->requireLignesProduit($inventaire, $medicamentId);
+        $this->appliquerCorrections($lignesProduit, $input->prixVente, $saisies);
 
         $aMarquer = [];
         if ([] === $saisiesParLigne) {
@@ -143,9 +135,8 @@ final class InventairePharmacieService
         $personnel = $this->currentPersonnel();
         $now = $this->now();
         foreach ($aMarquer as $ligne) {
-            $quantite = array_key_exists((int) $ligne->getId(), $saisiesParLigne)
-                ? $saisiesParLigne[(int) $ligne->getId()]
-                : null;
+            $saisie = $saisiesParLigne[(int) $ligne->getId()] ?? null;
+            $quantite = $saisie instanceof CompterInventaireLigneSaisieInput ? $saisie->quantiteComptee : null;
             $this->appliquerComptage($inventaire, $ligne, $quantite, $personnel, $now);
         }
 
@@ -169,6 +160,72 @@ final class InventairePharmacieService
         $this->entityManager->flush();
 
         return $this->getById($inventaireId);
+    }
+
+    public function corrigerProduit(int $inventaireId, int $medicamentId, CompterInventaireProduitInput $input): InventairePharmacie
+    {
+        $this->assertValid($input);
+        $inventaire = $this->requireEnCours($inventaireId);
+        $lignesProduit = $this->requireLignesProduit($inventaire, $medicamentId);
+        $this->appliquerCorrections($lignesProduit, $input->prixVente, $this->normalizeLignes($input->lignes));
+        $this->entityManager->flush();
+
+        return $this->getById($inventaireId);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function exportHeaders(): array
+    {
+        return ['N°', 'Code', 'Médicament', 'Forme', 'Dosage', 'Prix de vente', 'N° lot', 'Péremption', 'Qté ouverture', 'Qté actuelle', 'Qté comptée', 'Écart', 'Statut', 'Compté par'];
+    }
+
+    /**
+     * @return list<list<string|null>>
+     */
+    public function buildExportRows(InventairePharmacie $inventaire): array
+    {
+        $detail = $this->serializeDetail($inventaire);
+        $rows = [];
+        foreach ($detail['produits'] as $produit) {
+            $med = is_array($produit['medicament'] ?? null) ? $produit['medicament'] : [];
+            foreach ($produit['lignes'] ?? [] as $ligne) {
+                if (!is_array($ligne)) {
+                    continue;
+                }
+                $comptePar = is_array($ligne['comptePar'] ?? null) ? $ligne['comptePar'] : null;
+                $rows[] = [
+                    (string) ($med['code'] ?? ''),
+                    (string) ($med['libelle'] ?? ''),
+                    (string) ($med['forme'] ?? ''),
+                    (string) ($med['dosage'] ?? ''),
+                    $this->formatPrixExport($med['prixVente'] ?? null),
+                    (string) ($ligne['numeroLot'] ?? ''),
+                    $this->formatDateExport($ligne['datePeremption'] ?? null),
+                    (string) ($ligne['quantiteSysteme'] ?? ''),
+                    (string) ($ligne['quantiteActuelle'] ?? ''),
+                    null !== ($ligne['quantiteComptee'] ?? null) ? (string) $ligne['quantiteComptee'] : '',
+                    null !== ($ligne['ecart'] ?? null) ? (string) $ligne['ecart'] : '',
+                    !empty($ligne['compte']) ? 'Compté' : 'À compter',
+                    $this->personnelExportLabel($comptePar),
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    public function exportTitle(InventairePharmacie $inventaire): string
+    {
+        return sprintf('Fiche d\'inventaire %s — %s', $inventaire->getNumero(), $inventaire->getLibelle());
+    }
+
+    public function exportFilenamePrefix(InventairePharmacie $inventaire): string
+    {
+        $numero = preg_replace('/[^A-Za-z0-9\-]+/', '-', (string) $inventaire->getNumero()) ?: 'inventaire';
+
+        return 'inventaire-' . strtolower($numero);
     }
 
     public function cloturer(int $id): InventairePharmacie
@@ -255,6 +312,7 @@ final class InventairePharmacieService
                         'dci' => $medicament->getDci(),
                         'forme' => $medicament->getForme(),
                         'dosage' => $medicament->getDosage(),
+                        'prixVente' => $medicament->getPrixVente(),
                     ] : null,
                     'compte' => true,
                     'lignesCount' => 0,
@@ -407,15 +465,60 @@ final class InventairePharmacieService
         return $inventaire;
     }
 
-    private function requireLigne(InventairePharmacie $inventaire, int $ligneId): InventairePharmacieLigne
+    /**
+     * @return list<InventairePharmacieLigne>
+     */
+    private function requireLignesProduit(InventairePharmacie $inventaire, int $medicamentId): array
     {
+        $lignesProduit = [];
         foreach ($inventaire->getLignes() as $ligne) {
-            if ($ligne->getId() === $ligneId) {
-                return $ligne;
+            if ($ligne->getMedicament()?->getId() === $medicamentId) {
+                $lignesProduit[] = $ligne;
             }
         }
+        if ([] === $lignesProduit) {
+            throw new NotFoundException('Ce médicament n\'est pas dans la campagne.');
+        }
 
-        throw new NotFoundException('Ligne d\'inventaire non trouvée.');
+        return $lignesProduit;
+    }
+
+    /**
+     * @param list<InventairePharmacieLigne> $lignesProduit
+     * @param list<CompterInventaireLigneSaisieInput> $saisies
+     */
+    private function appliquerCorrections(array $lignesProduit, ?string $prixVente, array $saisies): void
+    {
+        if (null !== $prixVente) {
+            $medicament = $lignesProduit[0]->getMedicament();
+            if (null === $medicament) {
+                throw new ConflictException('Médicament introuvable pour cette ligne d\'inventaire.');
+            }
+            $medicament->setPrixVente($this->stockService->normalizePrix($prixVente));
+        }
+
+        $parId = [];
+        foreach ($lignesProduit as $ligne) {
+            $parId[(int) $ligne->getId()] = $ligne;
+        }
+
+        foreach ($saisies as $saisie) {
+            if (null === $saisie->datePeremption || '' === $saisie->datePeremption) {
+                continue;
+            }
+            $ligne = $parId[$saisie->ligneId] ?? null;
+            if (!$ligne instanceof InventairePharmacieLigne) {
+                throw new NotFoundException('Ligne d\'inventaire non trouvée pour ce produit.');
+            }
+            $lot = $ligne->getLot();
+            if (null === $lot) {
+                throw new ConflictException(sprintf('Le lot %s n\'existe plus.', $ligne->getNumeroLot()));
+            }
+            $date = $this->stockService->parseDate($saisie->datePeremption, 'Date de péremption');
+            $lot->setDatePeremption($date);
+            $ligne->setDatePeremption($date);
+            $this->stockService->refreshStatut($lot);
+        }
     }
 
     /**
@@ -431,13 +534,64 @@ final class InventairePharmacieService
                 continue;
             }
             $quantite = $ligne['quantiteComptee'] ?? null;
+            $datePeremption = $ligne['datePeremption'] ?? null;
             $normalized[] = new CompterInventaireLigneSaisieInput(
                 (int) ($ligne['ligneId'] ?? 0),
                 null === $quantite || '' === $quantite ? null : (int) $quantite,
+                null === $datePeremption || '' === $datePeremption ? null : (string) $datePeremption,
             );
         }
 
         return $normalized;
+    }
+
+    private function formatPrixExport(mixed $value): string
+    {
+        if (null === $value || '' === $value) {
+            return '';
+        }
+
+        return number_format((float) $value, 2, ',', ' ') . ' FC';
+    }
+
+    private function formatDateExport(mixed $value): string
+    {
+        $raw = trim((string) $value);
+        if ('' === $raw) {
+            return '';
+        }
+        $iso = substr($raw, 0, 10);
+        $parts = explode('-', $iso);
+        if (3 !== count($parts)) {
+            return $raw;
+        }
+
+        return $parts[2] . '/' . $parts[1] . '/' . $parts[0];
+    }
+
+    /** @param array{nom?: string|null, prenom?: string|null}|null $personnel */
+    private function personnelExportLabel(?array $personnel): string
+    {
+        if (null === $personnel) {
+            return '';
+        }
+        $parts = array_filter([
+            trim((string) ($personnel['prenom'] ?? '')),
+            trim((string) ($personnel['nom'] ?? '')),
+        ]);
+
+        return implode(' ', $parts);
+    }
+
+    private function requireLigne(InventairePharmacie $inventaire, int $ligneId): InventairePharmacieLigne
+    {
+        foreach ($inventaire->getLignes() as $ligne) {
+            if ($ligne->getId() === $ligneId) {
+                return $ligne;
+            }
+        }
+
+        throw new NotFoundException('Ligne d\'inventaire non trouvée.');
     }
 
     private function currentPersonnel(): Personnel
