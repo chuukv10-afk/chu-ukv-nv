@@ -74,3 +74,17 @@ export async function importGrilleTarifaireApi(file) {
   const response = await callApiPost(`${facturation.actes}/import`, body);
   return unwrapData(response);
 }
+
+export async function createActeFinancierApi(payload) {
+  const response = await callApiPost(facturation.actes, payload);
+  return unwrapData(response);
+}
+
+export async function updateActeFinancierApi(id, payload) {
+  const response = await callApiPut(`${facturation.actes}/${id}`, payload);
+  return unwrapData(response);
+}
+
+export async function deleteActeFinancierApi(id) {
+  return callApiDelete(`${facturation.actes}/${id}`);
+}

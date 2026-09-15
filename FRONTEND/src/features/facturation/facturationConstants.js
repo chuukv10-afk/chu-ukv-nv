@@ -60,3 +60,21 @@ export const EMPTY_STRUCTURE_FORM = {
 
 export const DEFAULT_ACTE_PAGE_SIZE = 25;
 export const ACTE_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+export const ACTE_STATUTS = [
+  { value: 'ACTIF', label: 'Actif', color: 'success' },
+  { value: 'INACTIF', label: 'Inactif', color: 'neutral' },
+];
+
+export const EMPTY_ACTE_FORM = {
+  code: '',
+  serviceGrille: '',
+  sousCategorie: '',
+  libelle: '',
+  tarifA0: '0',
+  tarifA1: '0',
+  tarifA: '0',
+  tarifB: '0',
+  tarifC: '0',
+  statut: 'ACTIF',
+};

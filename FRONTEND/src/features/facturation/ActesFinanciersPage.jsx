@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Box, Button, Card, Input, Option, Select, Sheet, Stack, Table, Typography,
+  Box, Button, Card, Chip, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
-import { Search, Upload, Wallet } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, Upload, Wallet } from 'lucide-react';
 import AppPagination from '../../components/ui/AppPagination.jsx';
+import ConfirmModal from '../../components/ui/ConfirmModal.jsx';
 import ExportButtons from '../../components/export/ExportButtons.jsx';
 import { facturation } from '../../api/endpoints.js';
 import { PERMISSIONS } from '../../constants/permissions.js';
@@ -11,14 +12,19 @@ import { usePermissions } from '../../hooks/usePermissions.js';
 import { useToast } from '../../hooks/useToast.js';
 import { exportResourceApi } from '../../utils/exportApi.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../theme/lotruPalette.js';
+import ActeFormModal from './components/ActeFormModal.jsx';
 import {
   ACTE_PAGE_SIZE_OPTIONS,
   DEFAULT_ACTE_PAGE_SIZE,
+  EMPTY_ACTE_FORM,
 } from './facturationConstants.js';
 import {
+  createActeFinancierApi,
+  deleteActeFinancierApi,
   fetchActesFinanciersApi,
   fetchActesFinanciersMetaApi,
   importGrilleTarifaireApi,
+  updateActeFinancierApi,
 } from './facturationApi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_ACTE_PAGE_SIZE, total: 0, totalPages: 0 };
@@ -33,8 +39,12 @@ function formatCdf(value) {
 export default function ActesFinanciersPage() {
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
+  const canCreate = hasPermission(PERMISSIONS.FACTURATION.ACTE_CREATE);
+  const canUpdate = hasPermission(PERMISSIONS.FACTURATION.ACTE_UPDATE);
+  const canDelete = hasPermission(PERMISSIONS.FACTURATION.ACTE_DELETE);
   const canImport = hasPermission(PERMISSIONS.FACTURATION.ACTE_IMPORT);
   const canExport = hasPermission(PERMISSIONS.FACTURATION.ACTE_EXPORT);
+  const showActions = canUpdate || canDelete;
   const fileInputRef = useRef(null);
 
   const [items, setItems] = useState([]);
@@ -50,6 +60,15 @@ export default function ActesFinanciersPage() {
   const [exportLoading, setExportLoading] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
 
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState('create');
+  const [formValues, setFormValues] = useState(EMPTY_ACTE_FORM);
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [editing, setEditing] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => window.clearTimeout(timer);
@@ -57,11 +76,16 @@ export default function ActesFinanciersPage() {
 
   useEffect(() => { setPage(1); }, [debouncedSearch, serviceFilter, limit]);
 
-  useEffect(() => {
-    fetchActesFinanciersMetaApi()
-      .then((meta) => setServiceGrilles(Array.isArray(meta.serviceGrilles) ? meta.serviceGrilles : []))
-      .catch(() => setServiceGrilles([]));
+  const refreshMeta = useCallback(async () => {
+    try {
+      const meta = await fetchActesFinanciersMetaApi();
+      setServiceGrilles(Array.isArray(meta.serviceGrilles) ? meta.serviceGrilles : []);
+    } catch {
+      setServiceGrilles([]);
+    }
   }, []);
+
+  useEffect(() => { refreshMeta(); }, [refreshMeta]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -106,8 +130,7 @@ export default function ActesFinanciersPage() {
     try {
       const result = await importGrilleTarifaireApi(file);
       showSuccess(`Import terminé : ${result.imported ?? 0} créé(s), ${result.updated ?? 0} mis à jour.`);
-      const meta = await fetchActesFinanciersMetaApi();
-      setServiceGrilles(Array.isArray(meta.serviceGrilles) ? meta.serviceGrilles : []);
+      await refreshMeta();
       setPage(1);
       await load(1);
     } catch (error) {
@@ -116,6 +139,73 @@ export default function ActesFinanciersPage() {
       setImportLoading(false);
     }
   };
+
+  const openCreate = () => {
+    setFormMode('create');
+    setEditing(null);
+    setFormValues(EMPTY_ACTE_FORM);
+    setFormError('');
+    setFormOpen(true);
+  };
+
+  const openEdit = (item) => {
+    setFormMode('edit');
+    setEditing(item);
+    setFormValues({
+      code: item.code ?? '',
+      serviceGrille: item.serviceGrille ?? '',
+      sousCategorie: item.sousCategorie ?? '',
+      libelle: item.libelle ?? '',
+      tarifA0: item.tarifA0 ?? '0',
+      tarifA1: item.tarifA1 ?? '0',
+      tarifA: item.tarifA ?? '0',
+      tarifB: item.tarifB ?? '0',
+      tarifC: item.tarifC ?? '0',
+      statut: item.statut ?? 'ACTIF',
+    });
+    setFormError('');
+    setFormOpen(true);
+  };
+
+  const handleSubmit = async (payload) => {
+    setFormLoading(true);
+    setFormError('');
+    try {
+      if (formMode === 'create') {
+        await createActeFinancierApi(payload);
+        showSuccess('Acte créé avec succès.');
+        await refreshMeta();
+        setPage(1);
+        await load(1);
+      } else {
+        await updateActeFinancierApi(editing.id, payload);
+        showSuccess('Acte mis à jour.');
+        await load(page);
+      }
+      setFormOpen(false);
+    } catch (error) {
+      setFormError(error.message || 'Enregistrement impossible.');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    setConfirmLoading(true);
+    try {
+      await deleteActeFinancierApi(pendingDelete.id);
+      showSuccess('Acte supprimé.');
+      setPendingDelete(null);
+      await load(page);
+    } catch (error) {
+      showError(error.message || 'Suppression impossible.');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
+  const colSpan = showActions ? 8 : 7;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -126,11 +216,11 @@ export default function ActesFinanciersPage() {
             <Box>
               <Typography level="h2" sx={{ fontWeight: 700 }}>Grille tarifaire</Typography>
               <Typography level="body-md" sx={{ color: 'neutral.500' }}>
-                Catalogue importé (A0, A1, A, B, C). Aucune saisie acte par acte.
+                Catalogue des actes (A0, A1, A, B, C). Import Excel ou saisie manuelle.
               </Typography>
             </Box>
           </Stack>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {canExport ? (
               <ExportButtons loading={exportLoading} onExport={handleExport} />
             ) : null}
@@ -151,6 +241,9 @@ export default function ActesFinanciersPage() {
                   Importer Excel
                 </Button>
               </>
+            ) : null}
+            {canCreate ? (
+              <Button startDecorator={<Plus size={16} />} onClick={openCreate}>Nouvel acte</Button>
             ) : null}
           </Stack>
         </Stack>
@@ -185,7 +278,7 @@ export default function ActesFinanciersPage() {
         ) : null}
 
         <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto' }}>
-          <Table stickyHeader hoverRow sx={{ minWidth: 1100 }}>
+          <Table stickyHeader hoverRow sx={{ minWidth: 1180 }}>
             <thead>
               <tr>
                 <th>Service</th>
@@ -195,16 +288,17 @@ export default function ActesFinanciersPage() {
                 <th style={{ textAlign: 'right' }}>A</th>
                 <th style={{ textAlign: 'right' }}>B</th>
                 <th style={{ textAlign: 'right' }}>C</th>
+                {showActions ? <th style={{ textAlign: 'right' }}>Actions</th> : null}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
+                <tr><td colSpan={colSpan}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={colSpan}>
                     <Typography level="body-sm" sx={{ p: 2, color: LOTRU_NEUTRAL[600] }}>
-                      Aucun acte. Importez la grille consolidée CHHU.
+                      Aucun acte. Créez-en un ou importez la grille consolidée CHHU.
                     </Typography>
                   </td>
                 </tr>
@@ -216,12 +310,29 @@ export default function ActesFinanciersPage() {
                       <Typography level="body-xs" sx={{ color: 'neutral.500' }}>{item.sousCategorie}</Typography>
                     ) : null}
                   </td>
-                  <td>{item.libelle}</td>
+                  <td>
+                    <Typography level="body-sm">{item.libelle}</Typography>
+                    {item.statut === 'INACTIF' ? (
+                      <Chip size="sm" variant="soft" color="neutral" sx={{ mt: 0.5 }}>Inactif</Chip>
+                    ) : null}
+                  </td>
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifA0)}</td>
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifA1)}</td>
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifA)}</td>
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifB)}</td>
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifC)}</td>
+                  {showActions ? (
+                    <td style={{ textAlign: 'right' }}>
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                        {canUpdate ? (
+                          <IconButton size="sm" variant="plain" onClick={() => openEdit(item)}><Pencil size={16} /></IconButton>
+                        ) : null}
+                        {canDelete ? (
+                          <IconButton size="sm" variant="plain" color="danger" onClick={() => setPendingDelete(item)}><Trash2 size={16} /></IconButton>
+                        ) : null}
+                      </Stack>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -238,6 +349,26 @@ export default function ActesFinanciersPage() {
           onLimitChange={setLimit}
         />
       </Stack>
+
+      <ActeFormModal
+        open={formOpen}
+        mode={formMode}
+        initialValues={formValues}
+        serviceGrilles={serviceGrilles}
+        loading={formLoading}
+        error={formError}
+        onClose={() => setFormOpen(false)}
+        onSubmit={handleSubmit}
+      />
+      <ConfirmModal
+        open={Boolean(pendingDelete)}
+        title="Supprimer l'acte"
+        message={pendingDelete ? `Supprimer l'acte « ${pendingDelete.libelle} » ?` : ''}
+        confirmLabel="Supprimer"
+        loading={confirmLoading}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={handleDelete}
+      />
     </Box>
   );
 }
