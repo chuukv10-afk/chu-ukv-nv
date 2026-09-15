@@ -45,6 +45,12 @@ function normalizeLotNumero(value) {
   return String(value ?? '').trim().toUpperCase();
 }
 
+function uniteLabel(medicament) {
+  const unite = medicament?.unite;
+  if (!unite) return '';
+  return unite.code || unite.libelle || '';
+}
+
 function prixDisplay(value) {
   if (value === null || value === undefined || value === '') return '';
   const amount = Number(value);
@@ -105,7 +111,7 @@ export default function InventaireDetailPage() {
       if (filtre === 'comptes' && !produit.compte) return false;
       if (!q) return true;
       const med = produit.medicament ?? {};
-      return [med.code, med.libelle, med.dci]
+      return [med.code, med.libelle, med.dci, med.forme, med.dosage, med.unite?.code, med.unite?.libelle]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
     });
@@ -387,6 +393,7 @@ export default function InventaireDetailPage() {
               {pageItems.map((produit) => {
                 const med = produit.medicament ?? {};
                 const medicamentId = med.id;
+                const unite = uniteLabel(med);
                 const prixValue = prixDrafts[medicamentId] ?? prixDisplay(med.prixVente);
                 return (
                   <Accordion key={medicamentId}>
@@ -395,12 +402,12 @@ export default function InventaireDetailPage() {
                         <Box>
                           <Typography level="title-sm" sx={{ fontWeight: 700 }}>{med.libelle}</Typography>
                           <Typography level="body-xs" sx={{ color: 'neutral.500', fontFamily: 'monospace' }}>
-                            {med.code}{med.dosage ? ` · ${med.dosage}` : ''}{med.forme ? ` · ${med.forme}` : ''} · {formatPrix(med.prixVente)}
+                            {med.code}{med.dosage ? ` · ${med.dosage}` : ''}{med.forme ? ` · ${med.forme}` : ''}{unite ? ` · ${unite}` : ''} · {formatPrix(med.prixVente)}
                           </Typography>
                         </Box>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                            {produit.lignesComptees}/{produit.lignesCount} lots · SI {produit.quantiteSysteme} · actuel {produit.quantiteActuelle}
+                            {produit.lignesComptees}/{produit.lignesCount} lots · SI {produit.quantiteSysteme}{unite ? ` ${unite}` : ''} · actuel {produit.quantiteActuelle}{unite ? ` ${unite}` : ''}
                           </Typography>
                           <Chip size="sm" variant="soft" color={produit.compte ? 'success' : 'warning'}>
                             {produit.compte ? 'Compté' : 'À compter'}
@@ -427,9 +434,9 @@ export default function InventaireDetailPage() {
                             <tr>
                               <th>Lot</th>
                               <th>Péremption</th>
-                              <th>Qté à l’ouverture</th>
-                              <th>Qté actuelle</th>
-                              <th>Qté comptée</th>
+                              <th>Qté à l’ouverture{unite ? ` (${unite})` : ''}</th>
+                              <th>Qté actuelle{unite ? ` (${unite})` : ''}</th>
+                              <th>Qté comptée{unite ? ` (${unite})` : ''}</th>
                               <th>Écart</th>
                             </tr>
                           </thead>

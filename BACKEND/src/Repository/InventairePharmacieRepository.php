@@ -60,6 +60,7 @@ class InventairePharmacieRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('i')
             ->leftJoin('i.lignes', 'l')->addSelect('l')
             ->leftJoin('l.medicament', 'm')->addSelect('m')
+            ->leftJoin('m.unite', 'u')->addSelect('u')
             ->leftJoin('l.lot', 'lot')->addSelect('lot')
             ->leftJoin('l.comptePar', 'p')->addSelect('p')
             ->leftJoin('l.mouvement', 'mv')->addSelect('mv')

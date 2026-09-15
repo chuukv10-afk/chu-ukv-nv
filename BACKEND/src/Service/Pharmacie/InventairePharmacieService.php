@@ -179,7 +179,7 @@ final class InventairePharmacieService
      */
     public function exportHeaders(): array
     {
-        return ['N°', 'Code', 'Médicament', 'Forme', 'Dosage', 'Prix de vente', 'N° lot', 'Péremption', 'Qté ouverture', 'Qté actuelle', 'Qté comptée', 'Écart', 'Statut', 'Compté par'];
+        return ['N°', 'Code', 'Médicament', 'Forme', 'Dosage', 'Unité', 'Prix de vente', 'N° lot', 'Péremption', 'Qté ouverture', 'Qté actuelle', 'Qté comptée', 'Écart', 'Statut', 'Compté par'];
     }
 
     /**
@@ -201,6 +201,7 @@ final class InventairePharmacieService
                     (string) ($med['libelle'] ?? ''),
                     (string) ($med['forme'] ?? ''),
                     (string) ($med['dosage'] ?? ''),
+                    $this->uniteExportLabel($med['unite'] ?? null),
                     $this->formatPrixExport($med['prixVente'] ?? null),
                     (string) ($ligne['numeroLot'] ?? ''),
                     $this->formatDateExport($ligne['datePeremption'] ?? null),
@@ -314,6 +315,11 @@ final class InventairePharmacieService
                         'forme' => $medicament->getForme(),
                         'dosage' => $medicament->getDosage(),
                         'prixVente' => $medicament->getPrixVente(),
+                        'unite' => $medicament->getUnite() ? [
+                            'id' => $medicament->getUnite()->getId(),
+                            'code' => $medicament->getUnite()->getCode(),
+                            'libelle' => $medicament->getUnite()->getLibelle(),
+                        ] : null,
                     ] : null,
                     'compte' => true,
                     'lignesCount' => 0,
@@ -604,6 +610,21 @@ final class InventairePharmacieService
         }
 
         return $parts[2] . '/' . $parts[1] . '/' . $parts[0];
+    }
+
+    /** @param array{code?: string|null, libelle?: string|null}|null $unite */
+    private function uniteExportLabel(mixed $unite): string
+    {
+        if (!is_array($unite)) {
+            return '';
+        }
+        $code = trim((string) ($unite['code'] ?? ''));
+        $libelle = trim((string) ($unite['libelle'] ?? ''));
+        if ('' !== $code && '' !== $libelle && $code !== $libelle) {
+            return $code . ' — ' . $libelle;
+        }
+
+        return $code !== '' ? $code : $libelle;
     }
 
     /** @param array{nom?: string|null, prenom?: string|null}|null $personnel */
