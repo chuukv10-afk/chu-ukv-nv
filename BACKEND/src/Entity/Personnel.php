@@ -70,6 +70,9 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
     private ?Grade $grade = null;
 
     #[ORM\ManyToOne(inversedBy: 'personnels')]
+    private ?Fonction $fonction = null;
+
+    #[ORM\ManyToOne(inversedBy: 'personnels')]
     private ?Service $service = null;
 
     /**
@@ -279,6 +282,18 @@ class Personnel implements UserInterface, PasswordAuthenticatedUserInterface
     public function setGrade(?Grade $grade): static
     {
         $this->grade = $grade;
+
+        return $this;
+    }
+
+    public function getFonction(): ?Fonction
+    {
+        return $this->fonction;
+    }
+
+    public function setFonction(?Fonction $fonction): static
+    {
+        $this->fonction = $fonction;
 
         return $this;
     }

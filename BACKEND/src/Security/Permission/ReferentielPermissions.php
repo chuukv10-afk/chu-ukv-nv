@@ -14,6 +14,11 @@ final class ReferentielPermissions
     public const GRADE_UPDATE = 'referentiel.grade.update';
     public const GRADE_DELETE = 'referentiel.grade.delete';
 
+    public const FONCTION_READ = 'referentiel.fonction.read';
+    public const FONCTION_CREATE = 'referentiel.fonction.create';
+    public const FONCTION_UPDATE = 'referentiel.fonction.update';
+    public const FONCTION_DELETE = 'referentiel.fonction.delete';
+
     public const FILIERE_READ = 'referentiel.filiere.read';
     public const FILIERE_CREATE = 'referentiel.filiere.create';
     public const FILIERE_UPDATE = 'referentiel.filiere.update';
@@ -53,6 +58,7 @@ final class ReferentielPermissions
     {
         return array_merge(
             self::crud('grade', 'grade', 'les grades'),
+            self::crud('fonction', 'fonction', 'les fonctions'),
             self::crud('filiere', 'filière UKV', 'les filières UKV'),
             self::crud('specialite', 'spécialité', 'les spécialités'),
             self::export(self::SPECIALITE_EXPORT, 'les spécialités'),

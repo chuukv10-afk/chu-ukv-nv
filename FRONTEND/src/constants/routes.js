@@ -16,6 +16,7 @@ export const ROUTES = {
 
   REFERENTIEL: {
     GRADES: '/referentiel/grades',
+    FONCTIONS: '/referentiel/fonctions',
     FILIERES: '/referentiel/filieres',
     SPECIALITES: '/referentiel/specialites',
     TYPES_EXAMEN: '/referentiel/types-examen',
@@ -93,5 +94,14 @@ export const ROUTES = {
     PERMISSIONS: '/admin/permissions',
     ROLE_PERMISSIONS: '/admin/role-permissions',
     DATABASE: '/admin/base-de-donnees',
+  },
+
+  RH: {
+    PERSONNEL: '/rh/personnel',
+    PERSONNEL_NEW: '/rh/personnel/nouveau',
+    PERSONNEL_EDIT: '/rh/personnel/:id',
+    PAIE: '/rh/paie',
+    PAIE_BAREME: '/rh/paie/bareme',
+    PAIE_DETAIL: '/rh/paie/:id',
   },
 };

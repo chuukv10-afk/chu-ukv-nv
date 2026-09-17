@@ -7,6 +7,7 @@ export const PERMISSION_MODULES = [
   { value: 'PHARMACIE', label: 'Pharmacie' },
   { value: 'INTENDANCE', label: 'Intendance' },
   { value: 'ADMIN', label: 'Administration' },
+  { value: 'RH', label: 'Ressources humaines' },
 ];
 
 export const PERMISSION_MODULE_LABELS = PERMISSION_MODULES.reduce((acc, item) => {

@@ -10,6 +10,7 @@ use App\DTO\Storage\ConfirmStoredFileInput;
 use App\DTO\Storage\PrepareStoredFileInput;
 use App\Entity\Personnel;
 use App\Security\Permission\AdminPermissions;
+use App\Security\Permission\RhPermissions;
 use App\Service\Personnel\PersonnelService;
 use App\Service\Personnel\PersonnelExportService;
 use App\Service\Storage\StoredFileResponse;
@@ -279,6 +280,12 @@ final class PersonnelController extends AbstractController
             return;
         }
 
-        $this->denyAccessUnlessGranted(AdminPermissions::PERSONNEL_READ, $target);
+        if ($this->isGranted(AdminPermissions::PERSONNEL_READ, $target)
+            || $this->isGranted(RhPermissions::PERSONNEL_READ, $target)
+        ) {
+            return;
+        }
+
+        throw $this->createAccessDeniedException('Accès refusé : vous n\'avez pas accès à ce fichier.');
     }
 }

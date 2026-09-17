@@ -60,6 +60,12 @@ export const NAV_SECTIONS = [
         icon: 'award',
       },
       {
+        label: 'Fonctions',
+        to: ROUTES.REFERENTIEL.FONCTIONS,
+        permission: PERMISSIONS.REFERENTIEL.FONCTION_READ,
+        icon: 'briefcase',
+      },
+      {
         label: 'Filières UKV',
         to: ROUTES.REFERENTIEL.FILIERES,
         permission: PERMISSIONS.REFERENTIEL.FILIERE_READ,
@@ -329,11 +335,29 @@ export const NAV_SECTIONS = [
     ],
   },
   {
+    id: 'rh',
+    title: 'Ressources Humaines',
+    items: [
+      {
+        label: 'Personnel',
+        to: ROUTES.RH.PERSONNEL,
+        permission: PERMISSIONS.RH.PERSONNEL_READ,
+        icon: 'users',
+      },
+      {
+        label: 'Prime locale',
+        to: ROUTES.RH.PAIE,
+        permission: PERMISSIONS.RH.PAIE_READ,
+        icon: 'wallet',
+      },
+    ],
+  },
+  {
     id: 'admin',
     title: 'Administration',
     items: [
       {
-        label: 'Personnel',
+        label: 'Utilisateurs',
         to: ROUTES.ADMIN.PERSONNEL,
         permission: PERMISSIONS.ADMIN.PERSONNEL_READ,
         icon: 'userCog',

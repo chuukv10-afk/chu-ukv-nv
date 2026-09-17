@@ -14,6 +14,7 @@ use App\Security\Permission\PatientPermissions;
 use App\Security\Permission\IntendancePermissions;
 use App\Security\Permission\PharmaciePermissions;
 use App\Security\Permission\ReferentielPermissions;
+use App\Security\Permission\RhPermissions;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -44,6 +45,7 @@ final class PermissionProvisioner
             PharmaciePermissions::allDefinitions(),
             IntendancePermissions::allDefinitions(),
             AdminPermissions::allDefinitions(),
+            RhPermissions::allDefinitions(),
         );
 
         return $this->syncPermissions($definitions);
@@ -82,6 +84,10 @@ final class PermissionProvisioner
             }
 
             $adminRole->addPermission($permission);
+
+            if (Permission::MODULE_RH === $definition['module']) {
+                continue;
+            }
 
             if (str_ends_with($definition['code'], '.read') || self::isPersonnelSelfService($definition['code'])) {
                 $personnelRole->addPermission($permission);

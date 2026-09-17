@@ -72,11 +72,14 @@ export default function PersonnelFormModal({
   error = '',
   onClose,
   onSubmit,
+  hideRoles = false,
+  variant = 'admin',
 }) {
   const isEdit = mode === 'edit';
   const [form, setForm] = useState(() => buildInitialForm(initialValues, isEdit));
   const [lookups, setLookups] = useState({
     grades: [],
+    fonctions: [],
     services: [],
     departements: [],
     specialites: [],
@@ -96,14 +99,14 @@ export default function PersonnelFormModal({
     setLookupsLoading(true);
     setLoadError('');
     try {
-      const data = await fetchPersonnelLookupsApi();
+      const data = await fetchPersonnelLookupsApi({ includeRoles: !hideRoles });
       setLookups(data);
     } catch (err) {
       setLoadError(err.message || 'Impossible de charger les listes de référence.');
     } finally {
       setLookupsLoading(false);
     }
-  }, []);
+  }, [hideRoles]);
 
   useEffect(() => {
     if (open) {
@@ -140,7 +143,19 @@ export default function PersonnelFormModal({
   );
 
   const handleChange = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => {
+      if (field !== 'fonctionId') {
+        return { ...current, [field]: value };
+      }
+
+      const next = { ...current, fonctionId: value || null };
+      const fonction = lookups.fonctions.find((item) => item.id === value);
+      if (fonction?.service?.id) {
+        next.serviceId = fonction.service.id;
+      }
+
+      return next;
+    });
   };
 
   const handleRoleAssignmentChange = (index, field, value) => {
@@ -244,16 +259,22 @@ export default function PersonnelFormModal({
       lieuNaissance: form.lieuNaissance?.trim() || null,
       cnome: form.cnome?.trim() || null,
       gradeId: form.gradeId || null,
+      fonctionId: form.fonctionId || null,
       serviceId: form.serviceId || null,
       specialiteIds: form.specialiteIds ?? [],
-      roleAssignments: form.roleAssignments
+    };
+
+    if (!hideRoles) {
+      payload.roleAssignments = form.roleAssignments
         .filter((item) => item.roleId && rolesById[item.roleId]?.code !== 'PERSONNEL')
         .map((item) => ({
           roleId: item.roleId,
           serviceId: item.serviceId || null,
           departementId: item.departementId || null,
-        })),
-    };
+        }));
+    } else if (!isEdit) {
+      payload.roleAssignments = [];
+    }
 
     if (!isEdit || form.password?.trim()) {
       payload.password = form.password?.trim();
@@ -291,12 +312,18 @@ export default function PersonnelFormModal({
             </Box>
             <Box>
               <Typography level="title-lg" sx={{ fontWeight: 700 }}>
-                {isEdit ? 'Modifier le personnel' : 'Nouveau personnel'}
+                {variant === 'rh'
+                  ? (isEdit ? 'Modifier le personnel' : 'Nouveau personnel')
+                  : (isEdit ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur')}
               </Typography>
               <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
-                {isEdit
-                  ? 'Mettez à jour les informations et les rôles du personnel.'
-                  : 'Créez un compte personnel avec ses informations et rôles.'}
+                {variant === 'rh'
+                  ? (isEdit
+                    ? 'Mettez à jour l\'identité, le grade, la fonction et le service.'
+                    : 'Créez une fiche personnel (identité, grade, fonction, service).')
+                  : (isEdit
+                    ? 'Mettez à jour les informations et les rôles de l\'utilisateur.'
+                    : 'Créez un compte utilisateur avec ses informations et rôles.')}
               </Typography>
             </Box>
           </Stack>
@@ -489,6 +516,22 @@ export default function PersonnelFormModal({
                   </Select>
                 </FormControl>
                 <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>Fonction</FormLabel>
+                  <Select
+                    value={form.fonctionId ?? ''}
+                    onChange={(_, v) => handleChange('fonctionId', v || null)}
+                    placeholder="Aucune"
+                    disabled={isBusy}
+                  >
+                    <Option value="">Aucune</Option>
+                    {lookups.fonctions.map((fonction) => (
+                      <Option key={fonction.id} value={fonction.id}>{fonction.libelle}</Option>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Stack>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                <FormControl sx={{ flex: 1 }}>
                   <FormLabel>Service</FormLabel>
                   <Select
                     value={form.serviceId ?? ''}
@@ -560,22 +603,24 @@ export default function PersonnelFormModal({
                 </FormControl>
               </Stack>
 
-              <Divider />
+              {hideRoles ? null : <Divider />}
 
+              {hideRoles ? null : (
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Typography level="title-sm" sx={{ fontWeight: 700 }}>Rôles</Typography>
                 <Button size="sm" variant="outlined" startDecorator={<Plus size={16} />} onClick={addRoleAssignment} disabled={isBusy}>
                   Ajouter un rôle
                 </Button>
               </Stack>
+              )}
 
-              {form.roleAssignments.length === 0 ? (
+              {hideRoles || form.roleAssignments.length > 0 ? null : (
                 <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
                   Aucun rôle supplémentaire. Le rôle PERSONNEL sera assigné automatiquement.
                 </Typography>
-              ) : null}
+              )}
 
-              {form.roleAssignments.map((assignment, index) => {
+              {hideRoles ? null : form.roleAssignments.map((assignment, index) => {
                 const selectedRole = rolesById[assignment.roleId];
                 const perimetre = selectedRole?.perimetre;
 
@@ -654,7 +699,7 @@ export default function PersonnelFormModal({
                 Annuler
               </Button>
               <Button type="submit" loading={loading} disabled={isBusy}>
-                {isEdit ? 'Enregistrer' : 'Créer le personnel'}
+                {isEdit ? 'Enregistrer' : (variant === 'rh' ? 'Créer le personnel' : 'Créer l\'utilisateur')}
               </Button>
             </Stack>
           </Box>

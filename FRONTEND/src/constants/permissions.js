@@ -31,6 +31,10 @@ export const PERMISSIONS = {
     GRADE_CREATE: 'referentiel.grade.create',
     GRADE_UPDATE: 'referentiel.grade.update',
     GRADE_DELETE: 'referentiel.grade.delete',
+    FONCTION_READ: 'referentiel.fonction.read',
+    FONCTION_CREATE: 'referentiel.fonction.create',
+    FONCTION_UPDATE: 'referentiel.fonction.update',
+    FONCTION_DELETE: 'referentiel.fonction.delete',
     FILIERE_READ: 'referentiel.filiere.read',
     FILIERE_CREATE: 'referentiel.filiere.create',
     FILIERE_UPDATE: 'referentiel.filiere.update',
@@ -236,6 +240,17 @@ export const PERMISSIONS = {
     DATABASE_EXPORT: 'admin.database.export',
     DATABASE_TRUNCATE: 'admin.database.truncate',
     DATABASE_IMPORT: 'admin.database.import',
+  },
+  RH: {
+    PERSONNEL_READ: 'rh.personnel.read',
+    PERSONNEL_CREATE: 'rh.personnel.create',
+    PERSONNEL_UPDATE: 'rh.personnel.update',
+    PERSONNEL_DELETE: 'rh.personnel.delete',
+    PERSONNEL_EXPORT: 'rh.personnel.export',
+    PAIE_READ: 'rh.paie.read',
+    PAIE_CREATE: 'rh.paie.create',
+    PAIE_UPDATE: 'rh.paie.update',
+    PAIE_VALIDATE: 'rh.paie.validate',
   },
 };
 

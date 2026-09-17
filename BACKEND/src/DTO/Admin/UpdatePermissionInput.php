@@ -34,6 +34,7 @@ final class UpdatePermissionInput
                 Permission::MODULE_PHARMACIE,
                 Permission::MODULE_INTENDANCE,
                 Permission::MODULE_ADMIN,
+                Permission::MODULE_RH,
             ],
             message: 'Module invalide.',
         )]

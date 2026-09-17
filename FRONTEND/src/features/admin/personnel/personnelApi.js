@@ -1,4 +1,4 @@
-import { admin, organisation, referentiel } from '../../../api/endpoints.js';
+import { admin, organisation, referentiel, rh } from '../../../api/endpoints.js';
 import {
   callApiDelete,
   callApiGet,
@@ -11,6 +11,10 @@ import { uploadViaPreparedUrl } from '../../../utils/storageUpload.js';
 
 function unwrapData(response) {
   return response?.data ?? response;
+}
+
+function personnelBase(base) {
+  return base || admin.personnels;
 }
 
 function buildQueryString(params = {}) {
@@ -26,8 +30,8 @@ function buildQueryString(params = {}) {
   return query ? `?${query}` : '';
 }
 
-export async function fetchPersonnelsApi(params = {}) {
-  const response = await callApiGet(`${admin.personnels}${buildQueryString(params)}`);
+export async function fetchPersonnelsApi(params = {}, { base } = {}) {
+  const response = await callApiGet(`${personnelBase(base)}${buildQueryString(params)}`);
   const data = unwrapData(response);
 
   return {
@@ -41,69 +45,71 @@ export async function fetchPersonnelsApi(params = {}) {
   };
 }
 
-export async function fetchPersonnelApi(id) {
-  const response = await callApiGet(`${admin.personnels}/${id}`);
+export async function fetchPersonnelApi(id, { base } = {}) {
+  const response = await callApiGet(`${personnelBase(base)}/${id}`);
   return unwrapData(response);
 }
 
-export async function fetchPersonnelMetaApi() {
-  const response = await callApiGet(`${admin.personnels}/meta`);
+export async function fetchPersonnelMetaApi({ base } = {}) {
+  const response = await callApiGet(`${personnelBase(base)}/meta`);
   return unwrapData(response);
 }
 
-export async function createPersonnelApi(payload) {
-  const response = await callApiPost(admin.personnels, payload);
+export async function createPersonnelApi(payload, { base } = {}) {
+  const response = await callApiPost(personnelBase(base), payload);
   return unwrapData(response);
 }
 
-export async function updatePersonnelApi(id, payload) {
-  const response = await callApiPut(`${admin.personnels}/${id}`, payload);
+export async function updatePersonnelApi(id, payload, { base } = {}) {
+  const response = await callApiPut(`${personnelBase(base)}/${id}`, payload);
   return unwrapData(response);
 }
 
-export async function deletePersonnelApi(id) {
-  return callApiDelete(`${admin.personnels}/${id}`);
+export async function deletePersonnelApi(id, { base } = {}) {
+  return callApiDelete(`${personnelBase(base)}/${id}`);
 }
 
-export async function uploadPersonnelAvatarApi(id, file) {
+export async function uploadPersonnelAvatarApi(id, file, { base } = {}) {
+  const root = personnelBase(base);
   return uploadViaPreparedUrl({
     file,
-    prepare: async (body) => unwrapData(await callApiPost(`${admin.personnels}/${id}/avatar/prepare`, body)),
-    confirm: async (body) => unwrapData(await callApiPost(`${admin.personnels}/${id}/avatar/confirm`, body)),
+    prepare: async (body) => unwrapData(await callApiPost(`${root}/${id}/avatar/prepare`, body)),
+    confirm: async (body) => unwrapData(await callApiPost(`${root}/${id}/avatar/confirm`, body)),
     localUpload: async (localFile) => {
       const formData = new FormData();
       formData.append('avatar', localFile);
-      return unwrapData(await callApiPost(`${admin.personnels}/${id}/avatar`, formData));
+      return unwrapData(await callApiPost(`${root}/${id}/avatar`, formData));
     },
   });
 }
 
-export async function deletePersonnelAvatarApi(id) {
-  const response = await callApiDelete(`${admin.personnels}/${id}/avatar`);
+export async function deletePersonnelAvatarApi(id, { base } = {}) {
+  const response = await callApiDelete(`${personnelBase(base)}/${id}/avatar`);
   return unwrapData(response);
 }
 
-export async function uploadPersonnelSignatureApi(id, file) {
+export async function uploadPersonnelSignatureApi(id, file, { base } = {}) {
+  const root = personnelBase(base);
   return uploadViaPreparedUrl({
     file,
-    prepare: async (body) => unwrapData(await callApiPost(`${admin.personnels}/${id}/signature/prepare`, body)),
-    confirm: async (body) => unwrapData(await callApiPost(`${admin.personnels}/${id}/signature/confirm`, body)),
+    prepare: async (body) => unwrapData(await callApiPost(`${root}/${id}/signature/prepare`, body)),
+    confirm: async (body) => unwrapData(await callApiPost(`${root}/${id}/signature/confirm`, body)),
     localUpload: async (localFile) => {
       const formData = new FormData();
       formData.append('signature', localFile);
-      return unwrapData(await callApiPost(`${admin.personnels}/${id}/signature`, formData));
+      return unwrapData(await callApiPost(`${root}/${id}/signature`, formData));
     },
   });
 }
 
-export async function deletePersonnelSignatureApi(id) {
-  const response = await callApiDelete(`${admin.personnels}/${id}/signature`);
+export async function deletePersonnelSignatureApi(id, { base } = {}) {
+  const response = await callApiDelete(`${personnelBase(base)}/${id}/signature`);
   return unwrapData(response);
 }
 
-export async function exportPersonnelsApi(format, params = {}) {
+export async function exportPersonnelsApi(format, params = {}, { base } = {}) {
   const query = buildQueryString({ ...params, format });
-  const endpoint = `${admin.personnels}/export${query}`;
+  const endpoint = `${personnelBase(base)}/export${query}`;
 
   if (format === 'pdf') {
     await openFileInBrowser(endpoint);
@@ -113,15 +119,20 @@ export async function exportPersonnelsApi(format, params = {}) {
   await downloadFile(endpoint);
 }
 
-export async function fetchPersonnelLookupsApi() {
-  const lookupQuery = '?page=1&limit=100';
-  const [gradesRes, servicesRes, departementsRes, specialitesRes, rolesRes] = await Promise.all([
-    callApiGet(`${referentiel.grades}${lookupQuery}`),
-    callApiGet(`${organisation.services}${lookupQuery}`),
-    callApiGet(`${organisation.departements}${lookupQuery}`),
-    callApiGet(`${referentiel.specialites}${lookupQuery}`),
-    callApiGet(`${admin.roles}`),
-  ]);
+export async function fetchRhPersonnelLookupsApi() {
+  const response = await callApiGet(`${personnelBase(rh.personnels)}/lookups`);
+  const data = unwrapData(response);
+
+  return {
+    grades: Array.isArray(data?.grades) ? data.grades : [],
+    fonctions: Array.isArray(data?.fonctions) ? data.fonctions : [],
+    services: Array.isArray(data?.services) ? data.services : [],
+    departements: Array.isArray(data?.departements) ? data.departements : [],
+  };
+}
+
+export async function fetchPersonnelLookupsApi({ includeRoles = true, limit = 100 } = {}) {
+  const lookupQuery = `?page=1&limit=${limit}`;
 
   const unwrapList = (response) => {
     const data = unwrapData(response);
@@ -130,11 +141,29 @@ export async function fetchPersonnelLookupsApi() {
     return [];
   };
 
+  const safeList = async (promise) => {
+    try {
+      return unwrapList(await promise);
+    } catch {
+      return [];
+    }
+  };
+
+  const [grades, fonctions, services, departements, specialites, roles] = await Promise.all([
+    safeList(callApiGet(`${referentiel.grades}${lookupQuery}`)),
+    safeList(callApiGet(`${referentiel.fonctions}${lookupQuery}`)),
+    safeList(callApiGet(`${organisation.services}${lookupQuery}`)),
+    safeList(callApiGet(`${organisation.departements}${lookupQuery}`)),
+    safeList(callApiGet(`${referentiel.specialites}${lookupQuery}`)),
+    includeRoles ? safeList(callApiGet(`${admin.roles}`)) : Promise.resolve([]),
+  ]);
+
   return {
-    grades: unwrapList(gradesRes),
-    services: unwrapList(servicesRes),
-    departements: unwrapList(departementsRes),
-    specialites: unwrapList(specialitesRes),
-    roles: unwrapList(rolesRes),
+    grades,
+    fonctions,
+    services,
+    departements,
+    specialites,
+    roles,
   };
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -11,11 +12,14 @@ import {
   Sheet,
   Stack,
   Table,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/joy';
-import { FileSpreadsheet, FileText, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import { FileSpreadsheet, FileText, LayoutGrid, List, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
+import { admin, rh } from '../../../api/endpoints.js';
 import { PERMISSIONS } from '../../../constants/permissions.js';
+import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import AuthAvatar from '../../../components/ui/AuthAvatar.jsx';
@@ -24,6 +28,7 @@ import RoleAssignmentLabel from '../../../components/common/RoleAssignmentLabel.
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import PersonnelDeleteModal from './components/PersonnelDeleteModal.jsx';
 import PersonnelFormModal from './components/PersonnelFormModal.jsx';
+import PersonnelGrid from './components/PersonnelGrid.jsx';
 import {
   DEFAULT_PERSONNEL_PAGE_SIZE,
   EMPTY_PERSONNEL_FORM,
@@ -32,6 +37,9 @@ import {
   PERSONNEL_STATUS_LABELS,
   PERSONNEL_SEXES,
   PERSONNEL_TYPE_LABELS,
+  PERSONNEL_VIEW_GRID,
+  PERSONNEL_VIEW_STORAGE_KEY,
+  PERSONNEL_VIEW_TABLE,
 } from './personnelConstants.js';
 import {
   createPersonnelApi,
@@ -62,14 +70,20 @@ function StatusChip({ status }) {
   );
 }
 
-export default function PersonnelPage() {
+export default function PersonnelPage({ variant = 'admin' }) {
+  const navigate = useNavigate();
+  const isRh = variant === 'rh';
+  const apiBase = isRh ? rh.personnels : admin.personnels;
+  const apiOptions = { base: apiBase };
+  const permissionGroup = isRh ? PERMISSIONS.RH : PERMISSIONS.ADMIN;
   const { hasPermission } = usePermissions();
   const { showSuccess, showError } = useToast();
-  const canCreate = hasPermission(PERMISSIONS.ADMIN.PERSONNEL_CREATE);
-  const canUpdate = hasPermission(PERMISSIONS.ADMIN.PERSONNEL_UPDATE);
-  const canDelete = hasPermission(PERMISSIONS.ADMIN.PERSONNEL_DELETE);
-  const canExport = hasPermission(PERMISSIONS.ADMIN.PERSONNEL_EXPORT);
+  const canCreate = hasPermission(permissionGroup.PERSONNEL_CREATE);
+  const canUpdate = hasPermission(permissionGroup.PERSONNEL_UPDATE);
+  const canDelete = hasPermission(permissionGroup.PERSONNEL_DELETE);
+  const canExport = hasPermission(permissionGroup.PERSONNEL_EXPORT);
   const showActions = canUpdate || canDelete;
+  const showRoles = !isRh;
 
   const [personnels, setPersonnels] = useState([]);
   const [pagination, setPagination] = useState(EMPTY_PAGINATION);
@@ -97,12 +111,30 @@ export default function PersonnelPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [exportLoading, setExportLoading] = useState(null);
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(PERSONNEL_VIEW_STORAGE_KEY);
+      return stored === PERSONNEL_VIEW_GRID ? PERSONNEL_VIEW_GRID : PERSONNEL_VIEW_TABLE;
+    } catch {
+      return PERSONNEL_VIEW_TABLE;
+    }
+  });
+
+  const changeViewMode = (_, value) => {
+    if (!value) return;
+    setViewMode(value);
+    try {
+      window.localStorage.setItem(PERSONNEL_VIEW_STORAGE_KEY, value);
+    } catch {
+      /* ignore quota / private mode */
+    }
+  };
 
   useEffect(() => {
-    fetchPersonnelLookupsApi()
+    fetchPersonnelLookupsApi({ includeRoles: showRoles })
       .then((lookups) => setServices(lookups.services ?? []))
       .catch(() => setServices([]));
-  }, []);
+  }, [showRoles]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -125,7 +157,7 @@ export default function PersonnelPage() {
         type: typeFilter || undefined,
         serviceId: serviceFilter || undefined,
         sexe: sexeFilter || undefined,
-      });
+      }, apiOptions);
       setPersonnels(result.items);
       setPagination(result.pagination);
       if (result.pagination.totalPages > 0 && targetPage > result.pagination.totalPages) {
@@ -136,13 +168,17 @@ export default function PersonnelPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch, statusFilter, typeFilter, serviceFilter, sexeFilter]);
+  }, [page, limit, debouncedSearch, statusFilter, typeFilter, serviceFilter, sexeFilter, apiBase]);
 
   useEffect(() => {
     loadPersonnels(page);
   }, [loadPersonnels, page]);
 
   const openCreate = () => {
+    if (isRh) {
+      navigate(ROUTES.RH.PERSONNEL_NEW);
+      return;
+    }
     setFormMode('create');
     setEditingPersonnel(null);
     setFormValues(EMPTY_PERSONNEL_FORM);
@@ -151,13 +187,17 @@ export default function PersonnelPage() {
   };
 
   const openEdit = async (personnel) => {
+    if (isRh) {
+      navigate(`${ROUTES.RH.PERSONNEL}/${personnel.id}`);
+      return;
+    }
     setFormMode('edit');
     setFormError('');
     setFormLoading(true);
     setFormOpen(true);
 
     try {
-      const detail = await fetchPersonnelApi(personnel.id);
+      const detail = await fetchPersonnelApi(personnel.id, apiOptions);
       setEditingPersonnel(detail);
       setFormValues({
         nom: detail.nom ?? '',
@@ -173,6 +213,7 @@ export default function PersonnelPage() {
         lieuNaissance: detail.lieuNaissance ?? '',
         cnome: detail.cnome ?? '',
         gradeId: detail.grade?.id ?? null,
+        fonctionId: detail.fonction?.id ?? null,
         serviceId: detail.service?.id ?? null,
         specialiteIds: detail.specialiteIds ?? [],
         roleAssignments: detail.roleAssignments ?? [],
@@ -194,33 +235,42 @@ export default function PersonnelPage() {
     setFormLoading(true);
     setFormError('');
     try {
+      const requestPayload = { ...payload };
+      if (isRh) {
+        if (formMode === 'create') {
+          requestPayload.roleAssignments = [];
+        } else {
+          delete requestPayload.roleAssignments;
+        }
+      }
+
       if (formMode === 'create') {
-        const created = await createPersonnelApi(payload);
+        const created = await createPersonnelApi(requestPayload, apiOptions);
         if (avatarOptions.avatarFile) {
-          await uploadPersonnelAvatarApi(created.id, avatarOptions.avatarFile);
+          await uploadPersonnelAvatarApi(created.id, avatarOptions.avatarFile, apiOptions);
         }
         if (avatarOptions.signatureFile) {
-          await uploadPersonnelSignatureApi(created.id, avatarOptions.signatureFile);
+          await uploadPersonnelSignatureApi(created.id, avatarOptions.signatureFile, apiOptions);
         }
-        showSuccess('Personnel créé avec succès.');
+        showSuccess(isRh ? 'Personnel créé avec succès.' : 'Utilisateur créé avec succès.');
         setPage(1);
       } else {
-        const updatePayload = { ...payload };
+        const updatePayload = { ...requestPayload };
         if (!updatePayload.password) delete updatePayload.password;
-        await updatePersonnelApi(editingPersonnel.id, updatePayload);
+        await updatePersonnelApi(editingPersonnel.id, updatePayload, apiOptions);
 
         if (avatarOptions.avatarFile) {
-          await uploadPersonnelAvatarApi(editingPersonnel.id, avatarOptions.avatarFile);
+          await uploadPersonnelAvatarApi(editingPersonnel.id, avatarOptions.avatarFile, apiOptions);
         } else if (avatarOptions.removeAvatar) {
-          await deletePersonnelAvatarApi(editingPersonnel.id);
+          await deletePersonnelAvatarApi(editingPersonnel.id, apiOptions);
         }
         if (avatarOptions.signatureFile) {
-          await uploadPersonnelSignatureApi(editingPersonnel.id, avatarOptions.signatureFile);
+          await uploadPersonnelSignatureApi(editingPersonnel.id, avatarOptions.signatureFile, apiOptions);
         } else if (avatarOptions.removeSignature) {
-          await deletePersonnelSignatureApi(editingPersonnel.id);
+          await deletePersonnelSignatureApi(editingPersonnel.id, apiOptions);
         }
 
-        showSuccess('Personnel mis à jour avec succès.');
+        showSuccess(isRh ? 'Personnel mis à jour avec succès.' : 'Utilisateur mis à jour avec succès.');
       }
       setFormOpen(false);
       await loadPersonnels(formMode === 'create' ? 1 : page);
@@ -246,9 +296,9 @@ export default function PersonnelPage() {
     setDeleteLoading(true);
     setDeleteError('');
     try {
-      await deletePersonnelApi(deletingPersonnel.id);
+      await deletePersonnelApi(deletingPersonnel.id, apiOptions);
       setDeleteOpen(false);
-      showSuccess('Personnel supprimé avec succès.');
+      showSuccess(isRh ? 'Personnel supprimé avec succès.' : 'Utilisateur supprimé avec succès.');
       const nextPage = personnels.length === 1 && page > 1 ? page - 1 : page;
       setPage(nextPage);
       await loadPersonnels(nextPage);
@@ -281,7 +331,7 @@ export default function PersonnelPage() {
   const handleExport = async (format) => {
     setExportLoading(format);
     try {
-      await exportPersonnelsApi(format, buildExportParams());
+      await exportPersonnelsApi(format, buildExportParams(), apiOptions);
       showSuccess(format === 'pdf' ? 'Export PDF ouvert dans le navigateur.' : 'Export Excel téléchargé.');
     } catch (error) {
       showError(error.message || 'Export impossible.');
@@ -294,9 +344,13 @@ export default function PersonnelPage() {
     <Stack spacing={3}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'flex-start' }} spacing={2}>
         <Box>
-          <Typography level="h2" sx={{ fontWeight: 700, mb: 0.5 }}>Personnel</Typography>
+          <Typography level="h2" sx={{ fontWeight: 700, mb: 0.5 }}>
+            {isRh ? 'Personnel' : 'Utilisateurs'}
+          </Typography>
           <Typography level="body-md" sx={{ color: 'neutral.500' }}>
-            Gérez les comptes du personnel, leurs informations et leurs rôles.
+            {isRh
+              ? 'Gérez les fiches du personnel (identité, grade, fonction, service).'
+              : 'Gérez les comptes utilisateurs, leurs informations et leurs rôles.'}
           </Typography>
         </Box>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignSelf: { sm: 'center' } }}>
@@ -326,7 +380,7 @@ export default function PersonnelPage() {
           ) : null}
           {canCreate ? (
             <Button startDecorator={<Plus size={18} />} onClick={openCreate}>
-              Nouveau personnel
+              {isRh ? 'Nouveau personnel' : 'Nouvel utilisateur'}
             </Button>
           ) : null}
         </Stack>
@@ -395,21 +449,49 @@ export default function PersonnelPage() {
             </Stack>
           </Stack>
 
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
             <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
               {pagination.total} agent{pagination.total > 1 ? 's' : ''}
             </Typography>
-            {hasActiveFilters ? (
-              <Button size="sm" variant="plain" color="neutral" onClick={resetFilters}>
-                Réinitialiser les filtres
-              </Button>
-            ) : null}
+            <Stack direction="row" spacing={1} alignItems="center">
+              {hasActiveFilters ? (
+                <Button size="sm" variant="plain" color="neutral" onClick={resetFilters}>
+                  Réinitialiser les filtres
+                </Button>
+              ) : null}
+              <ToggleButtonGroup
+                size="sm"
+                variant="outlined"
+                value={viewMode}
+                onChange={changeViewMode}
+                sx={{ bgcolor: 'background.level1' }}
+              >
+                <IconButton value={PERSONNEL_VIEW_TABLE} aria-label="Vue tableau" title="Tableau">
+                  <List size={16} />
+                </IconButton>
+                <IconButton value={PERSONNEL_VIEW_GRID} aria-label="Vue grille" title="Grille">
+                  <LayoutGrid size={16} />
+                </IconButton>
+              </ToggleButtonGroup>
+            </Stack>
           </Stack>
 
           {listError ? (
             <Typography level="body-sm" color="danger" sx={{ bgcolor: 'danger.50', p: 1.5, borderRadius: 'md' }}>{listError}</Typography>
           ) : null}
 
+          {viewMode === PERSONNEL_VIEW_GRID ? (
+            <PersonnelGrid
+              personnels={personnels}
+              loading={loading}
+              showActions={showActions}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+              onEdit={openEdit}
+              onDelete={openDelete}
+              hideRoles={!showRoles}
+            />
+          ) : (
           <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto', borderColor: LOTRU_NEUTRAL[200] }}>
             <Table
               stickyHeader
@@ -459,23 +541,25 @@ export default function PersonnelPage() {
                   <th className="pers-col-type">Type</th>
                   <th className="pers-col-status">Statut</th>
                   <th className="pers-col-desktop">Service</th>
-                  <th className="pers-col-desktop pers-col-roles">Rôles</th>
+                  {showRoles ? <th className="pers-col-desktop pers-col-roles">Rôles</th> : null}
                   {showActions ? <th className="pers-col-actions">Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={showActions ? 8 : 7}><Typography level="body-sm" sx={{ py: 3, textAlign: 'center', color: 'neutral.500' }}>Chargement...</Typography></td></tr>
+                  <tr><td colSpan={(showRoles ? 7 : 6) + (showActions ? 1 : 0)}><Typography level="body-sm" sx={{ py: 3, textAlign: 'center', color: 'neutral.500' }}>Chargement...</Typography></td></tr>
                 ) : null}
 
                 {!loading && personnels.length === 0 ? (
                   <tr>
-                    <td colSpan={showActions ? 8 : 7}>
+                    <td colSpan={(showRoles ? 7 : 6) + (showActions ? 1 : 0)}>
                       <Stack alignItems="center" spacing={1} sx={{ py: 5 }}>
                         <Box sx={{ width: 48, height: 48, borderRadius: 'md', bgcolor: 'primary.50', color: 'primary.600', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Users size={22} />
                         </Box>
-                        <Typography level="title-sm" sx={{ fontWeight: 600 }}>Aucun personnel trouvé</Typography>
+                        <Typography level="title-sm" sx={{ fontWeight: 600 }}>
+                          {isRh ? 'Aucun personnel trouvé' : 'Aucun utilisateur trouvé'}
+                        </Typography>
                       </Stack>
                     </td>
                   </tr>
@@ -494,7 +578,7 @@ export default function PersonnelPage() {
                         <Box sx={{ minWidth: 0 }}>
                           <Typography level="body-sm" sx={{ fontWeight: 600 }}>{getDisplayName(personnel)}</Typography>
                           <Typography level="body-xs" sx={{ color: 'neutral.500', display: { xs: 'none', md: 'block' } }}>
-                            {personnel.grade?.libelle ?? '—'}
+                            {[personnel.grade?.libelle, personnel.fonction?.libelle].filter(Boolean).join(' · ') || '—'}
                           </Typography>
                         </Box>
                       </Stack>
@@ -504,27 +588,29 @@ export default function PersonnelPage() {
                     <td className="pers-col-type"><Chip size="sm" variant="soft" color="neutral">{PERSONNEL_TYPE_LABELS[personnel.type] ?? personnel.type}</Chip></td>
                     <td className="pers-col-status"><StatusChip status={personnel.status} /></td>
                     <td className="pers-col-desktop"><Typography level="body-sm">{personnel.service?.libelle ?? '—'}</Typography></td>
-                    <td className="pers-col-desktop pers-col-roles">
-                      <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
-                        {(personnel.roleAssignments ?? []).slice(0, 2).map((assignment) => (
-                          <Chip key={assignment.id} size="sm" variant="outlined" color="primary">
-                            <RoleAssignmentLabel
-                              assignment={{
-                                roleLibelle: assignment.roleLibelle,
-                                roleCode: assignment.roleCode,
-                                service: assignment.serviceLibelle,
-                                departement: assignment.departementLibelle,
-                              }}
-                              preferCode
-                              component="span"
-                            />
-                          </Chip>
-                        ))}
-                        {(personnel.roleAssignments?.length ?? 0) > 2 ? (
-                          <Chip size="sm" variant="soft" color="neutral">+{personnel.roleAssignments.length - 2}</Chip>
-                        ) : null}
-                      </Stack>
-                    </td>
+                    {showRoles ? (
+                      <td className="pers-col-desktop pers-col-roles">
+                        <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
+                          {(personnel.roleAssignments ?? []).slice(0, 2).map((assignment) => (
+                            <Chip key={assignment.id} size="sm" variant="outlined" color="primary">
+                              <RoleAssignmentLabel
+                                assignment={{
+                                  roleLibelle: assignment.roleLibelle,
+                                  roleCode: assignment.roleCode,
+                                  service: assignment.serviceLibelle,
+                                  departement: assignment.departementLibelle,
+                                }}
+                                preferCode
+                                component="span"
+                              />
+                            </Chip>
+                          ))}
+                          {(personnel.roleAssignments?.length ?? 0) > 2 ? (
+                            <Chip size="sm" variant="soft" color="neutral">+{personnel.roleAssignments.length - 2}</Chip>
+                          ) : null}
+                        </Stack>
+                      </td>
+                    ) : null}
                     {showActions ? (
                       <td className="pers-col-actions">
                         <Stack direction="row" spacing={0.5} justifyContent="flex-end">
@@ -546,6 +632,7 @@ export default function PersonnelPage() {
               </tbody>
             </Table>
           </Sheet>
+          )}
 
           <AppPagination
             page={pagination.page}
@@ -560,15 +647,19 @@ export default function PersonnelPage() {
         </Stack>
       </Card>
 
-      <PersonnelFormModal
-        open={formOpen}
-        mode={formMode}
-        initialValues={formValues}
-        loading={formLoading}
-        error={formError}
-        onClose={closeForm}
-        onSubmit={handleSubmit}
-      />
+      {isRh ? null : (
+        <PersonnelFormModal
+          open={formOpen}
+          mode={formMode}
+          initialValues={formValues}
+          loading={formLoading}
+          error={formError}
+          onClose={closeForm}
+          onSubmit={handleSubmit}
+          hideRoles={!showRoles}
+          variant={variant}
+        />
+      )}
 
       <PersonnelDeleteModal
         open={deleteOpen}

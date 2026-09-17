@@ -8,6 +8,7 @@ use App\DTO\Admin\PersonnelRoleAssignmentInput;
 use App\DTO\Admin\UpdatePersonnelInput;
 use App\DTO\Common\PaginatedResult;
 use App\Entity\Departement;
+use App\Entity\Fonction;
 use App\Entity\Grade;
 use App\Entity\Personnel;
 use App\Entity\PersonnelRole;
@@ -18,12 +19,14 @@ use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
 use App\Service\Storage\StoredFile;
 use App\Repository\DepartementRepository;
+use App\Repository\FonctionRepository;
 use App\Repository\GradeRepository;
 use App\Repository\PersonnelRepository;
 use App\Repository\RoleRepository;
 use App\Repository\ServiceRepository;
 use App\Repository\SpecialiteRepository;
 use App\Security\Permission\AdminPermissions;
+use App\Security\Permission\RhPermissions;
 use App\Security\PermissionChecker;
 use App\Service\Role\RoleProvisioner;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -42,6 +45,7 @@ final class PersonnelService
         private readonly EntityManagerInterface $eM,
         private readonly PersonnelRepository $personnelRepository,
         private readonly GradeRepository $gradeRepository,
+        private readonly FonctionRepository $fonctionRepository,
         private readonly ServiceRepository $serviceRepository,
         private readonly SpecialiteRepository $specialiteRepository,
         private readonly RoleRepository $roleRepository,
@@ -67,7 +71,7 @@ final class PersonnelService
         $accessScope = null;
         $viewer = $this->security->getUser();
         if ($viewer instanceof Personnel) {
-            $accessScope = $this->permissionChecker->resolveAccessScope($viewer, AdminPermissions::PERSONNEL_READ);
+            $accessScope = $this->permissionChecker->resolveAccessScope($viewer, $this->resolveViewerPersonnelPermission('read'));
         }
 
         $result = $this->personnelRepository->paginate(
@@ -102,7 +106,7 @@ final class PersonnelService
         $accessScope = null;
         $viewer = $this->security->getUser();
         if ($viewer instanceof Personnel) {
-            $accessScope = $this->permissionChecker->resolveAccessScope($viewer, AdminPermissions::PERSONNEL_READ);
+            $accessScope = $this->permissionChecker->resolveAccessScope($viewer, $this->resolveViewerPersonnelPermission('read'));
         }
 
         $items = $this->personnelRepository->findForExport(
@@ -161,14 +165,15 @@ final class PersonnelService
 
         $personnel->setPassword($this->passwordHasher->hashPassword($personnel, $input->password));
         $personnel->setGrade($this->resolveGrade($input->gradeId));
+        $personnel->setFonction($this->resolveFonction($input->fonctionId));
         $service = $this->resolveService($input->serviceId);
-        $this->assertViewerCanAssignService($service, AdminPermissions::PERSONNEL_CREATE);
+        $this->assertViewerCanAssignService($service, $this->resolveViewerPersonnelPermission('create'));
         $personnel->setService($service);
         $this->syncSpecialites($personnel, $input->specialiteIds);
 
         $this->eM->persist($personnel);
 
-        if ([] !== $input->roleAssignments) {
+        if ([] !== $input->roleAssignments && $this->viewerCanManageRoles()) {
             $this->syncRoleAssignments($personnel, $input->roleAssignments);
         }
 
@@ -191,7 +196,7 @@ final class PersonnelService
         }
 
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
         $personnelId = $personnel->getId();
         if (null === $personnelId) {
             throw new NotFoundException('Personnel non trouvé.');
@@ -221,9 +226,10 @@ final class PersonnelService
             ->setLieuNaissance($this->normalizeOptionalText($input->lieuNaissance))
             ->setCnome($this->normalizeOptionalText($input->cnome))
             ->setGrade($this->resolveGrade($input->gradeId));
+        $personnel->setFonction($this->resolveFonction($input->fonctionId));
 
         $service = $this->resolveService($input->serviceId);
-        $this->assertViewerCanAssignService($service, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAssignService($service, $this->resolveViewerPersonnelPermission('update'));
         $personnel->setService($service);
 
         if (null !== $input->password && '' !== trim($input->password)) {
@@ -234,7 +240,7 @@ final class PersonnelService
             $this->syncSpecialites($personnel, $input->specialiteIds);
         }
 
-        if (null !== $input->roleAssignments) {
+        if (null !== $input->roleAssignments && $this->viewerCanManageRoles()) {
             $this->syncRoleAssignments($personnel, $input->roleAssignments);
         }
 
@@ -252,7 +258,7 @@ final class PersonnelService
     public function delete(string $id): void
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_DELETE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('delete'));
         $this->avatarService->delete($personnel);
         $this->signatureService->delete($personnel);
         $personnel->setStatus(Personnel::STATUS_SUPPRIME);
@@ -265,7 +271,7 @@ final class PersonnelService
     public function prepareAvatarUpload(string $id, string $mimeType, int $size): array
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
 
         return $this->avatarService->prepareDirectUpload($personnel, $mimeType, $size);
     }
@@ -273,7 +279,7 @@ final class PersonnelService
     public function confirmAvatarUpload(string $id, string $filename): Personnel
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
         $this->avatarService->confirmDirectUpload($personnel, $filename);
         $this->eM->flush();
 
@@ -283,7 +289,7 @@ final class PersonnelService
     public function uploadAvatar(string $id, UploadedFile $file): Personnel
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
         $this->avatarService->upload($personnel, $file);
 
         try {
@@ -299,7 +305,7 @@ final class PersonnelService
     public function deleteAvatar(string $id): Personnel
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
         $this->avatarService->delete($personnel);
         $this->eM->flush();
 
@@ -324,7 +330,7 @@ final class PersonnelService
     public function prepareSignatureUpload(string $id, string $mimeType, int $size): array
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
 
         return $this->signatureService->prepareDirectUpload($personnel, $mimeType, $size);
     }
@@ -332,7 +338,7 @@ final class PersonnelService
     public function confirmSignatureUpload(string $id, string $filename): Personnel
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
         $this->signatureService->confirmDirectUpload($personnel, $filename);
         $this->eM->flush();
 
@@ -342,7 +348,7 @@ final class PersonnelService
     public function uploadSignature(string $id, UploadedFile $file): Personnel
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
         $this->signatureService->upload($personnel, $file);
 
         try {
@@ -358,7 +364,7 @@ final class PersonnelService
     public function deleteSignature(string $id): Personnel
     {
         $personnel = $this->getById($id);
-        $this->assertViewerCanAccessPersonnel($personnel, AdminPermissions::PERSONNEL_UPDATE);
+        $this->assertViewerCanAccessPersonnel($personnel, $this->resolveViewerPersonnelPermission('update'));
         $this->signatureService->delete($personnel);
         $this->eM->flush();
 
@@ -375,6 +381,77 @@ final class PersonnelService
         $personnel = $this->getById($id);
 
         return $this->signatureService->resolveMimeType($personnel);
+    }
+
+    /**
+     * Listes du formulaire RH (sans pagination, accessibles avec rh.personnel.read).
+     *
+     * @return array{
+     *     grades: list<array<string, mixed>>,
+     *     fonctions: list<array<string, mixed>>,
+     *     services: list<array<string, mixed>>,
+     *     departements: list<array<string, mixed>>
+     * }
+     */
+    public function getFormLookups(): array
+    {
+        $grades = [];
+        foreach ($this->gradeRepository->findBy([], ['libelle' => 'ASC']) as $grade) {
+            $grades[] = [
+                'id' => $grade->getId(),
+                'code' => $grade->getCode(),
+                'libelle' => $grade->getLibelle(),
+            ];
+        }
+
+        $fonctions = [];
+        foreach ($this->fonctionRepository->findBy([], ['libelle' => 'ASC']) as $fonction) {
+            $service = $fonction->getService();
+            $fonctions[] = [
+                'id' => $fonction->getId(),
+                'code' => $fonction->getCode(),
+                'libelle' => $fonction->getLibelle(),
+                'serviceId' => $service?->getId(),
+                'service' => null !== $service ? [
+                    'id' => $service->getId(),
+                    'code' => $service->getCode(),
+                    'libelle' => $service->getLibelle(),
+                    'departementId' => $service->getDepartement()?->getId(),
+                ] : null,
+            ];
+        }
+
+        $services = [];
+        foreach ($this->serviceRepository->findBy([], ['libelle' => 'ASC']) as $service) {
+            $departement = $service->getDepartement();
+            $services[] = [
+                'id' => $service->getId(),
+                'code' => $service->getCode(),
+                'libelle' => $service->getLibelle(),
+                'departementId' => $departement?->getId(),
+                'departement' => null !== $departement ? [
+                    'id' => $departement->getId(),
+                    'code' => $departement->getCode(),
+                    'libelle' => $departement->getLibelle(),
+                ] : null,
+            ];
+        }
+
+        $departements = [];
+        foreach ($this->departementRepository->findBy([], ['libelle' => 'ASC']) as $departement) {
+            $departements[] = [
+                'id' => $departement->getId(),
+                'code' => $departement->getCode(),
+                'libelle' => $departement->getLibelle(),
+            ];
+        }
+
+        return [
+            'grades' => $grades,
+            'fonctions' => $fonctions,
+            'services' => $services,
+            'departements' => $departements,
+        ];
     }
 
     /**
@@ -408,6 +485,7 @@ final class PersonnelService
         }
 
         $grade = $personnel->getGrade();
+        $fonction = $personnel->getFonction();
         $service = $personnel->getService();
 
         return [
@@ -429,6 +507,11 @@ final class PersonnelService
                 'id' => $grade->getId(),
                 'code' => $grade->getCode(),
                 'libelle' => $grade->getLibelle(),
+            ] : null,
+            'fonction' => null !== $fonction ? [
+                'id' => $fonction->getId(),
+                'code' => $fonction->getCode(),
+                'libelle' => $fonction->getLibelle(),
             ] : null,
             'service' => null !== $service ? [
                 'id' => $service->getId(),
@@ -461,6 +544,7 @@ final class PersonnelService
             'type' => $full['type'],
             'status' => $full['status'],
             'grade' => $full['grade'],
+            'fonction' => $full['fonction'],
             'service' => $full['service'],
             'avatarUrl' => $full['avatarUrl'],
             'roleAssignments' => $full['roleAssignments'],
@@ -542,6 +626,20 @@ final class PersonnelService
         }
 
         return $grade;
+    }
+
+    private function resolveFonction(?int $fonctionId): ?Fonction
+    {
+        if (null === $fonctionId) {
+            return null;
+        }
+
+        $fonction = $this->fonctionRepository->find($fonctionId);
+        if (null === $fonction) {
+            throw new NotFoundException('Fonction non trouvée.');
+        }
+
+        return $fonction;
     }
 
     private function resolveService(?int $serviceId): ?Service
@@ -738,6 +836,53 @@ final class PersonnelService
         };
 
         $assignment->validateScope();
+    }
+
+    private function resolveViewerPersonnelPermission(string $action): string
+    {
+        $adminPermission = match ($action) {
+            'read' => AdminPermissions::PERSONNEL_READ,
+            'create' => AdminPermissions::PERSONNEL_CREATE,
+            'update' => AdminPermissions::PERSONNEL_UPDATE,
+            'delete' => AdminPermissions::PERSONNEL_DELETE,
+            'export' => AdminPermissions::PERSONNEL_EXPORT,
+            default => throw new \InvalidArgumentException(sprintf('Action personnel inconnue : %s.', $action)),
+        };
+
+        $rhPermission = match ($action) {
+            'read' => RhPermissions::PERSONNEL_READ,
+            'create' => RhPermissions::PERSONNEL_CREATE,
+            'update' => RhPermissions::PERSONNEL_UPDATE,
+            'delete' => RhPermissions::PERSONNEL_DELETE,
+            'export' => RhPermissions::PERSONNEL_EXPORT,
+            default => $adminPermission,
+        };
+
+        $viewer = $this->security->getUser();
+        if (!$viewer instanceof Personnel) {
+            return $adminPermission;
+        }
+
+        if ($this->permissionChecker->isGranted($viewer, $adminPermission)) {
+            return $adminPermission;
+        }
+
+        if ($this->permissionChecker->isGranted($viewer, $rhPermission)) {
+            return $rhPermission;
+        }
+
+        return $adminPermission;
+    }
+
+    private function viewerCanManageRoles(): bool
+    {
+        $viewer = $this->security->getUser();
+        if (!$viewer instanceof Personnel) {
+            return false;
+        }
+
+        return $this->permissionChecker->isGranted($viewer, AdminPermissions::PERSONNEL_CREATE)
+            || $this->permissionChecker->isGranted($viewer, AdminPermissions::PERSONNEL_UPDATE);
     }
 
     private function assertViewerCanAccessPersonnel(Personnel $target, string $permission): void

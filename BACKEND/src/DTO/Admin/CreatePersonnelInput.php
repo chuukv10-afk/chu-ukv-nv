@@ -56,6 +56,9 @@ final class CreatePersonnelInput
         public ?int $gradeId = null,
 
         #[Assert\Positive]
+        public ?int $fonctionId = null,
+
+        #[Assert\Positive]
         public ?int $serviceId = null,
 
         #[Assert\Type(type: 'array')]

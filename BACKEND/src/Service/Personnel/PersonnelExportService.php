@@ -41,6 +41,8 @@ final class PersonnelExportService
 
         'Grade',
 
+        'Fonction',
+
         'Service',
 
         'Rôles',
@@ -83,9 +85,9 @@ final class PersonnelExportService
 
     ];
 
-    private const ROLES_PDF_COLUMN_INDEX = 9;
+    private const ROLES_PDF_COLUMN_INDEX = 10;
 
-    private const ROLES_ROW_VALUE_INDEX = 8;
+    private const ROLES_ROW_VALUE_INDEX = 9;
 
 
 
@@ -302,6 +304,8 @@ final class PersonnelExportService
             'statut' => self::STATUS_LABELS[$personnel->getStatus() ?? ''] ?? $personnel->getStatus(),
 
             'grade' => $personnel->getGrade()?->getLibelle(),
+
+            'fonction' => $personnel->getFonction()?->getLibelle(),
 
             'service' => $personnel->getService()?->getLibelle(),
 

@@ -79,6 +79,23 @@ class PersonnelRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * @return list<Personnel>
+     */
+    public function findAllForPaie(): array
+    {
+        return $this->createQueryBuilder('p')
+            ->leftJoin('p.grade', 'g')->addSelect('g')
+            ->leftJoin('p.fonction', 'f')->addSelect('f')
+            ->leftJoin('p.service', 's')->addSelect('s')
+            ->andWhere('p.status != :deletedStatus')
+            ->setParameter('deletedStatus', Personnel::STATUS_SUPPRIME)
+            ->orderBy('p.nom', 'ASC')
+            ->addOrderBy('p.postNom', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function findOneByTelephoneForAnotherPersonnel(string $telephone, Uuid $excludeId): ?Personnel
     {
         return $this->createQueryBuilder('p')

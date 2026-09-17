@@ -22,6 +22,7 @@ class Permission
     public const MODULE_PHARMACIE = 'PHARMACIE';
     public const MODULE_INTENDANCE = 'INTENDANCE';
     public const MODULE_ADMIN = 'ADMIN';
+    public const MODULE_RH = 'RH';
 
     #[ORM\Column(length: 50, unique: true)]
     private ?string $code = null;
@@ -66,6 +67,7 @@ class Permission
             self::MODULE_PHARMACIE,
             self::MODULE_INTENDANCE,
             self::MODULE_ADMIN,
+            self::MODULE_RH,
         ];
     }
 

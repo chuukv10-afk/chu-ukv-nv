@@ -47,6 +47,11 @@ export const PERSONNEL_STATUS_COLORS = PERSONNEL_STATUSES.reduce((acc, item) => 
 
 export const DEFAULT_PERSONNEL_PAGE_SIZE = 10;
 export const PERSONNEL_PAGE_SIZE_OPTIONS = [10, 25, 50];
+export const PERSONNEL_VIEW_STORAGE_KEY = 'chu-ukv.personnel.view';
+export const PERSONNEL_VIEW_TABLE = 'table';
+export const PERSONNEL_VIEW_GRID = 'grid';
+
+export const DEFAULT_PERSONNEL_PASSWORD = 'CHU-12345@';
 
 export const EMPTY_PERSONNEL_FORM = {
   nom: '',
@@ -62,6 +67,7 @@ export const EMPTY_PERSONNEL_FORM = {
   lieuNaissance: '',
   cnome: '',
   gradeId: null,
+  fonctionId: null,
   serviceId: null,
   specialiteIds: [],
   roleAssignments: [],

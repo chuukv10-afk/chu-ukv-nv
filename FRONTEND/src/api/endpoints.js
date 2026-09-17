@@ -43,6 +43,7 @@ export const intendance = {
 
 export const referentiel = {
   grades: '/api/v1/referentiel/grades',
+  fonctions: '/api/v1/referentiel/fonctions',
   filieres: '/api/v1/referentiel/filieres',
   specialites: '/api/v1/referentiel/specialites',
   typesExamen: '/api/v1/referentiel/types-examen',
@@ -82,4 +83,11 @@ export const admin = {
   permissions: '/api/v1/admin/permissions',
   rolePermissions: '/api/v1/admin/role-permissions',
   database: '/api/v1/admin/database',
+};
+
+export const rh = {
+  personnels: '/api/v1/rh/personnels',
+  paie: '/api/v1/rh/paie',
+  paiePeriodes: '/api/v1/rh/paie/periodes',
+  paieBaremes: '/api/v1/rh/paie/baremes',
 };

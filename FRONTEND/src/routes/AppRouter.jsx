@@ -27,8 +27,13 @@ import RolesPage from '../features/admin/roles/RolesPage.jsx';
 import PermissionsPage from '../features/admin/permissions/PermissionsPage.jsx';
 import RolePermissionsPage from '../features/admin/role-permissions/RolePermissionsPage.jsx';
 import PersonnelPage from '../features/admin/personnel/PersonnelPage.jsx';
+import PaiePersonnelPage from '../features/rh/paie/PaiePersonnelPage.jsx';
+import PaiePeriodePage from '../features/rh/paie/PaiePeriodePage.jsx';
+import PaieBaremePage from '../features/rh/paie/PaieBaremePage.jsx';
+import RhPersonnelFormPage from '../features/rh/personnel/PersonnelFormPage.jsx';
 import DatabaseAdminPage from '../features/admin/database/DatabaseAdminPage.jsx';
 import GradesPage from '../features/referentiel/grades/GradesPage.jsx';
+import FonctionsPage from '../features/referentiel/fonctions/FonctionsPage.jsx';
 import FilieresPage from '../features/referentiel/filieres/FilieresPage.jsx';
 import SpecialitesPage from '../features/referentiel/specialites/SpecialitesPage.jsx';
 import TypesExamenPage from '../features/referentiel/types-examen/TypesExamenPage.jsx';
@@ -309,6 +314,14 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.REFERENTIEL.GRADE_READ}>
                   <GradesPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.REFERENTIEL.FONCTIONS}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.REFERENTIEL.FONCTION_READ}>
+                  <FonctionsPage />
                 </PermissionGuard>
               )}
             />
@@ -621,6 +634,54 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.ADMIN.PERSONNEL_READ}>
                   <PersonnelPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.RH.PERSONNEL_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.RH.PERSONNEL_CREATE}>
+                  <RhPersonnelFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.RH.PERSONNEL_EDIT}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.RH.PERSONNEL_UPDATE}>
+                  <RhPersonnelFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.RH.PERSONNEL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.RH.PERSONNEL_READ}>
+                  <PersonnelPage variant="rh" />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.RH.PAIE_BAREME}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.RH.PAIE_READ}>
+                  <PaieBaremePage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.RH.PAIE_DETAIL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.RH.PAIE_READ}>
+                  <PaiePeriodePage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.RH.PAIE}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.RH.PAIE_READ}>
+                  <PaiePersonnelPage />
                 </PermissionGuard>
               )}
             />
