@@ -27,6 +27,7 @@ final class TableExportService
      * @param list<list<string|null>>   $dataRows lignes sans la colonne N°
      * @param list<int>                 $htmlColumnIndexes index dans $headers (incluant N°)
      * @param list<int>                 $richTextColumnIndexes index dans les valeurs de $dataRows (sans N°)
+     * @param list<list<string|null>>   $summaryRows lignes sans la colonne N° (totaux)
      */
     public function createResponse(
         string $format,
@@ -38,6 +39,7 @@ final class TableExportService
         array $htmlColumnIndexes = [],
         array $richTextColumnIndexes = [],
         string $pdfOrientation = 'portrait',
+        array $summaryRows = [],
     ): Response {
         return match ($format) {
             'pdf' => $this->createPdfResponse(
@@ -48,6 +50,7 @@ final class TableExportService
                 $emptyMessage,
                 $htmlColumnIndexes,
                 $pdfOrientation,
+                $summaryRows,
             ),
             'xlsx' => $this->createExcelResponse(
                 $headers,
@@ -55,6 +58,7 @@ final class TableExportService
                 $reportTitle,
                 $filenamePrefix,
                 $richTextColumnIndexes,
+                $summaryRows,
             ),
             default => throw new \InvalidArgumentException('Format d\'export invalide.'),
         };
@@ -73,6 +77,7 @@ final class TableExportService
         string $emptyMessage,
         array $htmlColumnIndexes = [],
         string $orientation = 'portrait',
+        array $summaryRows = [],
     ): Response {
         $tableRows = [];
         foreach ($dataRows as $index => $row) {
@@ -82,6 +87,11 @@ final class TableExportService
             );
         }
 
+        $summaryTableRows = [];
+        foreach ($summaryRows as $row) {
+            $summaryTableRows[] = array_merge([''], array_values($row));
+        }
+
         return $this->pdfExportService->createTableDocumentResponse(
             reportTitle: mb_strtoupper($reportTitle, 'UTF-8'),
             tableHtml: $this->pdfExportService->buildTableHtml(
@@ -89,6 +99,7 @@ final class TableExportService
                 $tableRows,
                 $emptyMessage,
                 $htmlColumnIndexes,
+                $summaryTableRows,
             ),
             filename: $this->buildFilename($filenamePrefix, 'pdf'),
             generatedBy: $this->resolveCurrentUserDisplayName(),
@@ -108,6 +119,7 @@ final class TableExportService
         string $reportTitle,
         string $filenamePrefix,
         array $richTextColumnIndexes = [],
+        array $summaryRows = [],
     ): Response {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -145,6 +157,15 @@ final class TableExportService
 
                 $sheet->setCellValue($cell, $value ?? '');
             }
+            ++$rowIndex;
+        }
+
+        foreach ($summaryRows as $row) {
+            $sheet->setCellValue([1, $rowIndex], '');
+            foreach (array_values($row) as $columnIndex => $value) {
+                $sheet->setCellValue([$columnIndex + 2, $rowIndex], $value ?? '');
+            }
+            $sheet->getStyle([1, $rowIndex, $columnCount, $rowIndex])->getFont()->setBold(true);
             ++$rowIndex;
         }
 

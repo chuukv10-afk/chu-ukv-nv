@@ -76,6 +76,7 @@ export const PERMISSIONS = {
     MEDICAMENT_UPDATE: 'pharmacie.medicament.update',
     MEDICAMENT_DELETE: 'pharmacie.medicament.delete',
     MEDICAMENT_EXPORT: 'pharmacie.medicament.export',
+    MEDICAMENT_EXPORT_VALEUR: 'pharmacie.medicament.export_valeur',
     FOURNISSEUR_READ: 'pharmacie.fournisseur.read',
     FOURNISSEUR_CREATE: 'pharmacie.fournisseur.create',
     FOURNISSEUR_UPDATE: 'pharmacie.fournisseur.update',

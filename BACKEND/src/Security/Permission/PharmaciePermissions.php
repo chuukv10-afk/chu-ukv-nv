@@ -24,6 +24,7 @@ final class PharmaciePermissions
     public const MEDICAMENT_UPDATE = 'pharmacie.medicament.update';
     public const MEDICAMENT_DELETE = 'pharmacie.medicament.delete';
     public const MEDICAMENT_EXPORT = 'pharmacie.medicament.export';
+    public const MEDICAMENT_EXPORT_VALEUR = 'pharmacie.medicament.export_valeur';
 
     public const FOURNISSEUR_READ = 'pharmacie.fournisseur.read';
     public const FOURNISSEUR_CREATE = 'pharmacie.fournisseur.create';
@@ -83,6 +84,11 @@ final class PharmaciePermissions
                 [
                     'code' => self::MEDICAMENT_EXPORT,
                     'libelle' => 'Exporter les médicaments (PDF / Excel)',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::MEDICAMENT_EXPORT_VALEUR,
+                    'libelle' => 'Inclure la valeur du stock à l’export du catalogue (prix total par médicament et total général)',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
             ],

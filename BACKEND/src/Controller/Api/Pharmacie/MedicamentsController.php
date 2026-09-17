@@ -62,16 +62,27 @@ final class MedicamentsController extends AbstractController
         #[MapQueryString] ReferentielListQuery $query = new ReferentielListQuery(),
     ): Response {
         $format = strtolower(trim((string) $request->query->get('format', 'xlsx')));
+        $includeValeur = \in_array(
+            strtolower(trim((string) $request->query->get('includeValeur', ''))),
+            ['1', 'true', 'oui', 'yes'],
+            true,
+        );
+        if ($includeValeur) {
+            $this->denyAccessUnlessGranted(PharmaciePermissions::MEDICAMENT_EXPORT_VALEUR);
+        }
+
+        $export = $medicamentService->buildExportData($query, $format, $includeValeur);
 
         return $this->createTableExportResponse(
             $request,
             $tableExportService,
-            $medicamentService->exportHeaders($format),
-            $medicamentService->buildExportRows($query, $format),
+            $medicamentService->exportHeaders($format, $includeValeur),
+            $export['rows'],
             'Catalogue des médicaments',
             'medicaments',
             'Aucun médicament trouvé pour les filtres sélectionnés.',
             pdfOrientation: 'portrait',
+            summaryRows: $export['summaryRows'],
         );
     }
 

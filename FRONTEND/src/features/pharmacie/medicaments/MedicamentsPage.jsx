@@ -16,6 +16,7 @@ import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { fetchFamillesActivesApi } from '../familles/famillesApi.js';
 import { fetchUnitesActivesApi } from '../unites/unitesApi.js';
 import MedicamentFormModal from './components/MedicamentFormModal.jsx';
+import CatalogueExportModal from './components/CatalogueExportModal.jsx';
 import {
   DEFAULT_MEDICAMENT_PAGE_SIZE,
   EMPTY_MEDICAMENT_FORM,
@@ -41,6 +42,7 @@ export default function MedicamentsPage() {
   const canUpdate = hasPermission(PERMISSIONS.PHARMACIE.MEDICAMENT_UPDATE);
   const canDelete = hasPermission(PERMISSIONS.PHARMACIE.MEDICAMENT_DELETE);
   const canExport = hasPermission(PERMISSIONS.PHARMACIE.MEDICAMENT_EXPORT);
+  const canExportValeur = hasPermission(PERMISSIONS.PHARMACIE.MEDICAMENT_EXPORT_VALEUR);
   const showActions = canUpdate || canDelete;
 
   const [items, setItems] = useState([]);
@@ -65,6 +67,7 @@ export default function MedicamentsPage() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(null);
+  const [pendingExport, setPendingExport] = useState(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -166,14 +169,16 @@ export default function MedicamentsPage() {
     }
   };
 
-  const handleExport = async (format) => {
+  const handleExport = async (format, includeValeur = false) => {
     setExportLoading(format);
     try {
       await exportResourceApi(pharmacie.medicaments, format, {
         search: debouncedSearch || undefined,
         statut: statut || undefined,
+        includeValeur: includeValeur ? '1' : undefined,
       });
       showSuccess(format === 'pdf' ? 'Export PDF ouvert dans le navigateur.' : 'Export Excel téléchargé.');
+      setPendingExport(null);
     } catch (error) {
       showError(error.message || 'Export impossible.');
     } finally {
@@ -211,7 +216,18 @@ export default function MedicamentsPage() {
           </Stack>
           {(canExport || canCreate) ? (
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              {canExport ? <ExportButtons onExport={handleExport} loading={exportLoading} /> : null}
+              {canExport ? (
+                <ExportButtons
+                  onExport={(format) => {
+                    if (canExportValeur) {
+                      setPendingExport(format);
+                      return;
+                    }
+                    handleExport(format, false);
+                  }}
+                  loading={exportLoading}
+                />
+              ) : null}
               {canCreate ? (
                 <Button startDecorator={<Plus size={16} />} onClick={openCreate}>Nouveau médicament</Button>
               ) : null}
@@ -331,6 +347,14 @@ export default function MedicamentsPage() {
         error={formError}
         onClose={() => setFormOpen(false)}
         onSubmit={handleSubmit}
+      />
+      <CatalogueExportModal
+        open={Boolean(pendingExport)}
+        format={pendingExport ?? 'xlsx'}
+        canIncludeValeur={canExportValeur}
+        loading={Boolean(exportLoading)}
+        onClose={() => { if (!exportLoading) setPendingExport(null); }}
+        onConfirm={(includeValeur) => handleExport(pendingExport, includeValeur)}
       />
       <ConfirmModal
         open={Boolean(pendingDelete)}

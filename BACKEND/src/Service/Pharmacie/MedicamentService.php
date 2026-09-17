@@ -51,34 +51,53 @@ final class MedicamentService
     }
 
     /**
-     * @return list<list<string|null>>
+     * @return array{rows: list<list<string|null>>, summaryRows: list<list<string|null>>}
      */
-    public function buildExportRows(ReferentielListQuery $query, string $format = 'xlsx'): array
+    public function buildExportData(ReferentielListQuery $query, string $format = 'xlsx', bool $includeValeur = false): array
     {
         $errors = $this->validator->validate($query);
         if (count($errors) > 0) {
             throw new ValidationFailedException($query, $errors);
         }
 
-        return array_map(
-            fn (Medicament $medicament): array => $this->buildExportRow($medicament, $format),
-            $this->medicamentRepository->findForExport($query->search, $query->statut),
-        );
+        $rows = [];
+        $totalValeur = 0.0;
+        foreach ($this->medicamentRepository->findForExport($query->search, $query->statut) as $medicament) {
+            $stock = $this->stockService->stockDisponible($medicament);
+            $valeur = $stock * (float) $medicament->getPrixVente();
+            $totalValeur += $valeur;
+            $rows[] = $this->buildExportRow($medicament, $format, $includeValeur, $stock, $valeur);
+        }
+
+        $summaryRows = [];
+        if ($includeValeur && [] !== $rows) {
+            $summaryRows[] = $this->buildExportTotalRow($format, $totalValeur);
+        }
+
+        return [
+            'rows' => $rows,
+            'summaryRows' => $summaryRows,
+        ];
     }
 
     /**
      * @return list<string>
      */
-    public function exportHeaders(string $format = 'xlsx', ?\DateTimeImmutable $today = null): array
+    public function exportHeaders(string $format = 'xlsx', bool $includeValeur = false, ?\DateTimeImmutable $today = null): array
     {
         $today ??= $this->stockService->today();
         $stockHeader = 'Stock (' . $today->format('d/m/Y') . ')';
 
         if ('pdf' === $format) {
-            return ['N°', 'Libellé', 'Unité', 'Prix de vente', $stockHeader];
+            $headers = ['N°', 'Libellé', 'Unité', 'Prix de vente', $stockHeader];
+            if ($includeValeur) {
+                $headers[] = 'Valeur';
+            }
+
+            return $headers;
         }
 
-        return [
+        $headers = [
             'N°',
             'Code',
             'Libellé',
@@ -92,26 +111,41 @@ final class MedicamentService
             $stockHeader,
             'Statut',
         ];
+        if ($includeValeur) {
+            $headers[] = 'Valeur';
+        }
+
+        return $headers;
     }
 
     /**
      * @return list<string|null>
      */
-    private function buildExportRow(Medicament $medicament, string $format = 'xlsx'): array
-    {
-        $prix = number_format((float) $medicament->getPrixVente(), 2, ',', ' ');
-        $stock = (string) $this->stockService->stockDisponible($medicament);
+    private function buildExportRow(
+        Medicament $medicament,
+        string $format,
+        bool $includeValeur,
+        int $stock,
+        float $valeur,
+    ): array {
+        $prix = $this->formatPrixExport((float) $medicament->getPrixVente());
+        $stockLabel = (string) $stock;
 
         if ('pdf' === $format) {
-            return [
+            $row = [
                 $medicament->getLibelle(),
                 $medicament->getUnite()?->getCode(),
                 $prix,
-                $stock,
+                $stockLabel,
             ];
+            if ($includeValeur) {
+                $row[] = $this->formatPrixExport($valeur);
+            }
+
+            return $row;
         }
 
-        return [
+        $row = [
             $medicament->getCode(),
             $medicament->getLibelle(),
             $medicament->getDci(),
@@ -121,9 +155,32 @@ final class MedicamentService
             $medicament->getFamille()?->getLibelle(),
             $prix,
             (string) $medicament->getSeuilAlerte(),
-            $stock,
+            $stockLabel,
             $medicament->getStatut(),
         ];
+        if ($includeValeur) {
+            $row[] = $this->formatPrixExport($valeur);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    private function buildExportTotalRow(string $format, float $totalValeur): array
+    {
+        $totalLabel = $this->formatPrixExport($totalValeur);
+        if ('pdf' === $format) {
+            return ['Total général', '', '', '', $totalLabel];
+        }
+
+        return ['', 'Total général', '', '', '', '', '', '', '', '', '', $totalLabel];
+    }
+
+    private function formatPrixExport(float $value): string
+    {
+        return number_format($value, 2, ',', ' ');
     }
 
     /** @return list<array<string, mixed>> */

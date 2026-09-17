@@ -162,7 +162,7 @@ HTML;
     private function baseStyles(string $orientation): string
     {
         $pageSize = 'landscape' === $orientation ? 'A4 landscape' : 'A4 portrait';
-        $footerBottom = 'landscape' === $orientation ? '78px' : '86px';
+        $footerBottom = 'landscape' === $orientation ? '50px' : '54px';
 
         return <<<CSS
 @font-face {
@@ -174,7 +174,7 @@ HTML;
 
 @page {
     size: {$pageSize};
-    margin: 24px 28px {$footerBottom} 28px;
+    margin: 16px 20px {$footerBottom} 20px;
 }
 
 body {
@@ -263,17 +263,17 @@ body {
 
 .chu-footer {
     position: fixed;
-    bottom: -48px;
+    bottom: -36px;
     left: 0;
     right: 0;
-    height: 48px;
+    height: 34px;
 }
 
 .chu-footer-inner {
     text-align: center;
-    font-size: 9.5px;
+    font-size: 8px;
     color: #333;
-    line-height: 1.25;
+    line-height: 1.2;
 }
 
 .chu-footer-line + .chu-footer-line {
@@ -337,10 +337,15 @@ body {
 }
 
 .chu-closing {
-    margin-top: 200px;
+    margin-top: 14px;
     text-align: right;
     page-break-inside: avoid;
     page-break-before: auto;
+}
+
+.chu-table tr.chu-total-row td {
+    font-weight: bold;
+    background: #e8eef5;
 }
 
 .chu-closing-inner {
