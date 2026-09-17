@@ -104,7 +104,7 @@ final class InventairesPharmacieController extends AbstractController
     ): JsonResponse {
         return $this->apiSuccess(
             $inventaireService->serializeDetail($inventaireService->compterProduit($id, $medicamentId, $input)),
-            'Produit marqué comme compté.',
+            'Comptage enregistré.',
         );
     }
 

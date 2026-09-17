@@ -5,7 +5,7 @@ import {
   Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Input, LinearProgress,
   Option, Select, Stack, Table, Typography,
 } from '@mui/joy';
-import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Search } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Pencil, Search } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import ExportButtons from '../../../components/export/ExportButtons.jsx';
@@ -131,7 +131,6 @@ export default function InventaireDetailPage() {
 
   const buildLignesPayload = (produit, { includeQty = false } = {}) => (
     (produit.lignes ?? [])
-      .filter((ligne) => (includeQty ? !ligne.compte : true))
       .map((ligne) => {
         const payload = { ligneId: ligne.id };
         const dateValue = dateDrafts[ligne.id];
@@ -144,7 +143,11 @@ export default function InventaireDetailPage() {
         }
         if (includeQty) {
           const qty = parseQty(drafts[ligne.id]);
-          if (qty !== null) payload.quantiteComptee = qty;
+          if (qty !== null) {
+            payload.quantiteComptee = qty;
+          } else if (ligne.compte && ligne.quantiteComptee != null) {
+            payload.quantiteComptee = Number(ligne.quantiteComptee);
+          }
         }
         return payload;
       })
@@ -178,8 +181,15 @@ export default function InventaireDetailPage() {
       }
       const data = await compterProduitInventaireApi(inventaire.id, medicamentId, payload);
       applyInventaire(data, medicamentId);
+      setDrafts((prev) => {
+        const next = { ...prev };
+        (pendingProduit.lignes ?? []).forEach((ligne) => { delete next[ligne.id]; });
+        return next;
+      });
       setPendingProduit(null);
-      showSuccess(`${pendingProduit.medicament?.libelle ?? 'Produit'} marqué comme compté.`);
+      showSuccess(pendingProduit.compte
+        ? `${pendingProduit.medicament?.libelle ?? 'Produit'} mis à jour.`
+        : `${pendingProduit.medicament?.libelle ?? 'Produit'} marqué comme compté.`);
     } catch (err) {
       showError(err.message || 'Marquage impossible.');
     } finally {
@@ -279,9 +289,10 @@ export default function InventaireDetailPage() {
 
   const pendingEcarts = pendingProduit
     ? (pendingProduit.lignes ?? []).filter((ligne) => {
-      if (ligne.compte) return false;
       const qty = parseQty(drafts[ligne.id]);
-      const cible = qty === null ? ligne.quantiteActuelle : qty;
+      const cible = qty === null
+        ? (ligne.compte ? Number(ligne.quantiteComptee) : ligne.quantiteActuelle)
+        : qty;
       return cible !== ligne.quantiteActuelle;
     }).length
     : 0;
@@ -357,7 +368,7 @@ export default function InventaireDetailPage() {
               {enCours ? (
                 <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
                   Saisissez la quantité, le n° de lot, le prix de vente ou la péremption, puis marquez le produit comme compté.
-                  Prix, n° de lot et dates sont enregistrés dès que vous quittez le champ.
+                  Vous pouvez revenir sur un produit déjà compté (filtre « Déjà comptés ») pour corriger. Prix, n° de lot et dates sont enregistrés dès que vous quittez le champ.
                 </Typography>
               ) : null}
             </Stack>
@@ -443,12 +454,11 @@ export default function InventaireDetailPage() {
                           <tbody>
                             {(produit.lignes ?? []).map((ligne) => {
                               const draft = drafts[ligne.id];
-                              const cible = ligne.compte
-                                ? ligne.quantiteComptee
-                                : (parseQty(draft) ?? ligne.quantiteActuelle);
-                              const ecart = ligne.compte
-                                ? ligne.ecart
-                                : (cible - ligne.quantiteSysteme);
+                              const qtyDraft = parseQty(draft);
+                              const cible = qtyDraft !== null
+                                ? qtyDraft
+                                : (ligne.compte ? Number(ligne.quantiteComptee) : ligne.quantiteActuelle);
+                              const ecart = cible - ligne.quantiteSysteme;
                               const dateValue = dateDrafts[ligne.id] ?? isoDate(ligne.datePeremption);
                               const lotValue = lotDrafts[ligne.id] ?? (ligne.numeroLot ?? '');
                               return (
@@ -496,7 +506,24 @@ export default function InventaireDetailPage() {
                                   <td>{ligne.quantiteSysteme}</td>
                                   <td>{ligne.quantiteActuelle}</td>
                                   <td>
-                                    {ligne.compte ? (
+                                    {canEdit ? (
+                                      <Stack spacing={0.25}>
+                                        <Input
+                                          type="number"
+                                          size="sm"
+                                          placeholder={String(ligne.compte ? (ligne.quantiteComptee ?? ligne.quantiteActuelle) : ligne.quantiteActuelle)}
+                                          value={draft ?? (ligne.compte && ligne.quantiteComptee != null ? String(ligne.quantiteComptee) : '')}
+                                          onChange={(event) => setDrafts((prev) => ({ ...prev, [ligne.id]: event.target.value }))}
+                                          slotProps={{ input: { min: 0 } }}
+                                          sx={{ maxWidth: 120 }}
+                                        />
+                                        {ligne.compte ? (
+                                          <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                                            {formatDateTime(ligne.compteAt)} · {formatPersonnelName(ligne.comptePar)}
+                                          </Typography>
+                                        ) : null}
+                                      </Stack>
+                                    ) : ligne.compte ? (
                                       <Stack spacing={0.25}>
                                         <Typography level="body-sm" sx={{ fontWeight: 600 }}>{ligne.quantiteComptee}</Typography>
                                         <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
@@ -504,16 +531,7 @@ export default function InventaireDetailPage() {
                                         </Typography>
                                       </Stack>
                                     ) : (
-                                      <Input
-                                        type="number"
-                                        size="sm"
-                                        placeholder={String(ligne.quantiteActuelle)}
-                                        value={draft ?? ''}
-                                        disabled={!canEdit}
-                                        onChange={(event) => setDrafts((prev) => ({ ...prev, [ligne.id]: event.target.value }))}
-                                        slotProps={{ input: { min: 0 } }}
-                                        sx={{ maxWidth: 120 }}
-                                      />
+                                      <Typography level="body-sm">{ligne.quantiteComptee ?? '—'}</Typography>
                                     )}
                                   </td>
                                   <td>
@@ -529,14 +547,14 @@ export default function InventaireDetailPage() {
                             })}
                           </tbody>
                         </Table>
-                        {canEdit && !produit.compte ? (
+                        {canEdit ? (
                           <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <Button
-                              startDecorator={<Check size={16} />}
+                              startDecorator={produit.compte ? <Pencil size={16} /> : <Check size={16} />}
                               loading={savingKey === `p-${medicamentId}`}
                               onClick={() => setPendingProduit(produit)}
                             >
-                              Marquer comme compté
+                              {produit.compte ? 'Mettre à jour' : 'Marquer comme compté'}
                             </Button>
                           </Box>
                         ) : null}
@@ -561,13 +579,17 @@ export default function InventaireDetailPage() {
 
       <ConfirmModal
         open={Boolean(pendingProduit)}
-        title="Marquer comme compté"
+        title={pendingProduit?.compte ? 'Mettre à jour le comptage' : 'Marquer comme compté'}
         message={pendingProduit
-          ? (pendingEcarts > 0
-            ? `Confirmer le comptage de « ${pendingProduit.medicament?.libelle ?? ''} » ? ${pendingEcarts} lot(s) ont un écart : le stock sera ajusté immédiatement.`
-            : `Marquer « ${pendingProduit.medicament?.libelle ?? ''} » comme déjà compté ? Les lots sans quantité saisie conservent le stock actuel, sans mouvement.`)
+          ? (pendingProduit.compte
+            ? (pendingEcarts > 0
+              ? `Enregistrer les modifications de « ${pendingProduit.medicament?.libelle ?? ''} » ? ${pendingEcarts} lot(s) ont un écart : le stock sera réajusté immédiatement.`
+              : `Enregistrer les modifications de « ${pendingProduit.medicament?.libelle ?? ''} » ?`)
+            : (pendingEcarts > 0
+              ? `Confirmer le comptage de « ${pendingProduit.medicament?.libelle ?? ''} » ? ${pendingEcarts} lot(s) ont un écart : le stock sera ajusté immédiatement.`
+              : `Marquer « ${pendingProduit.medicament?.libelle ?? ''} » comme déjà compté ? Les lots sans quantité saisie conservent le stock actuel, sans mouvement.`))
           : ''}
-        confirmLabel="Marquer comme compté"
+        confirmLabel={pendingProduit?.compte ? 'Mettre à jour' : 'Marquer comme compté'}
         color="primary"
         loading={confirmLoading && Boolean(pendingProduit)}
         onClose={() => setPendingProduit(null)}

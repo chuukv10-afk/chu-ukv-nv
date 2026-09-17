@@ -119,9 +119,6 @@ final class InventairePharmacieService
                 if (!array_key_exists((int) $ligne->getId(), $saisiesParLigne)) {
                     continue;
                 }
-                if ($ligne->isCompte()) {
-                    throw new ConflictException(sprintf('Le lot %s est déjà marqué comme compté.', $ligne->getNumeroLot()));
-                }
                 $aMarquer[] = $ligne;
             }
             if ([] === $aMarquer) {
@@ -152,9 +149,6 @@ final class InventairePharmacieService
         $this->assertValid($input);
         $inventaire = $this->requireEnCours($inventaireId);
         $ligne = $this->requireLigne($inventaire, $ligneId);
-        if ($ligne->isCompte()) {
-            throw new ConflictException(sprintf('Le lot %s est déjà marqué comme compté.', $ligne->getNumeroLot()));
-        }
 
         $this->appliquerComptage($inventaire, $ligne, $input->quantiteComptee, $this->currentPersonnel(), $this->now());
         $inventaire->recomputeProgress();
@@ -426,7 +420,7 @@ final class InventairePharmacieService
         }
 
         $delta = $quantiteComptee - $quantiteActuelle;
-        $mouvement = null;
+        $mouvement = $ligne->getMouvement();
         $motif = sprintf(
             'Inventaire %s — %s',
             $inventaire->getNumero(),
