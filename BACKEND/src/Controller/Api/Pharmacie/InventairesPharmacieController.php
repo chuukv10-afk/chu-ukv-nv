@@ -122,6 +122,16 @@ final class InventairesPharmacieController extends AbstractController
         );
     }
 
+    #[Route('/{id}/ecarter-non-comptes', name: 'api_pharmacie_inventaires_ecarter', methods: ['POST'], requirements: ['id' => '\d+'])]
+    #[IsGranted(PharmaciePermissions::INVENTAIRE_ECARTER)]
+    public function ecarterNonComptes(InventairePharmacieService $inventaireService, int $id): JsonResponse
+    {
+        return $this->apiSuccess(
+            $inventaireService->serializeDetail($inventaireService->ecarterNonComptes($id)),
+            'Médicaments non comptés écartés et passés en inactif.',
+        );
+    }
+
     #[Route('/{id}/cloturer', name: 'api_pharmacie_inventaires_cloturer', methods: ['POST'], requirements: ['id' => '\d+'])]
     #[IsGranted(PharmaciePermissions::INVENTAIRE_CLOTURER)]
     public function cloturer(InventairePharmacieService $inventaireService, int $id): JsonResponse

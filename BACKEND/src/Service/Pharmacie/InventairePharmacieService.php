@@ -10,6 +10,7 @@ use App\DTO\Pharmacie\CreateInventairePharmacieInput;
 use App\DTO\Pharmacie\PharmacieListQuery;
 use App\Entity\InventairePharmacie;
 use App\Entity\InventairePharmacieLigne;
+use App\Entity\Medicament;
 use App\Entity\MouvementStock;
 use App\Entity\Personnel;
 use App\Exception\ConflictException;
@@ -256,6 +257,61 @@ final class InventairePharmacieService
 
         $this->entityManager->remove($inventaire);
         $this->entityManager->flush();
+    }
+
+    public function ecarterNonComptes(int $id): InventairePharmacie
+    {
+        $inventaire = $this->requireEnCours($id);
+
+        $parMedicament = [];
+        foreach ($inventaire->getLignes() as $ligne) {
+            $medicament = $ligne->getMedicament();
+            $medicamentId = $medicament?->getId() ?? 0;
+            if (!isset($parMedicament[$medicamentId])) {
+                $parMedicament[$medicamentId] = [
+                    'medicament' => $medicament,
+                    'lignes' => [],
+                    'comptes' => 0,
+                ];
+            }
+            $parMedicament[$medicamentId]['lignes'][] = $ligne;
+            if ($ligne->isCompte()) {
+                ++$parMedicament[$medicamentId]['comptes'];
+            }
+        }
+
+        $aEcarter = [];
+        $produitsConserves = 0;
+        foreach ($parMedicament as $groupe) {
+            if ($groupe['comptes'] > 0) {
+                ++$produitsConserves;
+                continue;
+            }
+            $aEcarter[] = $groupe;
+        }
+
+        if ([] === $aEcarter) {
+            throw new ConflictException('Aucun médicament non compté à écarter.');
+        }
+        if (0 === $produitsConserves) {
+            throw new ConflictException('Marquez d’abord comme comptés les médicaments à conserver.');
+        }
+
+        foreach ($aEcarter as $groupe) {
+            foreach ($groupe['lignes'] as $ligne) {
+                $inventaire->removeLigne($ligne);
+                $this->entityManager->remove($ligne);
+            }
+            $medicament = $groupe['medicament'];
+            if ($medicament instanceof Medicament) {
+                $medicament->setStatut(Medicament::STATUT_INACTIF);
+            }
+        }
+
+        $inventaire->recomputeProgress();
+        $this->entityManager->flush();
+
+        return $this->getById($id);
     }
 
     public function getById(int $id): InventairePharmacie

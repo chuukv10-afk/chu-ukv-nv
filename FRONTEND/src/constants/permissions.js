@@ -110,6 +110,7 @@ export const PERMISSIONS = {
     INVENTAIRE_CREATE: 'pharmacie.inventaire.create',
     INVENTAIRE_SAISIR: 'pharmacie.inventaire.saisir',
     INVENTAIRE_CLOTURER: 'pharmacie.inventaire.cloturer',
+    INVENTAIRE_ECARTER: 'pharmacie.inventaire.ecarter',
     RECETTE_READ: 'pharmacie.recette.read',
     STATISTIQUE_READ: 'pharmacie.statistique.read',
     MOUVEMENT_EXPORT: 'pharmacie.mouvement.export',

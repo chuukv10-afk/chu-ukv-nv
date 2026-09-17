@@ -5,7 +5,7 @@ import {
   Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Input, LinearProgress,
   Option, Select, Stack, Table, Typography,
 } from '@mui/joy';
-import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Pencil, Search } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Pencil, Search, Trash2 } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import ExportButtons from '../../../components/export/ExportButtons.jsx';
@@ -27,6 +27,7 @@ import {
   cloturerInventaireApi,
   compterProduitInventaireApi,
   corrigerProduitInventaireApi,
+  ecarterNonComptesInventaireApi,
   exportInventaireApi,
   fetchInventaireApi,
 } from './inventairesApi.js';
@@ -64,6 +65,7 @@ export default function InventaireDetailPage() {
   const { showSuccess, showError } = useToast();
   const canSaisir = hasPermission(PERMISSIONS.PHARMACIE.INVENTAIRE_SAISIR);
   const canCloturer = hasPermission(PERMISSIONS.PHARMACIE.INVENTAIRE_CLOTURER);
+  const canEcarter = hasPermission(PERMISSIONS.PHARMACIE.INVENTAIRE_ECARTER);
 
   const [inventaire, setInventaire] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -80,6 +82,7 @@ export default function InventaireDetailPage() {
   const [exportLoading, setExportLoading] = useState(null);
   const [pendingProduit, setPendingProduit] = useState(null);
   const [pendingCloture, setPendingCloture] = useState(false);
+  const [pendingEcarter, setPendingEcarter] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -103,6 +106,7 @@ export default function InventaireDetailPage() {
   const progress = inventaire && inventaire.produitsCount > 0
     ? Math.round((inventaire.produitsComptes / inventaire.produitsCount) * 100)
     : 0;
+  const nbNonComptes = Math.max(0, (inventaire?.produitsCount ?? 0) - (inventaire?.produitsComptes ?? 0));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -287,6 +291,22 @@ export default function InventaireDetailPage() {
     }
   };
 
+  const handleEcarter = async () => {
+    if (!inventaire) return;
+    setConfirmLoading(true);
+    try {
+      const data = await ecarterNonComptesInventaireApi(inventaire.id);
+      setInventaire(data);
+      setPendingEcarter(false);
+      const restants = (inventaire.produitsCount ?? 0) - (inventaire.produitsComptes ?? 0);
+      showSuccess(`${restants} médicament(s) écarté(s) et passés en inactif.`);
+    } catch (err) {
+      showError(err.message || 'Écart impossible.');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
   const pendingEcarts = pendingProduit
     ? (pendingProduit.lignes ?? []).filter((ligne) => {
       const qty = parseQty(drafts[ligne.id]);
@@ -325,6 +345,17 @@ export default function InventaireDetailPage() {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
             {inventaire ? (
               <ExportButtons onExport={handleExport} loading={exportLoading} size="sm" />
+            ) : null}
+            {enCours && canEcarter && nbNonComptes > 0 ? (
+              <Button
+                color="danger"
+                variant="outlined"
+                startDecorator={<Trash2 size={16} />}
+                onClick={() => setPendingEcarter(true)}
+                disabled={(inventaire?.produitsComptes ?? 0) === 0}
+              >
+                Écarter les non comptés
+              </Button>
             ) : null}
             {enCours && canCloturer ? (
               <Button
@@ -368,7 +399,7 @@ export default function InventaireDetailPage() {
               {enCours ? (
                 <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
                   Saisissez la quantité, le n° de lot, le prix de vente ou la péremption, puis marquez le produit comme compté.
-                  Vous pouvez revenir sur un produit déjà compté (filtre « Déjà comptés ») pour corriger. Prix, n° de lot et dates sont enregistrés dès que vous quittez le champ.
+                  Vous pouvez revenir sur un produit déjà compté (filtre « Déjà comptés ») pour corriger. Quand les produits à garder sont comptés, écartez les autres : ils passent inactifs, sans être supprimés.
                 </Typography>
               ) : null}
             </Stack>
@@ -594,6 +625,16 @@ export default function InventaireDetailPage() {
         loading={confirmLoading && Boolean(pendingProduit)}
         onClose={() => setPendingProduit(null)}
         onConfirm={handleConfirmProduit}
+      />
+      <ConfirmModal
+        open={pendingEcarter}
+        title="Écarter les médicaments non comptés ?"
+        message={`${nbNonComptes} médicament(s) non compté(s) seront retirés de cette campagne et passés en inactif. Ils ne sont pas supprimés : vous pourrez les réactiver plus tard dans le catalogue. Les produits déjà comptés restent en place.`}
+        confirmLabel="Écarter et désactiver"
+        color="danger"
+        loading={confirmLoading && pendingEcarter}
+        onClose={() => setPendingEcarter(false)}
+        onConfirm={handleEcarter}
       />
       <ConfirmModal
         open={pendingCloture}

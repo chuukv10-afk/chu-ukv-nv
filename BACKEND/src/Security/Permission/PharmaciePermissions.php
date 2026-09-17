@@ -64,6 +64,7 @@ final class PharmaciePermissions
     public const INVENTAIRE_CREATE = 'pharmacie.inventaire.create';
     public const INVENTAIRE_SAISIR = 'pharmacie.inventaire.saisir';
     public const INVENTAIRE_CLOTURER = 'pharmacie.inventaire.cloturer';
+    public const INVENTAIRE_ECARTER = 'pharmacie.inventaire.ecarter';
     public const RECETTE_READ = 'pharmacie.recette.read';
     public const STATISTIQUE_READ = 'pharmacie.statistique.read';
     public const MOUVEMENT_EXPORT = 'pharmacie.mouvement.export';
@@ -187,6 +188,11 @@ final class PharmaciePermissions
                 [
                     'code' => self::INVENTAIRE_CLOTURER,
                     'libelle' => 'Clôturer une campagne d\'inventaire pharmacie',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::INVENTAIRE_ECARTER,
+                    'libelle' => 'Écarter et désactiver les médicaments non comptés d\'un inventaire',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
                 [

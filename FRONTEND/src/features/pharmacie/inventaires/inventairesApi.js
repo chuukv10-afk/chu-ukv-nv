@@ -55,6 +55,11 @@ export async function cloturerInventaireApi(id) {
   return unwrapData(response);
 }
 
+export async function ecarterNonComptesInventaireApi(id) {
+  const response = await callApiPost(`${pharmacie.inventaires}/${id}/ecarter-non-comptes`, {});
+  return unwrapData(response);
+}
+
 export async function deleteInventaireApi(id) {
   return callApiDelete(`${pharmacie.inventaires}/${id}`);
 }

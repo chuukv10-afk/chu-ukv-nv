@@ -246,4 +246,11 @@ class InventairePharmacie implements BlameableInterface
         $this->produitsCount = count($byMedicament);
         $this->produitsComptes = count(array_filter($byMedicament));
     }
+
+    public function removeLigne(InventairePharmacieLigne $ligne): static
+    {
+        $this->lignes->removeElement($ligne);
+
+        return $this;
+    }
 }
