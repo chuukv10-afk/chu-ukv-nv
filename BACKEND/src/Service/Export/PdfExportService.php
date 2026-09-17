@@ -103,33 +103,37 @@ final class PdfExportService
         $options = new Options();
         $options->set('isRemoteEnabled', false);
         $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isFontSubsettingEnabled', true);
+        $options->set('dpi', 96);
         $this->layoutProvider->configureDompdfOptions($options);
 
-        $dompdf = new Dompdf($options);
-        $this->layoutProvider->registerFonts($dompdf);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', $orientation);
+        $previousLimit = ini_get('memory_limit');
+        if (false !== $previousLimit && $this->memoryLimitBytes($previousLimit) < 512 * 1024 * 1024) {
+            ini_set('memory_limit', '512M');
+        }
 
-        $dompdf->render();
+        try {
+            $dompdf = new Dompdf($options);
+            $this->layoutProvider->registerFonts($dompdf);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', $orientation);
+            $dompdf->render();
+            $binary = $dompdf->output();
+            unset($dompdf);
 
-
-
-        return new Response(
-
-            $dompdf->output(),
-
-            Response::HTTP_OK,
-
-            [
-
-                'Content-Type' => 'application/pdf',
-
-                'Content-Disposition' => ($inline ? 'inline' : 'attachment') . '; filename="' . $filename . '"',
-
-            ],
-
-        );
-
+            return new Response(
+                $binary,
+                Response::HTTP_OK,
+                [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => ($inline ? 'inline' : 'attachment') . '; filename="' . $filename . '"',
+                ],
+            );
+        } finally {
+            if (is_string($previousLimit) && '' !== $previousLimit) {
+                ini_set('memory_limit', $previousLimit);
+            }
+        }
     }
 
 
@@ -197,6 +201,30 @@ final class PdfExportService
 
 HTML;
 
+    }
+
+    private function memoryLimitBytes(string $limit): int
+    {
+        $normalized = strtoupper(trim($limit));
+        if ('-1' === $normalized) {
+            return PHP_INT_MAX;
+        }
+
+        $factor = 1;
+        $unit = substr($normalized, -1);
+        $value = $normalized;
+        if ('G' === $unit) {
+            $factor = 1024 * 1024 * 1024;
+            $value = substr($normalized, 0, -1);
+        } elseif ('M' === $unit) {
+            $factor = 1024 * 1024;
+            $value = substr($normalized, 0, -1);
+        } elseif ('K' === $unit) {
+            $factor = 1024;
+            $value = substr($normalized, 0, -1);
+        }
+
+        return (int) $value * $factor;
     }
 
 }

@@ -101,12 +101,12 @@ export default function InventaireDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   const enCours = inventaire?.statut === 'EN_COURS';
+  const cloture = inventaire?.statut === 'CLOTURE';
   const canEdit = enCours && canSaisir;
   const produits = inventaire?.produits ?? [];
   const progress = inventaire && inventaire.produitsCount > 0
     ? Math.round((inventaire.produitsComptes / inventaire.produitsCount) * 100)
     : 0;
-  const nbNonComptes = Math.max(0, (inventaire?.produitsCount ?? 0) - (inventaire?.produitsComptes ?? 0));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -298,8 +298,7 @@ export default function InventaireDetailPage() {
       const data = await ecarterNonComptesInventaireApi(inventaire.id);
       setInventaire(data);
       setPendingEcarter(false);
-      const restants = (inventaire.produitsCount ?? 0) - (inventaire.produitsComptes ?? 0);
-      showSuccess(`${restants} médicament(s) écarté(s) et passés en inactif.`);
+      showSuccess('Les médicaments non comptés sont inactifs. Le catalogue « Actif » correspond aux produits comptés.');
     } catch (err) {
       showError(err.message || 'Écart impossible.');
     } finally {
@@ -346,15 +345,14 @@ export default function InventaireDetailPage() {
             {inventaire ? (
               <ExportButtons onExport={handleExport} loading={exportLoading} size="sm" />
             ) : null}
-            {enCours && canEcarter && nbNonComptes > 0 ? (
+            {canEcarter && (enCours || cloture) && (inventaire?.produitsComptes ?? 0) > 0 ? (
               <Button
                 color="danger"
                 variant="outlined"
                 startDecorator={<Trash2 size={16} />}
                 onClick={() => setPendingEcarter(true)}
-                disabled={(inventaire?.produitsComptes ?? 0) === 0}
               >
-                Écarter les non comptés
+                {cloture ? 'Aligner le catalogue' : 'Écarter les non comptés'}
               </Button>
             ) : null}
             {enCours && canCloturer ? (
@@ -400,6 +398,11 @@ export default function InventaireDetailPage() {
                 <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
                   Saisissez la quantité, le n° de lot, le prix de vente ou la péremption, puis marquez le produit comme compté.
                   Vous pouvez revenir sur un produit déjà compté (filtre « Déjà comptés ») pour corriger. Quand les produits à garder sont comptés, écartez les autres : ils passent inactifs, sans être supprimés.
+                </Typography>
+              ) : null}
+              {cloture && canEcarter ? (
+                <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                  « Aligner le catalogue » passe inactifs les médicaments encore actifs mais absents de ce comptage, pour que le filtre catalogue « Actif » corresponde aux produits comptés.
                 </Typography>
               ) : null}
             </Stack>
@@ -629,7 +632,7 @@ export default function InventaireDetailPage() {
       <ConfirmModal
         open={pendingEcarter}
         title="Écarter les médicaments non comptés ?"
-        message={`${nbNonComptes} médicament(s) non compté(s) seront retirés de cette campagne et passés en inactif. Ils ne sont pas supprimés : vous pourrez les réactiver plus tard dans le catalogue. Les produits déjà comptés restent en place.`}
+        message="Les médicaments non comptés de cette campagne, et tous les autres encore actifs dans le catalogue mais absents de ce comptage, seront passés inactifs (pas supprimés). Le catalogue « Actif » correspondra alors aux produits comptés."
         confirmLabel="Écarter et désactiver"
         color="danger"
         loading={confirmLoading && pendingEcarter}

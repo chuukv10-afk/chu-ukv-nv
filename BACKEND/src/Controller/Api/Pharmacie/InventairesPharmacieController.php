@@ -67,12 +67,13 @@ final class InventairesPharmacieController extends AbstractController
         int $id,
     ): Response {
         $inventaire = $inventaireService->getById($id);
+        $format = strtolower(trim((string) $request->query->get('format', 'xlsx')));
 
         return $this->createTableExportResponse(
             $request,
             $tableExportService,
-            $inventaireService->exportHeaders(),
-            $inventaireService->buildExportRows($inventaire),
+            $inventaireService->exportHeaders($format),
+            $inventaireService->buildExportRows($inventaire, $format),
             $inventaireService->exportTitle($inventaire),
             $inventaireService->exportFilenamePrefix($inventaire),
             'Aucune ligne d\'inventaire.',

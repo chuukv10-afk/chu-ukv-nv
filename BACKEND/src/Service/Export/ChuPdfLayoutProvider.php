@@ -303,13 +303,14 @@ body {
 }
 
 .chu-table tbody tr {
-    page-break-inside: avoid;
+    page-break-inside: auto;
 }
 
 .chu-table th,
 .chu-table td {
     border: 1px solid #d0d7de;
-    padding: 5px 6px;
+    padding: 3px 4px;
+    font-size: 8px;
     text-align: left;
     vertical-align: top;
 }

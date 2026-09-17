@@ -17,6 +17,7 @@ use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
 use App\Repository\InventairePharmacieRepository;
 use App\Repository\LotRepository;
+use App\Repository\MedicamentRepository;
 use App\Util\CalendarDate;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,6 +31,7 @@ final class InventairePharmacieService
         private readonly EntityManagerInterface $entityManager,
         private readonly InventairePharmacieRepository $inventaireRepository,
         private readonly LotRepository $lotRepository,
+        private readonly MedicamentRepository $medicamentRepository,
         private readonly StockService $stockService,
         private readonly Security $security,
         private readonly ValidatorInterface $validator,
@@ -172,15 +174,19 @@ final class InventairePharmacieService
     /**
      * @return list<string>
      */
-    public function exportHeaders(): array
+    public function exportHeaders(string $format = 'xlsx'): array
     {
+        if ('pdf' === $format) {
+            return ['N°', 'Médicament', 'Lot', 'Péremption', 'Ouverture', 'Actuel', 'Compté', 'Écart'];
+        }
+
         return ['N°', 'Code', 'Médicament', 'Forme', 'Dosage', 'Unité', 'Prix de vente', 'N° lot', 'Péremption', 'Qté ouverture', 'Qté actuelle', 'Qté comptée', 'Écart', 'Statut', 'Compté par'];
     }
 
     /**
      * @return list<list<string|null>>
      */
-    public function buildExportRows(InventairePharmacie $inventaire): array
+    public function buildExportRows(InventairePharmacie $inventaire, string $format = 'xlsx'): array
     {
         $detail = $this->serializeDetail($inventaire);
         $rows = [];
@@ -188,6 +194,18 @@ final class InventairePharmacieService
             $med = is_array($produit['medicament'] ?? null) ? $produit['medicament'] : [];
             foreach ($produit['lignes'] ?? [] as $ligne) {
                 if (!is_array($ligne)) {
+                    continue;
+                }
+                if ('pdf' === $format) {
+                    $rows[] = [
+                        (string) ($med['libelle'] ?? ''),
+                        (string) ($ligne['numeroLot'] ?? ''),
+                        $this->formatDateExport($ligne['datePeremption'] ?? null),
+                        (string) ($ligne['quantiteSysteme'] ?? ''),
+                        (string) ($ligne['quantiteActuelle'] ?? ''),
+                        null !== ($ligne['quantiteComptee'] ?? null) ? (string) $ligne['quantiteComptee'] : '',
+                        null !== ($ligne['ecart'] ?? null) ? (string) $ligne['ecart'] : '',
+                    ];
                     continue;
                 }
                 $comptePar = is_array($ligne['comptePar'] ?? null) ? $ligne['comptePar'] : null;
@@ -259,9 +277,13 @@ final class InventairePharmacieService
         $this->entityManager->flush();
     }
 
-    public function ecarterNonComptes(int $id): InventairePharmacie
+    public function ecarterNonComptes(int $inventaireId): InventairePharmacie
     {
-        $inventaire = $this->requireEnCours($id);
+        $inventaire = $this->getById($inventaireId);
+        $enCours = $inventaire->isEnCours();
+        if (!$enCours && InventairePharmacie::STATUT_CLOTURE !== $inventaire->getStatut()) {
+            throw new ConflictException('Cette campagne d\'inventaire n\'est pas disponible.');
+        }
 
         $parMedicament = [];
         foreach ($inventaire->getLignes() as $ligne) {
@@ -281,37 +303,57 @@ final class InventairePharmacieService
         }
 
         $aEcarter = [];
-        $produitsConserves = 0;
-        foreach ($parMedicament as $groupe) {
+        $conservesIds = [];
+        foreach ($parMedicament as $medicamentId => $groupe) {
             if ($groupe['comptes'] > 0) {
-                ++$produitsConserves;
+                $conservesIds[(int) $medicamentId] = true;
                 continue;
             }
             $aEcarter[] = $groupe;
         }
 
-        if ([] === $aEcarter) {
-            throw new ConflictException('Aucun médicament non compté à écarter.');
-        }
-        if (0 === $produitsConserves) {
+        if ([] === $conservesIds) {
             throw new ConflictException('Marquez d’abord comme comptés les médicaments à conserver.');
         }
 
-        foreach ($aEcarter as $groupe) {
-            foreach ($groupe['lignes'] as $ligne) {
-                $inventaire->removeLigne($ligne);
-                $this->entityManager->remove($ligne);
+        $horsCampagne = [];
+        foreach ($this->medicamentRepository->findActifs() as $medicament) {
+            $medicamentId = $medicament->getId();
+            if (null === $medicamentId || isset($conservesIds[$medicamentId])) {
+                continue;
             }
-            $medicament = $groupe['medicament'];
-            if ($medicament instanceof Medicament) {
-                $medicament->setStatut(Medicament::STATUT_INACTIF);
+            $horsCampagne[] = $medicament;
+        }
+
+        if ($enCours) {
+            if ([] === $aEcarter && [] === $horsCampagne) {
+                throw new ConflictException('Aucun médicament non compté à écarter.');
             }
+        } elseif ([] === $horsCampagne) {
+            throw new ConflictException('Le catalogue « Actif » correspond déjà aux médicaments comptés de cette campagne.');
+        }
+
+        if ($enCours) {
+            foreach ($aEcarter as $groupe) {
+                foreach ($groupe['lignes'] as $ligne) {
+                    $inventaire->removeLigne($ligne);
+                    $this->entityManager->remove($ligne);
+                }
+                $medicament = $groupe['medicament'];
+                if ($medicament instanceof Medicament) {
+                    $medicament->setStatut(Medicament::STATUT_INACTIF);
+                }
+            }
+        }
+
+        foreach ($horsCampagne as $medicament) {
+            $medicament->setStatut(Medicament::STATUT_INACTIF);
         }
 
         $inventaire->recomputeProgress();
         $this->entityManager->flush();
 
-        return $this->getById($id);
+        return $this->getById($inventaireId);
     }
 
     public function getById(int $id): InventairePharmacie
