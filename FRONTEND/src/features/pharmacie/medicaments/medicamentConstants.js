@@ -8,6 +8,11 @@ export const MEDICAMENT_STATUT_LABELS = MEDICAMENT_STATUTS.reduce((acc, item) =>
   return acc;
 }, {});
 
+export const MEDICAMENT_STATUT_COLORS = MEDICAMENT_STATUTS.reduce((acc, item) => {
+  acc[item.value] = item.color;
+  return acc;
+}, {});
+
 export const DEFAULT_MEDICAMENT_PAGE_SIZE = 10;
 export const MEDICAMENT_PAGE_SIZE_OPTIONS = [10, 25, 50];
 

@@ -6,6 +6,7 @@ use App\Entity\FamilleMedicament;
 use App\Entity\Medicament;
 use App\Entity\UniteMedicament;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -21,7 +22,7 @@ class MedicamentRepository extends ServiceEntityRepository
     /**
      * @return array{items: list<Medicament>, total: int}
      */
-    public function paginate(int $page, int $limit, ?string $search = null): array
+    public function paginate(int $page, int $limit, ?string $search = null, ?string $statut = null): array
     {
         $qb = $this->createQueryBuilder('m')
             ->leftJoin('m.unite', 'u')->addSelect('u')
@@ -34,6 +35,8 @@ class MedicamentRepository extends ServiceEntityRepository
                 ->andWhere('LOWER(m.code) LIKE :search OR LOWER(m.libelle) LIKE :search OR LOWER(m.dci) LIKE :search')
                 ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
         }
+
+        $this->applyStatutFilter($qb, $statut);
 
         $countQb = clone $qb;
         $total = (int) $countQb
@@ -54,7 +57,7 @@ class MedicamentRepository extends ServiceEntityRepository
     /**
      * @return list<Medicament>
      */
-    public function findForExport(?string $search = null): array
+    public function findForExport(?string $search = null, ?string $statut = null): array
     {
         $qb = $this->createQueryBuilder('m')
             ->leftJoin('m.unite', 'u')->addSelect('u')
@@ -67,6 +70,8 @@ class MedicamentRepository extends ServiceEntityRepository
                 ->andWhere('LOWER(m.code) LIKE :search OR LOWER(m.libelle) LIKE :search OR LOWER(m.dci) LIKE :search')
                 ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
         }
+
+        $this->applyStatutFilter($qb, $statut);
 
         return $qb->getQuery()->getResult();
     }
@@ -114,5 +119,19 @@ class MedicamentRepository extends ServiceEntityRepository
             ->setParameter('famille', $famille)
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    private function applyStatutFilter(QueryBuilder $qb, ?string $statut): void
+    {
+        if (null === $statut || '' === trim($statut)) {
+            return;
+        }
+
+        $normalized = strtoupper(trim($statut));
+        if (!in_array($normalized, Medicament::getStatuts(), true)) {
+            return;
+        }
+
+        $qb->andWhere('m.statut = :statut')->setParameter('statut', $normalized);
     }
 }

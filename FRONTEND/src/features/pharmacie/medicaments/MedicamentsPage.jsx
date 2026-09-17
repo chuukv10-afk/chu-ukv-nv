@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Button, Card, Chip, IconButton, Input, Sheet, Stack, Table, Typography,
+  Box, Button, Card, Chip, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
 import { Package, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
@@ -20,6 +20,9 @@ import {
   DEFAULT_MEDICAMENT_PAGE_SIZE,
   EMPTY_MEDICAMENT_FORM,
   MEDICAMENT_PAGE_SIZE_OPTIONS,
+  MEDICAMENT_STATUTS,
+  MEDICAMENT_STATUT_COLORS,
+  MEDICAMENT_STATUT_LABELS,
   formatPrixVente,
 } from './medicamentConstants.js';
 import {
@@ -46,6 +49,7 @@ export default function MedicamentsPage() {
   const [listError, setListError] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statut, setStatut] = useState('ACTIF');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_MEDICAMENT_PAGE_SIZE);
 
@@ -67,7 +71,7 @@ export default function MedicamentsPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, limit]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, limit, statut]);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +100,12 @@ export default function MedicamentsPage() {
     setLoading(true);
     setListError('');
     try {
-      const result = await fetchMedicamentsApi({ page: targetPage, limit, search: debouncedSearch || undefined });
+      const result = await fetchMedicamentsApi({
+        page: targetPage,
+        limit,
+        search: debouncedSearch || undefined,
+        statut: statut || undefined,
+      });
       setItems(result.items);
       setPagination(result.pagination);
     } catch (error) {
@@ -104,7 +113,7 @@ export default function MedicamentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch]);
+  }, [page, limit, debouncedSearch, statut]);
 
   useEffect(() => { load(page); }, [load, page]);
 
@@ -162,6 +171,7 @@ export default function MedicamentsPage() {
     try {
       await exportResourceApi(pharmacie.medicaments, format, {
         search: debouncedSearch || undefined,
+        statut: statut || undefined,
       });
       showSuccess(format === 'pdf' ? 'Export PDF ouvert dans le navigateur.' : 'Export Excel téléchargé.');
     } catch (error) {
@@ -210,12 +220,25 @@ export default function MedicamentsPage() {
         </Stack>
 
         <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2 }}>
-          <Input
-            startDecorator={<Search size={16} />}
-            placeholder="Rechercher par code, libellé ou DCI…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+            <Input
+              startDecorator={<Search size={16} />}
+              placeholder="Rechercher par code, libellé ou DCI…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              sx={{ flex: 1 }}
+            />
+            <Select
+              value={statut}
+              onChange={(_, value) => setStatut(value ?? 'ACTIF')}
+              sx={{ minWidth: 180 }}
+            >
+              {MEDICAMENT_STATUTS.map((item) => (
+                <Option key={item.value} value={item.value}>{item.label}</Option>
+              ))}
+              <Option value="">Tous</Option>
+            </Select>
+          </Stack>
         </Card>
 
         {listError ? (
@@ -246,6 +269,9 @@ export default function MedicamentsPage() {
                   <td>
                     <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
                       <Typography level="body-sm" sx={{ fontWeight: 600 }}>{item.libelle}</Typography>
+                      <Chip size="sm" variant="soft" color={MEDICAMENT_STATUT_COLORS[item.statut] ?? 'neutral'}>
+                        {MEDICAMENT_STATUT_LABELS[item.statut] ?? item.statut}
+                      </Chip>
                       <PendingSyncChip show={item.pendingSync} />
                     </Stack>
                     {item.dosage || item.forme ? (

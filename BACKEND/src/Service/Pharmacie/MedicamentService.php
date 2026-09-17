@@ -40,7 +40,7 @@ final class MedicamentService
             throw new ValidationFailedException($query, $errors);
         }
 
-        $result = $this->medicamentRepository->paginate($query->page, $query->limit, $query->search);
+        $result = $this->medicamentRepository->paginate($query->page, $query->limit, $query->search, $query->statut);
 
         return new PaginatedResult(
             array_map([$this, 'serializeSummary'], $result['items']),
@@ -62,7 +62,7 @@ final class MedicamentService
 
         return array_map(
             fn (Medicament $medicament): array => $this->buildExportRow($medicament, $format),
-            $this->medicamentRepository->findForExport($query->search),
+            $this->medicamentRepository->findForExport($query->search, $query->statut),
         );
     }
 
