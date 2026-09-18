@@ -48,6 +48,36 @@ final class AptitudePdfService
         );
     }
 
+    /**
+     * @param list<CertificatAptitude> $certificats
+     */
+    public function createBatchResponse(array $certificats): Response
+    {
+        $parts = [];
+        foreach ($certificats as $index => $certificat) {
+            $style = $index > 0 ? ' style="page-break-before: always;"' : '';
+            $parts[] = '<div class="cap-batch-item"' . $style . '>'
+                . '<div class="cap-batch-qr">' . $this->renderHeaderQr($certificat) . '</div>'
+                . $this->renderBody($certificat)
+                . '</div>';
+        }
+
+        $html = $this->layoutProvider->buildDocument(
+            'Certificats d\'aptitude physique',
+            implode('', $parts),
+            '',
+            new \DateTimeImmutable('now', new \DateTimeZone('Africa/Kinshasa')),
+            'portrait',
+        );
+
+        return $this->pdfExportService->createDownloadResponse(
+            $html,
+            'certificats-aptitude-' . (new \DateTimeImmutable())->format('Ymd_His') . '.pdf',
+            'portrait',
+            inline: true,
+        );
+    }
+
     private function renderBody(CertificatAptitude $certificat): string
     {
         $numero = $this->e($certificat->getNumero() ?? '—');
@@ -195,6 +225,9 @@ p { margin: 2px 0; }
 .cap-meta { display: table; width: 100%; margin-bottom: 4px; font-size: 10px; }
 .cap-meta span { display: table-cell; }
 .cap-meta span:last-child { text-align: right; }
+.cap-batch-qr { text-align: right; margin: 0 0 6px; }
+.cap-batch-qr img { width: 64px; height: 64px; }
+.cap-batch-qr .cap-qr-caption { font-size: 8px; color: #555; }
 .cap-section { font-size: 10.5px; margin: 6px 0 3px; text-transform: uppercase; color: #1E5AA8; }
 .cap-grid { width: 100%; border-collapse: collapse; margin: 2px 0 4px; }
 .cap-grid td { border: 1px solid #d0d7de; padding: 3px 6px; width: 50%; vertical-align: top; }

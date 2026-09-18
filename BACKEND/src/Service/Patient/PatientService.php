@@ -9,11 +9,14 @@ use App\DTO\Patient\UpdateDpiInput;
 use App\DTO\Patient\UpdatePatientInput;
 use App\Entity\CategorieTarifaire;
 use App\Entity\Dpi;
+use App\Entity\Filiere;
+use App\Entity\OrganisationPartenaire;
 use App\Entity\Patient;
 use App\Entity\Structure;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
 use App\Repository\DpiRepository;
+use App\Repository\FiliereRepository;
 use App\Repository\PatientRepository;
 use App\Repository\StructureRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -28,6 +31,7 @@ final class PatientService
         private readonly PatientRepository $patientRepository,
         private readonly DpiRepository $dpiRepository,
         private readonly StructureRepository $structureRepository,
+        private readonly FiliereRepository $filiereRepository,
         private readonly ValidatorInterface $validator,
     ) {
     }
@@ -45,6 +49,7 @@ final class PatientService
             $query->search,
             $query->status,
             $query->sexe,
+            $query->filiereId,
         );
 
         return new PaginatedResult(
@@ -69,6 +74,7 @@ final class PatientService
             $query->search,
             $query->status,
             $query->sexe,
+            $query->filiereId,
         );
 
         return array_map(
@@ -96,6 +102,8 @@ final class PatientService
             $patient->getCategorieTarifaire(),
             $patient->getStructure()?->getLibelle(),
             $patient->getNumeroAffiliation(),
+            $patient->getCodeUkv(),
+            $this->filiereLabel($patient->getFiliere()),
             $patient->getAdresse(),
             $patient->getPersonneAprevenir(),
             $patient->getContactAPrevenir(),
@@ -130,6 +138,7 @@ final class PatientService
             $input->structureId,
             $input->numeroAffiliation,
         );
+        $this->applyUkvLink($patient, $input->codeUkv, $input->filiereId);
 
         $dpi = (new Dpi())
             ->setNumDossier($this->generateNumDossier())
@@ -193,6 +202,7 @@ final class PatientService
             $input->structureId,
             $input->numeroAffiliation,
         );
+        $this->applyUkvLink($patient, $input->codeUkv, $input->filiereId);
 
         if (Patient::STATUS_DECEDE === Patient::normalizeStatus($input->status)) {
             $dpi = $patient->getDpi();
@@ -272,6 +282,9 @@ final class PatientService
             'dpiStatut' => $dpi?->getStatut(),
             'categorieTarifaire' => $patient->getCategorieTarifaire(),
             'numeroAffiliation' => $patient->getNumeroAffiliation(),
+            'codeUkv' => $patient->getCodeUkv(),
+            'filiere' => $this->serializeFiliere($patient->getFiliere()),
+            'organisation' => $this->serializeOrganisationPartenaire($patient->getOrganisation()),
             'structure' => $this->serializeStructure($patient->getStructure()),
             'visiteCount' => $dpi?->getVisites()->count() ?? 0,
             'antecedentCount' => $dpi?->getAntecedents()->count() ?? 0,
@@ -337,7 +350,73 @@ final class PatientService
                 [$this, 'serializeStructure'],
                 $this->structureRepository->findActifs(),
             ),
+            'filieres' => array_map(
+                [$this, 'serializeFiliere'],
+                $this->filiereRepository->findAllOrdered(),
+            ),
         ];
+    }
+
+    /** @return array{id: int, code: string, libelle: string, typeInstitution: string}|null */
+    private function serializeOrganisationPartenaire(?OrganisationPartenaire $organisation): ?array
+    {
+        if (!$organisation instanceof OrganisationPartenaire) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $organisation->getId(),
+            'code' => (string) $organisation->getCode(),
+            'libelle' => (string) $organisation->getLibelle(),
+            'typeInstitution' => (string) $organisation->getTypeInstitution(),
+        ];
+    }
+
+    /** @return array{id: int, code: string, libelle: string}|null */
+    private function serializeFiliere(?Filiere $filiere): ?array
+    {
+        if (!$filiere instanceof Filiere) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $filiere->getId(),
+            'code' => (string) $filiere->getCode(),
+            'libelle' => (string) $filiere->getLibelle(),
+        ];
+    }
+
+    private function filiereLabel(?Filiere $filiere): ?string
+    {
+        if (!$filiere instanceof Filiere) {
+            return null;
+        }
+
+        return trim(sprintf('%s — %s', $filiere->getCode() ?? '', $filiere->getLibelle() ?? ''));
+    }
+
+    private function applyUkvLink(Patient $patient, ?string $codeUkv, ?int $filiereId): void
+    {
+        $normalizedCode = $this->normalizeOptionalText($codeUkv);
+        if (null !== $normalizedCode) {
+            $existing = $this->patientRepository->findOneByCodeUkv($normalizedCode);
+            if (null !== $existing && $existing !== $patient) {
+                throw new ConflictException('Ce code UKV est déjà attribué à un autre patient.');
+            }
+        }
+        $patient->setCodeUkv($normalizedCode);
+
+        $filiere = null;
+        if (null !== $filiereId) {
+            $filiere = $this->filiereRepository->find($filiereId);
+            if (!$filiere instanceof Filiere) {
+                throw new NotFoundException('Filière non trouvée.');
+            }
+        }
+        $patient->setFiliere($filiere);
+        if ($filiere instanceof Filiere && $filiere->getOrganisation() instanceof OrganisationPartenaire) {
+            $patient->setOrganisation($filiere->getOrganisation());
+        }
     }
 
     /** @return array<string, mixed>|null */

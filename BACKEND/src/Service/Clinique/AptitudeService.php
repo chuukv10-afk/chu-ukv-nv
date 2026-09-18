@@ -17,6 +17,7 @@ use App\Repository\FiliereRepository;
 use App\Repository\ServiceRepository;
 use App\Service\Patient\PatientService;
 use App\Service\Referentiel\FiliereService;
+use App\Service\Referentiel\OrganisationPartenaireService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
@@ -32,6 +33,7 @@ final class AptitudeService
         private readonly ServiceRepository $serviceRepository,
         private readonly FiliereRepository $filiereRepository,
         private readonly FiliereService $filiereService,
+        private readonly OrganisationPartenaireService $organisationPartenaireService,
         private readonly PatientService $patientService,
         private readonly ValidatorInterface $validator,
         private readonly Security $security,
@@ -52,6 +54,7 @@ final class AptitudeService
             $query->serviceId,
             $query->filiereId,
             $query->sansFiliere,
+            $query->imprime,
         );
 
         return new PaginatedResult(
@@ -77,6 +80,7 @@ final class AptitudeService
             $query->serviceId,
             $query->filiereId,
             $query->sansFiliere,
+            $query->imprime,
         );
 
         $rows = [];
@@ -94,6 +98,7 @@ final class AptitudeService
                 $item->getStatut(),
                 $item->getSigneAt()?->format('d/m/Y'),
                 $item->getValideJusqua()?->format('d/m/Y'),
+                $item->isImprime() ? 'Oui' : 'Non',
             ];
             ++$index;
         }
@@ -106,7 +111,7 @@ final class AptitudeService
      */
     public function exportHeaders(): array
     {
-        return ['N°', 'Numéro', 'Candidat', 'Sexe', 'Service', 'Motif', 'Filière', 'Verdict', 'Statut', 'Signé le', 'Valable jusqu\'au'];
+        return ['N°', 'Numéro', 'Candidat', 'Sexe', 'Service', 'Motif', 'Filière', 'Verdict', 'Statut', 'Signé le', 'Valable jusqu\'au', 'Imprimé'];
     }
 
     /** @return list<array{id: int, code: string, libelle: string}> */
@@ -121,10 +126,16 @@ final class AptitudeService
         ], $services);
     }
 
-    /** @return list<array{id: int, code: string, libelle: string}> */
-    public function listFilieres(): array
+    /** @return list<array{id: int, code: string, libelle: string, organisationId: int|null}> */
+    public function listFilieres(?int $organisationId = null): array
     {
-        return $this->filiereService->listLookup();
+        return $this->filiereService->listLookup($organisationId);
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function listOrganisations(): array
+    {
+        return $this->organisationPartenaireService->listLookup();
     }
 
     /** @return array<string, mixed> */
@@ -145,6 +156,61 @@ final class AptitudeService
         }
 
         return $certificat;
+    }
+
+    /**
+     * @param list<int> $ids
+     *
+     * @return list<CertificatAptitude>
+     */
+    public function getPrintableByIds(array $ids): array
+    {
+        if (count($ids) > 80) {
+            throw new ConflictException('Maximum 80 certificats à imprimer à la fois.');
+        }
+        $items = $this->repository->findOrderedByIds($ids);
+        if ([] === $items) {
+            throw new NotFoundException('Aucun certificat sélectionné.');
+        }
+        foreach ($items as $item) {
+            if ($item->isBrouillon()) {
+                throw new ConflictException(sprintf(
+                    'Le certificat de %s est encore un brouillon : signez-le avant l\'impression.',
+                    $item->getFullName(),
+                ));
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<int> $ids
+     *
+     * @return array{updated: int, ids: list<int>}
+     */
+    public function markPrinted(array $ids): array
+    {
+        $items = $this->getPrintableByIds($ids);
+        $personnel = $this->currentPersonnel();
+        $now = new \DateTimeImmutable('now', new \DateTimeZone(self::TIMEZONE));
+        $updated = 0;
+        foreach ($items as $item) {
+            if ($item->isImprime()) {
+                continue;
+            }
+            $item
+                ->setImprime(true)
+                ->setImprimeAt($now)
+                ->setImprimePar($personnel);
+            ++$updated;
+        }
+        $this->entityManager->flush();
+
+        return [
+            'updated' => $updated,
+            'ids' => array_map(static fn (CertificatAptitude $item): int => (int) $item->getId(), $items),
+        ];
     }
 
     public function create(UpsertAptitudeInput $input): CertificatAptitude
@@ -255,6 +321,8 @@ final class AptitudeService
             'patientId' => $certificat->getPatient()?->getId()?->toRfc4122(),
             'signeAt' => $certificat->getSigneAt()?->format(\DateTimeInterface::ATOM),
             'valideJusqua' => $certificat->getValideJusqua()?->format(\DateTimeInterface::ATOM),
+            'imprime' => $certificat->isImprime(),
+            'imprimeAt' => $certificat->getImprimeAt()?->format(\DateTimeInterface::ATOM),
             'expired' => $expired,
             'createdAt' => $certificat->getCreatedAt()?->format(\DateTimeInterface::ATOM),
         ];

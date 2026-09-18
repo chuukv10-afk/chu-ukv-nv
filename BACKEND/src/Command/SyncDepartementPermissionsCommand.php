@@ -11,7 +11,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:permissions:sync-departement',
-    description: 'Crée les permissions Département et les lie aux rôles ADMIN (toutes) et PERSONNEL (lecture)',
+    description: 'Crée les permissions Département et les attribue uniquement au rôle ADMIN',
 )]
 final class SyncDepartementPermissionsCommand extends Command
 {
@@ -33,7 +33,7 @@ final class SyncDepartementPermissionsCommand extends Command
         ));
 
         $io->listing([
-            'organisation.departement.read   → ADMIN + PERSONNEL',
+            'organisation.departement.read   → ADMIN',
             'organisation.departement.create → ADMIN',
             'organisation.departement.update → ADMIN',
             'organisation.departement.delete → ADMIN',

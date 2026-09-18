@@ -14,6 +14,10 @@ final class CreateFiliereInput
         #[Assert\NotBlank(message: 'Le libellé de la filière est obligatoire.')]
         #[Assert\Length(max: 150, maxMessage: 'Le libellé ne peut pas dépasser {{ limit }} caractères.')]
         public string $libelle = '',
+
+        #[Assert\NotNull(message: 'Choisissez l\'organisation partenaire.')]
+        #[Assert\Positive(message: 'Choisissez l\'organisation partenaire.')]
+        public ?int $organisationId = null,
     ) {
     }
 }

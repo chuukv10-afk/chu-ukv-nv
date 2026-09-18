@@ -46,7 +46,7 @@ final class PatientsController extends AbstractController
 
     #[Route('/meta', name: 'api_patients_meta', methods: ['GET'])]
     #[IsGranted(PatientPermissions::PATIENT_READ)]
-    public function meta(): JsonResponse
+    public function meta(PatientService $patientService): JsonResponse
     {
         return $this->apiSuccess(
             $patientService->buildMeta(),
@@ -79,6 +79,8 @@ final class PatientsController extends AbstractController
                 'Catégorie tarifaire',
                 'Structure',
                 'N° affiliation',
+                'Code UKV',
+                'Filière UKV',
                 'Adresse',
                 'Personne à prévenir',
                 'Contact urgence',

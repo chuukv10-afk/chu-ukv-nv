@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\CertificatAptitude;
+use App\Entity\Patient;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -30,8 +31,9 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         ?int $serviceId = null,
         ?int $filiereId = null,
         bool $sansFiliere = false,
+        ?string $imprime = null,
     ): array {
-        $qb = $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere);
+        $qb = $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime);
 
         $total = (int) (clone $qb)
             ->select('COUNT(c.id)')
@@ -60,8 +62,9 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         ?int $serviceId = null,
         ?int $filiereId = null,
         bool $sansFiliere = false,
+        ?string $imprime = null,
     ): array {
-        return $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere)
+        return $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime)
             ->getQuery()
             ->getResult();
     }
@@ -133,6 +136,7 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         ?int $serviceId,
         ?int $filiereId = null,
         bool $sansFiliere = false,
+        ?string $imprime = null,
     ): \Doctrine\ORM\QueryBuilder {
         $qb = $this->createQueryBuilder('c')
             ->leftJoin('c.service', 's')->addSelect('s')
@@ -179,6 +183,67 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
             $qb->andWhere('f.id = :filiereId')->setParameter('filiereId', $filiereId);
         }
 
+        if ('oui' === $imprime) {
+            $qb->andWhere('c.imprime = TRUE');
+        } elseif ('non' === $imprime) {
+            $qb->andWhere('c.imprime = FALSE');
+        }
+
         return $qb;
+    }
+
+    /**
+     * @param list<int> $ids
+     *
+     * @return list<CertificatAptitude>
+     */
+    public function findOrderedByIds(array $ids): array
+    {
+        if ([] === $ids) {
+            return [];
+        }
+
+        $items = $this->createQueryBuilder('c')
+            ->leftJoin('c.service', 's')->addSelect('s')
+            ->leftJoin('c.filiere', 'f')->addSelect('f')
+            ->leftJoin('c.signePar', 'sp')->addSelect('sp')
+            ->andWhere('c.id IN (:ids)')
+            ->setParameter('ids', $ids)
+            ->getQuery()
+            ->getResult();
+
+        $byId = [];
+        foreach ($items as $item) {
+            $byId[(int) $item->getId()] = $item;
+        }
+
+        $ordered = [];
+        foreach ($ids as $id) {
+            if (isset($byId[$id])) {
+                $ordered[] = $byId[$id];
+            }
+        }
+
+        return $ordered;
+    }
+
+    public function findActiveAdmissionForPatient(Patient $patient, int $annee): ?CertificatAptitude
+    {
+        return $this->createQueryBuilder('c')
+            ->andWhere('c.patient = :patient')
+            ->andWhere('c.annee = :annee')
+            ->andWhere('c.motif = :motif')
+            ->andWhere('c.statut IN (:statuts)')
+            ->setParameter('patient', $patient)
+            ->setParameter('annee', $annee)
+            ->setParameter('motif', CertificatAptitude::MOTIF_ADMISSION_UKV)
+            ->setParameter('statuts', [
+                CertificatAptitude::STATUT_BROUILLON,
+                CertificatAptitude::STATUT_SIGNE,
+            ])
+            ->orderBy('c.id', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 }

@@ -35,6 +35,7 @@ import DatabaseAdminPage from '../features/admin/database/DatabaseAdminPage.jsx'
 import GradesPage from '../features/referentiel/grades/GradesPage.jsx';
 import FonctionsPage from '../features/referentiel/fonctions/FonctionsPage.jsx';
 import FilieresPage from '../features/referentiel/filieres/FilieresPage.jsx';
+import OrganisationsPartenairesPage from '../features/referentiel/organisations-partenaires/OrganisationsPartenairesPage.jsx';
 import SpecialitesPage from '../features/referentiel/specialites/SpecialitesPage.jsx';
 import TypesExamenPage from '../features/referentiel/types-examen/TypesExamenPage.jsx';
 import TypesAntecedentPage from '../features/referentiel/types-antecedent/TypesAntecedentPage.jsx';
@@ -322,6 +323,14 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.REFERENTIEL.FONCTION_READ}>
                   <FonctionsPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.REFERENTIEL.ORGANISATIONS_PARTENAIRES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.REFERENTIEL.ORGANISATION_PARTENAIRE_READ}>
+                  <OrganisationsPartenairesPage />
                 </PermissionGuard>
               )}
             />

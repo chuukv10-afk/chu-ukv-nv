@@ -56,6 +56,12 @@ final class CreatePatientInput
         #[Assert\Length(max: 50)]
         public ?string $numeroAffiliation = null,
 
+        #[Assert\Length(max: 20)]
+        public ?string $codeUkv = null,
+
+        #[Assert\Positive]
+        public ?int $filiereId = null,
+
         public string $status = Patient::STATUS_ACTIF,
     ) {
     }

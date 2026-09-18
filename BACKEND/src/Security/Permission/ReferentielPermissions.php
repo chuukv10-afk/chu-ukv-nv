@@ -24,6 +24,11 @@ final class ReferentielPermissions
     public const FILIERE_UPDATE = 'referentiel.filiere.update';
     public const FILIERE_DELETE = 'referentiel.filiere.delete';
 
+    public const ORGANISATION_PARTENAIRE_READ = 'referentiel.organisation_partenaire.read';
+    public const ORGANISATION_PARTENAIRE_CREATE = 'referentiel.organisation_partenaire.create';
+    public const ORGANISATION_PARTENAIRE_UPDATE = 'referentiel.organisation_partenaire.update';
+    public const ORGANISATION_PARTENAIRE_DELETE = 'referentiel.organisation_partenaire.delete';
+
     public const SPECIALITE_READ = 'referentiel.specialite.read';
     public const SPECIALITE_CREATE = 'referentiel.specialite.create';
     public const SPECIALITE_UPDATE = 'referentiel.specialite.update';
@@ -59,7 +64,8 @@ final class ReferentielPermissions
         return array_merge(
             self::crud('grade', 'grade', 'les grades'),
             self::crud('fonction', 'fonction', 'les fonctions'),
-            self::crud('filiere', 'filière UKV', 'les filières UKV'),
+            self::crud('filiere', 'filière', 'les filières'),
+            self::crud('organisation_partenaire', 'organisation partenaire', 'les organisations partenaires'),
             self::crud('specialite', 'spécialité', 'les spécialités'),
             self::export(self::SPECIALITE_EXPORT, 'les spécialités'),
             self::crud('type_examen', 'type d\'examen', 'les types d\'examen'),
@@ -70,9 +76,6 @@ final class ReferentielPermissions
         );
     }
 
-    /**
-     * @return list<array{code: string, libelle: string, module: string}>
-     */
     /**
      * @return list<array{code: string, libelle: string, module: string}>
      */

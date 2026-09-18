@@ -35,6 +35,9 @@ final class AptitudeListQuery
         public ?int $filiereId = null,
 
         public bool $sansFiliere = false,
+
+        #[Assert\Choice(choices: ['oui', 'non'])]
+        public ?string $imprime = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;
@@ -47,6 +50,9 @@ final class AptitudeListQuery
         }
         if ('' === $this->motif) {
             $this->motif = null;
+        }
+        if ('' === $this->imprime) {
+            $this->imprime = null;
         }
     }
 }

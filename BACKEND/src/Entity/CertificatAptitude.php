@@ -174,6 +174,16 @@ class CertificatAptitude implements BlameableInterface
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $annuleAt = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $imprime = false;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $imprimeAt = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Personnel $imprimePar = null;
+
     /**
      * @return list<string>
      */
@@ -706,6 +716,42 @@ class CertificatAptitude implements BlameableInterface
     public function setAnnuleAt(?\DateTimeImmutable $annuleAt): static
     {
         $this->annuleAt = $annuleAt;
+
+        return $this;
+    }
+
+    public function isImprime(): bool
+    {
+        return $this->imprime;
+    }
+
+    public function setImprime(bool $imprime): static
+    {
+        $this->imprime = $imprime;
+
+        return $this;
+    }
+
+    public function getImprimeAt(): ?\DateTimeImmutable
+    {
+        return $this->imprimeAt;
+    }
+
+    public function setImprimeAt(?\DateTimeImmutable $imprimeAt): static
+    {
+        $this->imprimeAt = $imprimeAt;
+
+        return $this;
+    }
+
+    public function getImprimePar(): ?Personnel
+    {
+        return $this->imprimePar;
+    }
+
+    public function setImprimePar(?Personnel $imprimePar): static
+    {
+        $this->imprimePar = $imprimePar;
 
         return $this;
     }

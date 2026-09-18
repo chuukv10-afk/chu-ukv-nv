@@ -10,6 +10,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: PatientRepository::class)]
+#[ORM\UniqueConstraint(name: 'UNIQ_PATIENT_CODE_UKV', columns: ['code_ukv'])]
 #[ORM\HasLifecycleCallbacks]
 class Patient implements BlameableInterface
 {
@@ -68,9 +69,20 @@ class Patient implements BlameableInterface
     #[ORM\Column(length: 50, nullable: true)]
     private ?string $numeroAffiliation = null;
 
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $codeUkv = null;
+
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Structure $structure = null;
+
+    #[ORM\ManyToOne(inversedBy: 'patients')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?OrganisationPartenaire $organisation = null;
+
+    #[ORM\ManyToOne(inversedBy: 'patients')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Filiere $filiere = null;
 
     #[ORM\OneToOne(mappedBy: 'patient', cascade: ['persist', 'remove'])]
     private ?Dpi $dpi = null;
@@ -255,6 +267,18 @@ class Patient implements BlameableInterface
         return $this;
     }
 
+    public function getCodeUkv(): ?string
+    {
+        return $this->codeUkv;
+    }
+
+    public function setCodeUkv(?string $codeUkv): static
+    {
+        $this->codeUkv = $codeUkv;
+
+        return $this;
+    }
+
     public function getStructure(): ?Structure
     {
         return $this->structure;
@@ -263,6 +287,30 @@ class Patient implements BlameableInterface
     public function setStructure(?Structure $structure): static
     {
         $this->structure = $structure;
+
+        return $this;
+    }
+
+    public function getOrganisation(): ?OrganisationPartenaire
+    {
+        return $this->organisation;
+    }
+
+    public function setOrganisation(?OrganisationPartenaire $organisation): static
+    {
+        $this->organisation = $organisation;
+
+        return $this;
+    }
+
+    public function getFiliere(): ?Filiere
+    {
+        return $this->filiere;
+    }
+
+    public function setFiliere(?Filiere $filiere): static
+    {
+        $this->filiere = $filiere;
 
         return $this;
     }

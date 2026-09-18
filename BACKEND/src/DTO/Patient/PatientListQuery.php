@@ -21,6 +21,9 @@ final class PatientListQuery
 
         #[Assert\Length(max: 1)]
         public ?string $sexe = null,
+
+        #[Assert\Positive]
+        public ?int $filiereId = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;

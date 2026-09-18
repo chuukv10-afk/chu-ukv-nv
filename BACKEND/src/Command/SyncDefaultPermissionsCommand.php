@@ -11,7 +11,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:permissions:sync-defaults',
-    description: 'Crée toutes les permissions CRUD (Organisation, Référentiel, Clinique) et les lie aux rôles',
+    description: 'Crée les permissions manquantes et les attribue uniquement au rôle ADMIN',
 )]
 final class SyncDefaultPermissionsCommand extends Command
 {
@@ -35,7 +35,7 @@ final class SyncDefaultPermissionsCommand extends Command
         $io->text('Règle d\'affectation :');
         $io->listing([
             'ADMIN     → toutes les permissions',
-            'PERSONNEL → permissions *.read uniquement',
+            'PERSONNEL → aucune attribution (les retraits manuels sont conservés)',
         ]);
 
         $io->text('Modules couverts : Organisation (5), Référentiel (4), Clinique (1) — 40 permissions au total.');

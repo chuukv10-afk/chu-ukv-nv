@@ -27,6 +27,7 @@ export default function PatientFormModal({
   onClose,
   onSubmit,
   structures = [],
+  filieres = [],
 }) {
   const [form, setForm] = useState(initialValues);
   const isEdit = mode === 'edit';
@@ -66,6 +67,8 @@ export default function PatientFormModal({
       categorieTarifaire: form.categorieTarifaire,
       structureId: requiresStructure && form.structureId ? Number(form.structureId) : null,
       numeroAffiliation: form.numeroAffiliation?.trim() || null,
+      codeUkv: form.codeUkv?.trim() || null,
+      filiereId: form.filiereId ? Number(form.filiereId) : null,
       status: form.status,
     });
   };
@@ -159,6 +162,32 @@ export default function PatientFormModal({
               <FormControl sx={{ flex: 1 }}>
                 <FormLabel>Contact urgence</FormLabel>
                 <Input value={form.contactAPrevenir} onChange={(e) => handleChange('contactAPrevenir', e.target.value)} disabled={identityDisabled} slotProps={{ input: { maxLength: 20 } }} />
+              </FormControl>
+            </Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <FormControl sx={{ flex: 1 }}>
+                <FormLabel>Code UKV</FormLabel>
+                <Input
+                  value={form.codeUkv ?? ''}
+                  onChange={(e) => handleChange('codeUkv', e.target.value)}
+                  disabled={identityDisabled}
+                  placeholder="Ex. 1660"
+                  slotProps={{ input: { maxLength: 20 } }}
+                />
+              </FormControl>
+              <FormControl sx={{ flex: 1 }}>
+                <FormLabel>Filière UKV</FormLabel>
+                <Select
+                  value={form.filiereId === '' || form.filiereId == null ? '' : String(form.filiereId)}
+                  onChange={(_, value) => handleChange('filiereId', value ?? '')}
+                  disabled={identityDisabled}
+                  placeholder="Non rattaché"
+                >
+                  <Option value="">Non rattaché</Option>
+                  {filieres.map((item) => (
+                    <Option key={item.id} value={String(item.id)}>{item.code} — {item.libelle}</Option>
+                  ))}
+                </Select>
               </FormControl>
             </Stack>
             <FormControl required>

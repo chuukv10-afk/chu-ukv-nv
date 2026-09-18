@@ -44,8 +44,16 @@ export async function fetchAptitudeServicesApi() {
   return Array.isArray(data) ? data : [];
 }
 
-export async function fetchAptitudeFilieresApi() {
-  const response = await callApiGet(`${clinique.aptitudes}/lookups/filieres`);
+export async function fetchAptitudeFilieresApi(organisationId) {
+  const response = await callApiGet(`${clinique.aptitudes}/lookups/filieres${buildQueryString({
+    organisationId: organisationId || undefined,
+  })}`);
+  const data = unwrapData(response);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchAptitudeOrganisationsApi() {
+  const response = await callApiGet(`${clinique.aptitudes}/lookups/organisations`);
   const data = unwrapData(response);
   return Array.isArray(data) ? data : [];
 }
@@ -104,6 +112,34 @@ export async function openAptitudePdfApi(id) {
   await openFileInBrowser(`${clinique.aptitudes}/${id}/pdf`);
 }
 
+export async function openAptitudeBatchPdfApi(ids = []) {
+  const query = buildQueryString({ ids: ids.join(',') });
+  await openFileInBrowser(`${clinique.aptitudes}/pdf-lot${query}`);
+}
+
+export async function markAptitudesPrintedApi(ids = []) {
+  const response = await callApiPost(`${clinique.aptitudes}/marquer-imprime`, { ids });
+  return unwrapData(response);
+}
+
 export async function exportAptitudesApi(format, params = {}) {
   return exportResourceApi(clinique.aptitudes, format, params);
+}
+
+export async function downloadAptitudeImportTemplateApi() {
+  await downloadFile(`${clinique.aptitudes}/import-modele`, 'GET', null, 'modele-import-etudiants-ukv.xlsx');
+}
+
+export async function importAptitudeEtudiantsApi({
+  file, organisationId, filiereId, serviceId, annee, categorieTarifaire,
+}) {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('organisationId', String(organisationId));
+  if (filiereId) body.append('filiereId', String(filiereId));
+  body.append('serviceId', String(serviceId));
+  body.append('annee', String(annee));
+  body.append('categorieTarifaire', categorieTarifaire || 'A');
+  const response = await callApiPost(`${clinique.aptitudes}/import`, body);
+  return unwrapData(response);
 }

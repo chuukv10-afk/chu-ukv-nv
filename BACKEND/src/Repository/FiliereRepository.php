@@ -30,8 +30,13 @@ class FiliereRepository extends ServiceEntityRepository
     /**
      * @return list<Filiere>
      */
-    public function findAllOrdered(): array
+    public function findAllOrdered(?int $organisationId = null): array
     {
-        return $this->findBy([], ['libelle' => 'ASC']);
+        $criteria = [];
+        if (null !== $organisationId) {
+            $criteria['organisation'] = $organisationId;
+        }
+
+        return $this->findBy($criteria, ['libelle' => 'ASC']);
     }
 }

@@ -66,7 +66,13 @@ export const NAV_SECTIONS = [
         icon: 'briefcase',
       },
       {
-        label: 'Filières UKV',
+        label: 'Organisations partenaires',
+        to: ROUTES.REFERENTIEL.ORGANISATIONS_PARTENAIRES,
+        permission: PERMISSIONS.REFERENTIEL.ORGANISATION_PARTENAIRE_READ,
+        icon: 'building',
+      },
+      {
+        label: 'Filières',
         to: ROUTES.REFERENTIEL.FILIERES,
         permission: PERMISSIONS.REFERENTIEL.FILIERE_READ,
         icon: 'graduation',

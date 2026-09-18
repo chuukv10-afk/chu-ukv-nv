@@ -71,11 +71,6 @@ final class PermissionProvisioner
             'Administrateur',
             PersonnelRole::PERIMETRE_GLOBAL,
         );
-        $personnelRole = $this->roleProvisioner->findOrCreate(
-            Role::CODE_PERSONNEL,
-            'Personnel',
-            PersonnelRole::PERIMETRE_GLOBAL,
-        );
 
         foreach ($definitions as $definition) {
             $permission = $this->permissionRepository->findOneBy(['code' => $definition['code']]);
@@ -84,14 +79,6 @@ final class PermissionProvisioner
             }
 
             $adminRole->addPermission($permission);
-
-            if (Permission::MODULE_RH === $definition['module']) {
-                continue;
-            }
-
-            if (str_ends_with($definition['code'], '.read') || self::isPersonnelSelfService($definition['code'])) {
-                $personnelRole->addPermission($permission);
-            }
         }
 
         $this->grantNewPermissionsToMatchingRoles($definitions);
@@ -150,11 +137,6 @@ final class PermissionProvisioner
                 }
             }
         }
-    }
-
-    private static function isPersonnelSelfService(string $code): bool
-    {
-        return AdminPermissions::SIGNATURE_UPDATE === $code;
     }
 
     /**

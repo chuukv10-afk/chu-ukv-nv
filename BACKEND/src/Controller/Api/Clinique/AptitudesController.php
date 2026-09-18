@@ -4,14 +4,20 @@ namespace App\Controller\Api\Clinique;
 
 use App\Controller\Api\Trait\ExportResponseTrait;
 use App\Controller\Api\Trait\JsonResponseTrait;
+use App\DTO\Clinique\AptitudeIdsInput;
+use App\DTO\Clinique\AptitudeIdsQuery;
 use App\DTO\Clinique\AptitudeListQuery;
 use App\DTO\Clinique\AptitudeStatsQuery;
 use App\DTO\Clinique\UpsertAptitudeInput;
+use App\Exception\ConflictException;
 use App\Security\Permission\CliniquePermissions;
+use App\Security\Permission\PatientPermissions;
+use App\Service\Clinique\AptitudeImportService;
 use App\Service\Clinique\AptitudePdfService;
 use App\Service\Clinique\AptitudeService;
 use App\Service\Export\TableExportService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,6 +36,7 @@ final class AptitudesController extends AbstractController
     public function __construct(
         private readonly AptitudeService $aptitudeService,
         private readonly AptitudePdfService $aptitudePdfService,
+        private readonly AptitudeImportService $aptitudeImportService,
     ) {
     }
 
@@ -78,9 +85,45 @@ final class AptitudesController extends AbstractController
 
     #[Route('/lookups/filieres', name: 'api_clinique_aptitudes_filieres', methods: ['GET'])]
     #[IsGranted(CliniquePermissions::APTITUDE_READ)]
-    public function filieres(): JsonResponse
+    public function filieres(Request $request): JsonResponse
     {
-        return $this->apiSuccess($this->aptitudeService->listFilieres(), 'Filières récupérées avec succès.');
+        $organisationId = (int) $request->query->get('organisationId', 0);
+
+        return $this->apiSuccess(
+            $this->aptitudeService->listFilieres($organisationId > 0 ? $organisationId : null),
+            'Filières récupérées avec succès.',
+        );
+    }
+
+    #[Route('/lookups/organisations', name: 'api_clinique_aptitudes_organisations', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_READ)]
+    public function organisations(): JsonResponse
+    {
+        return $this->apiSuccess($this->aptitudeService->listOrganisations(), 'Organisations partenaires récupérées avec succès.');
+    }
+
+    #[Route('/pdf-lot', name: 'api_clinique_aptitudes_pdf_lot', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_EXPORT)]
+    public function pdfLot(#[MapQueryString] AptitudeIdsQuery $query): Response
+    {
+        $ids = $query->parsedIds();
+        if ([] === $ids) {
+            throw new ConflictException('Sélectionnez au moins un certificat.');
+        }
+
+        return $this->aptitudePdfService->createBatchResponse($this->aptitudeService->getPrintableByIds($ids));
+    }
+
+    #[Route('/marquer-imprime', name: 'api_clinique_aptitudes_marquer_imprime', methods: ['POST'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_EXPORT)]
+    public function marquerImprime(#[MapRequestPayload] AptitudeIdsInput $input): JsonResponse
+    {
+        $result = $this->aptitudeService->markPrinted($input->ids);
+
+        return $this->apiSuccess(
+            $result,
+            sprintf('%d certificat(s) marqué(s) comme imprimé(s).', $result['updated']),
+        );
     }
 
     #[Route('/stats', name: 'api_clinique_aptitudes_stats', methods: ['GET'])]
@@ -116,6 +159,60 @@ final class AptitudesController extends AbstractController
     public function meta(): JsonResponse
     {
         return $this->apiSuccess($this->aptitudeService->meta(), 'Métadonnées aptitude récupérées avec succès.');
+    }
+
+    #[Route('/import-modele', name: 'api_clinique_aptitudes_import_modele', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_CREATE)]
+    public function importTemplate(): Response
+    {
+        $this->denyAccessUnlessGranted(PatientPermissions::PATIENT_CREATE);
+
+        return $this->aptitudeImportService->createTemplateResponse();
+    }
+
+    #[Route('/import', name: 'api_clinique_aptitudes_import', methods: ['POST'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_CREATE)]
+    public function import(Request $request): JsonResponse
+    {
+        $this->denyAccessUnlessGranted(PatientPermissions::PATIENT_CREATE);
+
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile) {
+            throw new ConflictException('Envoyez un fichier Excel (champ file).');
+        }
+
+        $organisationId = (int) $request->request->get('organisationId', 0);
+        $filiereIdRaw = $request->request->get('filiereId');
+        $filiereId = null !== $filiereIdRaw && '' !== (string) $filiereIdRaw ? (int) $filiereIdRaw : null;
+        $serviceId = (int) $request->request->get('serviceId', 0);
+        $annee = (int) $request->request->get('annee', 0);
+        $categorieTarifaire = (string) $request->request->get('categorieTarifaire', 'A');
+        if ($organisationId < 1 || $serviceId < 1) {
+            throw new ConflictException('Choisissez l\'organisation partenaire et le service d\'examen.');
+        }
+        if ($annee < 1) {
+            $annee = (int) (new \DateTimeImmutable('now', new \DateTimeZone('Africa/Kinshasa')))->format('Y');
+        }
+
+        $result = $this->aptitudeImportService->importFromUpload(
+            $file,
+            $organisationId,
+            $filiereId,
+            $serviceId,
+            $annee,
+            $categorieTarifaire,
+        );
+        $errorCount = count($result['errors']);
+
+        return $this->apiSuccess(
+            $result,
+            sprintf(
+                'Import terminé : %d DPI créé(s), %d certificat(s) brouillon, %d ligne(s) en erreur.',
+                $result['createdDpis'],
+                $result['createdAptitudes'],
+                $errorCount,
+            ),
+        );
     }
 
     #[Route('', name: 'api_clinique_aptitudes_create', methods: ['POST'])]

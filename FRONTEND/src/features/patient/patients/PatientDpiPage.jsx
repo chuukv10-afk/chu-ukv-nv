@@ -118,6 +118,7 @@ export default function PatientDpiPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [structures, setStructures] = useState([]);
+  const [filieres, setFilieres] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,8 +138,14 @@ export default function PatientDpiPage() {
 
   useEffect(() => {
     fetchPatientMetaApi()
-      .then((meta) => setStructures(Array.isArray(meta.structures) ? meta.structures : []))
-      .catch(() => setStructures([]));
+      .then((meta) => {
+        setStructures(Array.isArray(meta.structures) ? meta.structures : []);
+        setFilieres(Array.isArray(meta.filieres) ? meta.filieres.filter(Boolean) : []);
+      })
+      .catch(() => {
+        setStructures([]);
+        setFilieres([]);
+      });
   }, []);
 
   const loadVisites = useCallback(async () => {
@@ -335,6 +342,8 @@ export default function PatientDpiPage() {
     categorieTarifaire: patient.categorieTarifaire ?? '',
     structureId: patient.structure?.id ? String(patient.structure.id) : '',
     numeroAffiliation: patient.numeroAffiliation ?? '',
+    codeUkv: patient.codeUkv ?? '',
+    filiereId: patient.filiere?.id ? String(patient.filiere.id) : '',
     status: patient.status ?? 'ACTIF',
   };
 
@@ -363,6 +372,11 @@ export default function PatientDpiPage() {
                   <Chip size="sm" variant="outlined" color={DPI_STATUT_COLORS[dpi?.statut] ?? 'neutral'}>
                     {DPI_STATUT_LABELS[dpi?.statut] ?? dpi?.statut}
                   </Chip>
+                  {patient.filiere ? (
+                    <Chip size="sm" variant="soft" color="primary">
+                      UKV{patient.codeUkv ? ` ${patient.codeUkv}` : ''} · {patient.filiere.libelle}
+                    </Chip>
+                  ) : null}
                 </Stack>
               </Box>
             </Stack>
@@ -402,6 +416,8 @@ export default function PatientDpiPage() {
               <InfoRow label="Adresse" value={patient.adresse} />
               <InfoRow label="Groupe sanguin" value={patient.groupeSanguin} />
               <InfoRow label="Catégorie tarifaire" value={CATEGORIE_TARIFAIRE_LABELS[patient.categorieTarifaire] ?? patient.categorieTarifaire} />
+              <InfoRow label="Code UKV" value={patient.codeUkv} />
+              <InfoRow label="Filière UKV" value={patient.filiere ? `${patient.filiere.code} — ${patient.filiere.libelle}` : null} />
               <InfoRow label="Structure" value={patient.structure?.libelle} />
               <InfoRow label="N° affilié / police" value={patient.numeroAffiliation} />
               <InfoRow label="Personne à prévenir" value={patient.personneAprevenir} />
@@ -591,6 +607,7 @@ export default function PatientDpiPage() {
         loading={formLoading}
         error={formError}
         structures={structures}
+        filieres={filieres}
         readOnlyIdentity={patient.status === 'DECEDE'}
         onClose={() => setFormOpen(false)}
         onSubmit={handlePatientUpdate}

@@ -18,6 +18,7 @@ export const ROUTES = {
     GRADES: '/referentiel/grades',
     FONCTIONS: '/referentiel/fonctions',
     FILIERES: '/referentiel/filieres',
+    ORGANISATIONS_PARTENAIRES: '/referentiel/organisations-partenaires',
     SPECIALITES: '/referentiel/specialites',
     TYPES_EXAMEN: '/referentiel/types-examen',
     TYPES_ANTECEDENT: '/referentiel/types-antecedent',

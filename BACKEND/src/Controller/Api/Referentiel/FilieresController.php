@@ -41,7 +41,17 @@ final class FilieresController extends AbstractController
         );
     }
 
-    #[Route('/{id}', name: 'api_referentiel_filieres_show', methods: ['GET'])]
+    #[Route('/lookups/organisations', name: 'api_referentiel_filieres_organisations', methods: ['GET'])]
+    #[IsGranted(ReferentielPermissions::FILIERE_READ)]
+    public function organisations(): JsonResponse
+    {
+        return $this->apiSuccess(
+            $this->filiereService->listOrganisations(),
+            'Organisations partenaires récupérées avec succès.',
+        );
+    }
+
+    #[Route('/{id}', name: 'api_referentiel_filieres_show', methods: ['GET'], requirements: ['id' => '\d+'])]
     #[IsGranted(ReferentielPermissions::FILIERE_READ)]
     public function show(int $id): JsonResponse
     {
@@ -62,7 +72,7 @@ final class FilieresController extends AbstractController
         );
     }
 
-    #[Route('/{id}', name: 'api_referentiel_filieres_update', methods: ['PUT'])]
+    #[Route('/{id}', name: 'api_referentiel_filieres_update', methods: ['PUT'], requirements: ['id' => '\d+'])]
     #[IsGranted(ReferentielPermissions::FILIERE_UPDATE)]
     public function update(int $id, #[MapRequestPayload] UpdateFiliereInput $input): JsonResponse
     {
@@ -72,7 +82,7 @@ final class FilieresController extends AbstractController
         );
     }
 
-    #[Route('/{id}', name: 'api_referentiel_filieres_delete', methods: ['DELETE'])]
+    #[Route('/{id}', name: 'api_referentiel_filieres_delete', methods: ['DELETE'], requirements: ['id' => '\d+'])]
     #[IsGranted(ReferentielPermissions::FILIERE_DELETE)]
     public function delete(int $id): JsonResponse
     {

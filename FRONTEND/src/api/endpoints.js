@@ -45,6 +45,7 @@ export const referentiel = {
   grades: '/api/v1/referentiel/grades',
   fonctions: '/api/v1/referentiel/fonctions',
   filieres: '/api/v1/referentiel/filieres',
+  organisationsPartenaires: '/api/v1/referentiel/organisations-partenaires',
   specialites: '/api/v1/referentiel/specialites',
   typesExamen: '/api/v1/referentiel/types-examen',
   typesAntecedent: '/api/v1/referentiel/types-antecedent',

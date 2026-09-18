@@ -62,5 +62,7 @@ export const EMPTY_PATIENT_FORM = {
   categorieTarifaire: '',
   structureId: '',
   numeroAffiliation: '',
+  codeUkv: '',
+  filiereId: '',
   status: 'ACTIF',
 };

@@ -2,9 +2,14 @@
 
 namespace App\Service\Referentiel;
 
+use App\DTO\Referentiel\CreateFiliereInput;
+use App\DTO\Referentiel\UpdateFiliereInput;
 use App\Entity\Filiere;
+use App\Entity\OrganisationPartenaire;
 use App\Exception\ConflictException;
+use App\Exception\NotFoundException;
 use App\Repository\FiliereRepository;
+use App\Repository\OrganisationPartenaireRepository;
 use App\Service\Support\AbstractCodeLibelleCrudService;
 use App\Service\Support\ReferentielPaginateTrait;
 use Doctrine\ORM\EntityManagerInterface;
@@ -19,6 +24,7 @@ final class FiliereService extends AbstractCodeLibelleCrudService
     public function __construct(
         EntityManagerInterface $eM,
         private readonly FiliereRepository $filiereRepository,
+        private readonly OrganisationPartenaireRepository $organisationPartenaireRepository,
         ValidatorInterface $validator,
     ) {
         parent::__construct($eM, $validator);
@@ -30,6 +36,9 @@ final class FiliereService extends AbstractCodeLibelleCrudService
         if (!$filiere->getCertificats()->isEmpty()) {
             throw new ConflictException('Cette filière est encore liée à des certificats d\'aptitude et ne peut pas être supprimée.');
         }
+        if (!$filiere->getPatients()->isEmpty()) {
+            throw new ConflictException('Cette filière est encore liée à des étudiants (DPI) et ne peut pas être supprimée.');
+        }
 
         parent::delete($id);
     }
@@ -40,19 +49,92 @@ final class FiliereService extends AbstractCodeLibelleCrudService
         return [
             ...parent::serializeSummary($entity),
             'certificatCount' => $entity->getCertificats()->count(),
+            'patientCount' => $entity->getPatients()->count(),
+            'organisationId' => $entity->getOrganisation()?->getId(),
+            'organisation' => $this->serializeOrganisation($entity->getOrganisation()),
         ];
     }
 
+    public function create(object $input): object
+    {
+        /** @var Filiere $entity */
+        $entity = parent::create($input);
+        if ($input instanceof CreateFiliereInput) {
+            $entity->setOrganisation($this->resolveOrganisation($input->organisationId));
+            $this->eM->flush();
+        }
+
+        return $entity;
+    }
+
+    public function update(int $id, object $input): object
+    {
+        /** @var Filiere $entity */
+        $entity = parent::update($id, $input);
+        if ($input instanceof UpdateFiliereInput) {
+            $entity->setOrganisation($this->resolveOrganisation($input->organisationId));
+            $this->eM->flush();
+        }
+
+        return $entity;
+    }
+
     /**
-     * @return list<array{id: int, code: string, libelle: string}>
+     * @return list<array{id: int, code: string, libelle: string, organisationId: int|null}>
      */
-    public function listLookup(): array
+    public function listLookup(?int $organisationId = null): array
     {
         return array_map(static fn (Filiere $filiere): array => [
             'id' => (int) $filiere->getId(),
             'code' => (string) $filiere->getCode(),
             'libelle' => (string) $filiere->getLibelle(),
-        ], $this->filiereRepository->findAllOrdered());
+            'organisationId' => $filiere->getOrganisation()?->getId(),
+        ], $this->filiereRepository->findAllOrdered($organisationId));
+    }
+
+    /**
+     * @return list<array{id: int, code: string, libelle: string, typeInstitution: string}>
+     */
+    public function listOrganisations(): array
+    {
+        $items = [];
+        foreach ($this->organisationPartenaireRepository->findActifsOrdered() as $organisation) {
+            $serialized = $this->serializeOrganisation($organisation);
+            if (null !== $serialized) {
+                $items[] = $serialized;
+            }
+        }
+
+        return $items;
+    }
+
+    private function resolveOrganisation(?int $organisationId): OrganisationPartenaire
+    {
+        if (null === $organisationId) {
+            throw new ConflictException('Choisissez l\'organisation partenaire de cette filière.');
+        }
+
+        $organisation = $this->organisationPartenaireRepository->find($organisationId);
+        if (!$organisation instanceof OrganisationPartenaire) {
+            throw new NotFoundException('Organisation partenaire non trouvée.');
+        }
+
+        return $organisation;
+    }
+
+    /** @return array{id: int, code: string, libelle: string, typeInstitution: string}|null */
+    private function serializeOrganisation(?OrganisationPartenaire $organisation): ?array
+    {
+        if (!$organisation instanceof OrganisationPartenaire) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $organisation->getId(),
+            'code' => (string) $organisation->getCode(),
+            'libelle' => (string) $organisation->getLibelle(),
+            'typeInstitution' => (string) $organisation->getTypeInstitution(),
+        ];
     }
 
     protected function paginateEntities(int $page, int $limit, ?string $search): array

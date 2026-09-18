@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Button, Card, Chip, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
+  Box, Button, Card, Checkbox, Chip, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
-import { FileText, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { FileText, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import ExportButtons from '../../../components/export/ExportButtons.jsx';
@@ -23,12 +23,18 @@ import {
 } from './aptitudeConstants.js';
 import {
   deleteAptitudeApi,
+  downloadAptitudeImportTemplateApi,
   exportAptitudesApi,
   fetchAptitudeFilieresApi,
+  fetchAptitudeOrganisationsApi,
   fetchAptitudeServicesApi,
   fetchAptitudesApi,
+  importAptitudeEtudiantsApi,
+  markAptitudesPrintedApi,
+  openAptitudeBatchPdfApi,
   openAptitudePdfApi,
 } from './aptitudeApi.js';
+import AptitudeImportModal from './components/AptitudeImportModal.jsx';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_APTITUDE_PAGE_SIZE, total: 0, totalPages: 0 };
 
@@ -44,10 +50,12 @@ export default function AptitudesPage() {
   const canCreate = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_CREATE);
   const canDelete = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_DELETE);
   const canExport = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_EXPORT);
+  const canImport = canCreate && hasPermission(PERMISSIONS.PATIENT.PATIENT_CREATE);
 
   const [items, setItems] = useState([]);
   const [services, setServices] = useState([]);
   const [filieres, setFilieres] = useState([]);
+  const [organisations, setOrganisations] = useState([]);
   const [pagination, setPagination] = useState(EMPTY_PAGINATION);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -59,6 +67,12 @@ export default function AptitudesPage() {
   const [motif, setMotif] = useState('');
   const [serviceId, setServiceId] = useState('');
   const [filiereId, setFiliereId] = useState('');
+  const [imprime, setImprime] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [batchPdfLoading, setBatchPdfLoading] = useState(false);
+  const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+  const [printConfirmIds, setPrintConfirmIds] = useState([]);
+  const [printConfirmLoading, setPrintConfirmLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_APTITUDE_PAGE_SIZE);
   const [exportLoading, setExportLoading] = useState(null);
@@ -66,15 +80,20 @@ export default function AptitudesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importResult, setImportResult] = useState(null);
 
   const yearOptions = useMemo(() => {
     const current = new Date().getFullYear();
-    return [current, current - 1, current - 2, current - 3];
+    return [current, current + 1, current - 1, current - 2, current - 3];
   }, []);
 
   useEffect(() => {
     fetchAptitudeServicesApi().then(setServices).catch(() => setServices([]));
     fetchAptitudeFilieresApi().then(setFilieres).catch(() => setFilieres([]));
+    fetchAptitudeOrganisationsApi().then(setOrganisations).catch(() => setOrganisations([]));
   }, []);
 
   useEffect(() => {
@@ -82,7 +101,10 @@ export default function AptitudesPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, limit]);
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds([]);
+  }, [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, imprime, limit]);
 
   const filters = useMemo(() => ({
     search: debouncedSearch || undefined,
@@ -93,7 +115,8 @@ export default function AptitudesPage() {
     serviceId: serviceId || undefined,
     filiereId: filiereId && filiereId !== 'none' ? filiereId : undefined,
     sansFiliere: filiereId === 'none' ? true : undefined,
-  }), [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId]);
+    imprime: imprime || undefined,
+  }), [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, imprime]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -126,10 +149,59 @@ export default function AptitudesPage() {
     setPdfLoadingId(id);
     try {
       await openAptitudePdfApi(id);
+      setPrintConfirmIds([id]);
+      setPrintConfirmOpen(true);
     } catch (err) {
       showError(err.message || 'Impossible de générer le PDF.');
     } finally {
       setPdfLoadingId(null);
+    }
+  };
+
+  const printablePageIds = items.filter((item) => item.statut !== 'BROUILLON').map((item) => item.id);
+  const allPageSelected = printablePageIds.length > 0 && printablePageIds.every((id) => selectedIds.includes(id));
+
+  const toggleOne = (id) => {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
+  };
+
+  const togglePage = () => {
+    setSelectedIds((current) => {
+      if (allPageSelected) {
+        return current.filter((id) => !printablePageIds.includes(id));
+      }
+      return [...new Set([...current, ...printablePageIds])];
+    });
+  };
+
+  const handleBatchPdf = async () => {
+    if (!selectedIds.length) return;
+    setBatchPdfLoading(true);
+    try {
+      await openAptitudeBatchPdfApi(selectedIds);
+      setPrintConfirmIds(selectedIds);
+      setPrintConfirmOpen(true);
+    } catch (err) {
+      showError(err.message || 'Impossible de générer le PDF groupé.');
+    } finally {
+      setBatchPdfLoading(false);
+    }
+  };
+
+  const confirmPrinted = async () => {
+    if (!printConfirmIds.length) return;
+    setPrintConfirmLoading(true);
+    try {
+      const result = await markAptitudesPrintedApi(printConfirmIds);
+      showSuccess(`${result?.updated ?? printConfirmIds.length} certificat(s) marqué(s) comme imprimé(s).`);
+      setPrintConfirmOpen(false);
+      setPrintConfirmIds([]);
+      setSelectedIds([]);
+      load(page);
+    } catch (err) {
+      showError(err.message || 'Impossible de marquer l’impression.');
+    } finally {
+      setPrintConfirmLoading(false);
     }
   };
 
@@ -149,6 +221,32 @@ export default function AptitudesPage() {
     }
   };
 
+  const handleImport = async (payload) => {
+    setImportLoading(true);
+    setImportError('');
+    try {
+      const result = await importAptitudeEtudiantsApi(payload);
+      setImportResult(result);
+      const errors = Array.isArray(result?.errors) ? result.errors.length : 0;
+      showSuccess(
+        `Import : ${result?.createdDpis ?? 0} DPI, ${result?.createdAptitudes ?? 0} brouillon(s)${errors ? `, ${errors} ligne(s) en erreur` : ''}.`,
+      );
+      load(page);
+    } catch (err) {
+      setImportError(err.message || 'Import impossible.');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadAptitudeImportTemplateApi();
+    } catch (err) {
+      showError(err.message || 'Impossible de télécharger le modèle.');
+    }
+  };
+
   return (
     <Stack spacing={2}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
@@ -163,6 +261,26 @@ export default function AptitudesPage() {
             Statistiques
           </Button>
           {canExport ? <ExportButtons onExport={handleExport} loading={exportLoading} /> : null}
+          {canExport ? (
+            <Button
+              variant="outlined"
+              startDecorator={<Printer size={18} />}
+              disabled={!selectedIds.length}
+              loading={batchPdfLoading}
+              onClick={handleBatchPdf}
+            >
+              Imprimer la sélection{selectedIds.length ? ` (${selectedIds.length})` : ''}
+            </Button>
+          ) : null}
+          {canImport ? (
+            <Button
+              variant="outlined"
+              startDecorator={<Upload size={18} />}
+              onClick={() => { setImportError(''); setImportResult(null); setImportOpen(true); }}
+            >
+              Importer des étudiants
+            </Button>
+          ) : null}
           {canCreate ? (
             <Button
               startDecorator={<Plus size={18} />}
@@ -209,6 +327,11 @@ export default function AptitudesPage() {
             <Option value="none">Non renseignée</Option>
             {filieres.map((f) => <Option key={f.id} value={String(f.id)}>{f.code} — {f.libelle}</Option>)}
           </Select>
+          <Select placeholder="Impression" value={imprime} onChange={(_, v) => setImprime(v ?? '')} sx={{ minWidth: 160 }}>
+            <Option value="">Tous</Option>
+            <Option value="oui">Déjà imprimés</Option>
+            <Option value="non">Non imprimés</Option>
+          </Select>
         </Stack>
       </Card>
 
@@ -220,6 +343,16 @@ export default function AptitudesPage() {
         <Table stickyHeader>
           <thead>
             <tr>
+              {canExport ? (
+                <th style={{ width: 40 }}>
+                  <Checkbox
+                    checked={allPageSelected}
+                    indeterminate={selectedIds.some((id) => printablePageIds.includes(id)) && !allPageSelected}
+                    disabled={!printablePageIds.length}
+                    onChange={togglePage}
+                  />
+                </th>
+              ) : null}
               <th>N°</th>
               <th>Candidat</th>
               <th>Service</th>
@@ -227,17 +360,27 @@ export default function AptitudesPage() {
               <th>Filière</th>
               <th>Verdict</th>
               <th>Statut</th>
+              <th>Impression</th>
               <th>Signé le</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} style={{ color: LOTRU_NEUTRAL[500] }}>Chargement…</td></tr>
+              <tr><td colSpan={canExport ? 11 : 10} style={{ color: LOTRU_NEUTRAL[500] }}>Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={9} style={{ color: LOTRU_NEUTRAL[500] }}>Aucun certificat.</td></tr>
+              <tr><td colSpan={canExport ? 11 : 10} style={{ color: LOTRU_NEUTRAL[500] }}>Aucun certificat.</td></tr>
             ) : items.map((item) => (
               <tr key={item.id}>
+                {canExport ? (
+                  <td>
+                    <Checkbox
+                      checked={selectedIds.includes(item.id)}
+                      disabled={item.statut === 'BROUILLON'}
+                      onChange={() => toggleOne(item.id)}
+                    />
+                  </td>
+                ) : null}
                 <td>{item.numero || '—'}</td>
                 <td>
                   <Typography level="title-sm">{item.fullName}</Typography>
@@ -258,6 +401,13 @@ export default function AptitudesPage() {
                     {APTITUDE_STATUT_LABELS[item.statut] || item.statut}
                     {item.expired ? ' · expiré' : ''}
                   </Chip>
+                </td>
+                <td>
+                  {item.statut === 'BROUILLON' ? '—' : (
+                    <Chip size="sm" color={item.imprime ? 'success' : 'warning'} variant="soft">
+                      {item.imprime ? 'Imprimé' : 'Non imprimé'}
+                    </Chip>
+                  )}
                 </td>
                 <td>{formatDate(item.signeAt)}</td>
                 <td>
@@ -313,6 +463,31 @@ export default function AptitudesPage() {
         loading={deleteLoading}
         onClose={() => { if (!deleteLoading) { setDeleteOpen(false); setDeleting(null); } }}
         onConfirm={confirmDelete}
+      />
+
+      <AptitudeImportModal
+        open={importOpen}
+        organisations={organisations}
+        services={services}
+        yearOptions={yearOptions}
+        loading={importLoading}
+        error={importError}
+        result={importResult}
+        onClose={() => { if (!importLoading) setImportOpen(false); }}
+        onDownloadTemplate={handleDownloadTemplate}
+        onImport={handleImport}
+      />
+
+      <ConfirmModal
+        open={printConfirmOpen}
+        title="Confirmer l’impression"
+        message={printConfirmIds.length > 1
+          ? `Marquer ces ${printConfirmIds.length} certificats comme déjà imprimés ?`
+          : 'Marquer ce certificat comme déjà imprimé ?'}
+        confirmLabel="Oui, déjà imprimé"
+        loading={printConfirmLoading}
+        onClose={() => { if (!printConfirmLoading) { setPrintConfirmOpen(false); setPrintConfirmIds([]); } }}
+        onConfirm={confirmPrinted}
       />
     </Stack>
   );

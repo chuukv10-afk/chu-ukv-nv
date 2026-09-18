@@ -85,6 +85,7 @@ export default function PatientsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [sexeFilter, setSexeFilter] = useState('');
+  const [filiereFilter, setFiliereFilter] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_PATIENT_PAGE_SIZE);
   const [exportLoading, setExportLoading] = useState(null);
@@ -96,6 +97,7 @@ export default function PatientsPage() {
   const [formError, setFormError] = useState('');
   const [editing, setEditing] = useState(null);
   const [structures, setStructures] = useState([]);
+  const [filieres, setFilieres] = useState([]);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(null);
@@ -107,7 +109,7 @@ export default function PatientsPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, sexeFilter, limit]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, sexeFilter, filiereFilter, limit]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -119,6 +121,7 @@ export default function PatientsPage() {
         search: debouncedSearch || undefined,
         status: statusFilter || undefined,
         sexe: sexeFilter || undefined,
+        filiereId: filiereFilter || undefined,
       });
       setItems(result.items);
       setPagination(result.pagination);
@@ -130,14 +133,20 @@ export default function PatientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch, statusFilter, sexeFilter]);
+  }, [page, limit, debouncedSearch, statusFilter, sexeFilter, filiereFilter]);
 
   useEffect(() => { load(page); }, [load, page]);
 
   useEffect(() => {
     fetchPatientMetaApi()
-      .then((meta) => setStructures(Array.isArray(meta.structures) ? meta.structures : []))
-      .catch(() => setStructures([]));
+      .then((meta) => {
+        setStructures(Array.isArray(meta.structures) ? meta.structures : []);
+        setFilieres(Array.isArray(meta.filieres) ? meta.filieres.filter(Boolean) : []);
+      })
+      .catch(() => {
+        setStructures([]);
+        setFilieres([]);
+      });
   }, []);
 
   const openCreate = () => {
@@ -171,6 +180,8 @@ export default function PatientsPage() {
         categorieTarifaire: detail.categorieTarifaire ?? '',
         structureId: detail.structure?.id ? String(detail.structure.id) : '',
         numeroAffiliation: detail.numeroAffiliation ?? '',
+        codeUkv: detail.codeUkv ?? '',
+        filiereId: detail.filiere?.id ? String(detail.filiere.id) : '',
         status: detail.status ?? 'ACTIF',
       });
     } catch (error) {
@@ -233,6 +244,7 @@ export default function PatientsPage() {
           search: debouncedSearch || undefined,
           status: statusFilter || undefined,
           sexe: sexeFilter || undefined,
+          filiereId: filiereFilter || undefined,
         },
         filenamePrefix: 'patients',
       });
@@ -308,6 +320,17 @@ export default function PatientsPage() {
                 <Option value="M">Masculin</Option>
                 <Option value="F">Féminin</Option>
               </Select>
+              <Select
+                value={filiereFilter}
+                onChange={(_, value) => setFiliereFilter(value ?? '')}
+                placeholder="Filière UKV"
+                sx={{ minWidth: 200 }}
+              >
+                <Option value="">Toutes les filières</Option>
+                {filieres.map((item) => (
+                  <Option key={item.id} value={String(item.id)}>{item.code} — {item.libelle}</Option>
+                ))}
+              </Select>
             </Stack>
 
             {listError ? (
@@ -353,6 +376,11 @@ export default function PatientsPage() {
                       </td>
                       <td>
                         <Typography level="body-sm" sx={{ fontWeight: 600 }}>{item.fullName}</Typography>
+                        {item.filiere || item.codeUkv ? (
+                          <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                            UKV{item.codeUkv ? ` ${item.codeUkv}` : ''}{item.filiere ? ` · ${item.filiere.libelle}` : ''}
+                          </Typography>
+                        ) : null}
                       </td>
                       <td>{PATIENT_SEX_LABELS[item.sexe] ?? item.sexe}</td>
                       <td>{formatDate(item.dateNaissance)}</td>
@@ -419,6 +447,7 @@ export default function PatientsPage() {
         loading={formLoading}
         error={formError}
         structures={structures}
+        filieres={filieres}
         readOnlyIdentity={formMode === 'edit' && editing?.status === 'DECEDE'}
         onClose={() => setFormOpen(false)}
         onSubmit={handleSubmit}

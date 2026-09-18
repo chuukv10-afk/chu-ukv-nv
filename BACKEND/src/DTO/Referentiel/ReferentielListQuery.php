@@ -18,6 +18,9 @@ final class ReferentielListQuery
 
         #[Assert\Length(max: 20)]
         public ?string $statut = null,
+
+        #[Assert\Positive]
+        public ?int $organisationId = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;

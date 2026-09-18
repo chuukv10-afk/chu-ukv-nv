@@ -26,15 +26,26 @@ class Filiere
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
+    #[ORM\ManyToOne(inversedBy: 'filieres')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'RESTRICT')]
+    private ?OrganisationPartenaire $organisation = null;
+
     /**
      * @var Collection<int, CertificatAptitude>
      */
     #[ORM\OneToMany(targetEntity: CertificatAptitude::class, mappedBy: 'filiere')]
     private Collection $certificats;
 
+    /**
+     * @var Collection<int, Patient>
+     */
+    #[ORM\OneToMany(targetEntity: Patient::class, mappedBy: 'filiere')]
+    private Collection $patients;
+
     public function __construct()
     {
         $this->certificats = new ArrayCollection();
+        $this->patients = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -78,11 +89,31 @@ class Filiere
         return $this;
     }
 
+    public function getOrganisation(): ?OrganisationPartenaire
+    {
+        return $this->organisation;
+    }
+
+    public function setOrganisation(?OrganisationPartenaire $organisation): static
+    {
+        $this->organisation = $organisation;
+
+        return $this;
+    }
+
     /**
      * @return Collection<int, CertificatAptitude>
      */
     public function getCertificats(): Collection
     {
         return $this->certificats;
+    }
+
+    /**
+     * @return Collection<int, Patient>
+     */
+    public function getPatients(): Collection
+    {
+        return $this->patients;
     }
 }
