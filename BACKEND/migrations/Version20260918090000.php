@@ -6,6 +6,7 @@ namespace DoctrineMigrations;
 
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
+use Doctrine\DBAL\Types\IntegerType;
 use Doctrine\Migrations\AbstractMigration;
 
 final class Version20260918090000 extends AbstractMigration
@@ -72,7 +73,7 @@ final class Version20260918090000 extends AbstractMigration
             }
             if (!$certificat->hasColumn('imprime_par_id')) {
                 $this->addSql('ALTER TABLE certificat_aptitude ADD imprime_par_id BINARY(16) DEFAULT NULL COMMENT \'(DC2Type:uuid)\'');
-            } elseif (!$this->isUuidColumn($certificat, 'imprime_par_id')) {
+            } elseif ($certificat->getColumn('imprime_par_id')->getType() instanceof IntegerType) {
                 $this->addSql('ALTER TABLE certificat_aptitude MODIFY imprime_par_id BINARY(16) DEFAULT NULL COMMENT \'(DC2Type:uuid)\'');
             }
             if (!$this->hasIndexOnColumn($certificat, 'imprime')) {
@@ -151,18 +152,6 @@ final class Version20260918090000 extends AbstractMigration
         if ($schema->hasTable('organisation_partenaire')) {
             $this->addSql('DROP TABLE organisation_partenaire');
         }
-    }
-
-    private function isUuidColumn(Table $table, string $column): bool
-    {
-        if (!$table->hasColumn($column)) {
-            return false;
-        }
-
-        $col = $table->getColumn($column);
-
-        return 16 === $col->getLength()
-            || in_array($col->getType()->getName(), ['binary', 'guid', 'uuid'], true);
     }
 
     private function hasIndexOnColumn(Table $table, string $column): bool
