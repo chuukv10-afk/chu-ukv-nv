@@ -35,6 +35,7 @@ import {
   openAptitudePdfApi,
 } from './aptitudeApi.js';
 import { aptitudeFilterSx } from './aptitudeUi.js';
+import AptitudeImportModal from './components/AptitudeImportModal.jsx';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_APTITUDE_PAGE_SIZE, total: 0, totalPages: 0 };
 
