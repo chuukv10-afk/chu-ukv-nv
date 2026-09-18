@@ -232,10 +232,7 @@ final class AptitudeImportService
             }
         }
 
-        $spreadsheet = IOFactory::load($file->getPathname());
-        $sheet = $spreadsheet->getActiveSheet();
-        $headerRow = $this->detectHeaderRow($sheet);
-        $columns = $this->mapColumns($sheet, $headerRow);
+        [$sheet, $headerRow, $columns] = $this->openMappedSheet($file);
 
         $createdPatients = 0;
         $updatedPatients = 0;
@@ -398,7 +395,7 @@ final class AptitudeImportService
             throw $exception;
         }
 
-        $spreadsheet->disconnectWorksheets();
+        $sheet->getParent()?->disconnectWorksheets();
 
         return [
             'createdPatients' => $createdPatients,
@@ -479,11 +476,30 @@ final class AptitudeImportService
         }
 
         $spreadsheet = IOFactory::load($file->getPathname());
-        $sheet = $spreadsheet->getActiveSheet();
+        $sheet = $this->findStudentSheet($spreadsheet);
         $headerRow = $this->detectHeaderRow($sheet);
         $columns = $this->mapColumns($sheet, $headerRow);
 
         return [$sheet, $headerRow, $columns];
+    }
+
+    private function findStudentSheet(Spreadsheet $spreadsheet): Worksheet
+    {
+        $lastError = null;
+        foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
+            $title = $this->asciiLower((string) $sheet->getTitle());
+            if (str_contains($title, 'recap')) {
+                continue;
+            }
+            try {
+                $this->detectHeaderRow($sheet);
+                return $sheet;
+            } catch (ConflictException $exception) {
+                $lastError = $exception;
+            }
+        }
+
+        throw $lastError ?? new ConflictException('Impossible de trouver la ligne d\'en-têtes (Nom, Postnom, …).');
     }
 
     /**
@@ -524,13 +540,32 @@ final class AptitudeImportService
 
     private function detectHeaderRow(Worksheet $sheet): int
     {
-        $highest = min(5, $sheet->getHighestDataRow());
-        for ($row = 1; $row <= $highest; ++$row) {
-            $joined = '';
-            for ($col = 1; $col <= 12; ++$col) {
-                $joined .= ' ' . ($this->headerKey($this->cellString($sheet, $row, $col)) ?? '');
+        $highestRow = min(20, max(1, $sheet->getHighestDataRow()));
+        $highestCol = 12;
+        try {
+            $highestCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+        } catch (\Throwable) {
+            $highestCol = 12;
+        }
+        $highestCol = min(30, max(8, $highestCol));
+
+        for ($row = 1; $row <= $highestRow; ++$row) {
+            $keys = [];
+            $raw = '';
+            for ($col = 1; $col <= $highestCol; ++$col) {
+                $label = $this->cellString($sheet, $row, $col);
+                $raw .= ' ' . $this->asciiLower($label);
+                $key = $this->headerKey($label);
+                if (null !== $key) {
+                    $keys[$key] = true;
+                }
             }
-            if (str_contains($joined, 'nom') && (str_contains($joined, 'postnom') || str_contains($joined, 'post nom'))) {
+            $hasNom = isset($keys['nom']) || (bool) preg_match('/(?:^| )nom(?: |$)/', $raw);
+            $hasPostNom = isset($keys['postNom'])
+                || str_contains($raw, 'postnom')
+                || str_contains($raw, 'post nom')
+                || str_contains($raw, 'post-nom');
+            if ($hasNom && $hasPostNom) {
                 return $row;
             }
         }
@@ -547,7 +582,12 @@ final class AptitudeImportService
         if (str_contains($normalized, 'code ukv') || $normalized === 'code') {
             return 'codeUkv';
         }
-        if (str_contains($normalized, 'postnom') || str_contains($normalized, 'post nom')) {
+        if (
+            str_contains($normalized, 'postnom')
+            || str_contains($normalized, 'post nom')
+            || str_contains($normalized, 'post-nom')
+            || str_contains($normalized, 'post_nom')
+        ) {
             return 'postNom';
         }
         if (str_contains($normalized, 'prenom')) {
@@ -582,6 +622,9 @@ final class AptitudeImportService
         $value = $sheet->getCell([$col, $row])->getValue();
         if ($value instanceof \DateTimeInterface) {
             return $value->format('d/m/Y');
+        }
+        if ($value instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText) {
+            return trim($value->getPlainText());
         }
         if (null === $value) {
             return '';
