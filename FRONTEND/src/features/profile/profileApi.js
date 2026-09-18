@@ -1,9 +1,37 @@
 import { auth } from '../../api/endpoints.js';
-import { callApiDelete, callApiPost } from '../../api/apiClient.js';
+import { callApiDelete, callApiPost, callApiPut } from '../../api/apiClient.js';
 import { uploadViaPreparedUrl } from '../../utils/storageUpload.js';
 
 function unwrapData(response) {
   return response?.data ?? response;
+}
+
+export async function updateMyProfileApi(payload) {
+  const response = await callApiPut(auth.me, payload);
+  return unwrapData(response);
+}
+
+export async function changeMyPasswordApi(payload) {
+  const response = await callApiPut(auth.mePassword, payload);
+  return unwrapData(response);
+}
+
+export async function uploadMyAvatarApi(file) {
+  return uploadViaPreparedUrl({
+    file,
+    prepare: async (body) => unwrapData(await callApiPost(`${auth.meAvatar}/prepare`, body)),
+    confirm: async (body) => unwrapData(await callApiPost(`${auth.meAvatar}/confirm`, body)),
+    localUpload: async (localFile) => {
+      const formData = new FormData();
+      formData.append('avatar', localFile);
+      return unwrapData(await callApiPost(auth.meAvatar, formData));
+    },
+  });
+}
+
+export async function deleteMyAvatarApi() {
+  const response = await callApiDelete(auth.meAvatar);
+  return unwrapData(response);
 }
 
 export async function uploadMySignatureApi(file) {

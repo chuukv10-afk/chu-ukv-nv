@@ -21,6 +21,7 @@ use App\Service\Referentiel\FiliereService;
 use App\Service\Referentiel\OrganisationPartenaireService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -229,7 +230,7 @@ final class AptitudeService
     public function update(int $id, UpsertAptitudeInput $input): CertificatAptitude
     {
         if (!$this->canUpdateAnySection()) {
-            throw new ConflictException('Vous n\'avez pas le droit de modifier ce certificat.');
+            throw new AccessDeniedHttpException('Vous n\'avez pas le droit de modifier une section de ce certificat.');
         }
         $this->assertValid($input);
         $certificat = $this->getById($id);
@@ -243,9 +244,50 @@ final class AptitudeService
     public function delete(int $id): void
     {
         $certificat = $this->getById($id);
-        $this->assertBrouillon($certificat);
+        $this->assertCanDelete($certificat);
         $this->entityManager->remove($certificat);
         $this->entityManager->flush();
+    }
+
+    /**
+     * @param list<int> $ids
+     *
+     * @return array{deleted: int, ids: list<int>}
+     */
+    public function deleteMany(array $ids): array
+    {
+        $normalized = [];
+        foreach ($ids as $id) {
+            $value = (int) $id;
+            if ($value > 0) {
+                $normalized[$value] = $value;
+            }
+        }
+        $normalized = array_values($normalized);
+        if ([] === $normalized) {
+            throw new ConflictException('Sélectionnez au moins un certificat.');
+        }
+        if (count($normalized) > 80) {
+            throw new ConflictException('Maximum 80 certificats à supprimer à la fois.');
+        }
+
+        $items = $this->repository->findOrderedByIds($normalized);
+        if (count($items) !== count($normalized)) {
+            throw new NotFoundException('Un ou plusieurs certificats sélectionnés sont introuvables.');
+        }
+
+        foreach ($items as $item) {
+            $this->assertCanDelete($item);
+        }
+        foreach ($items as $item) {
+            $this->entityManager->remove($item);
+        }
+        $this->entityManager->flush();
+
+        return [
+            'deleted' => count($items),
+            'ids' => array_map(static fn (CertificatAptitude $item): int => (int) $item->getId(), $items),
+        ];
     }
 
     public function signer(int $id): CertificatAptitude
@@ -319,8 +361,10 @@ final class AptitudeService
             'motif' => $certificat->getMotif(),
             'motifLabel' => $this->motifLabel($certificat),
             'filiere' => $this->serializeFiliere($certificat->getFiliere()),
-            'verdict' => $certificat->getVerdict(),
-            'verdictPropose' => $certificat->getVerdictPropose(),
+            'verdict' => $this->canViewSection(CliniquePermissions::APTITUDE_VERDICT_READ, CliniquePermissions::APTITUDE_VERDICT_UPDATE)
+                ? $certificat->getVerdict() : null,
+            'verdictPropose' => $this->canViewSection(CliniquePermissions::APTITUDE_VERDICT_READ, CliniquePermissions::APTITUDE_VERDICT_UPDATE)
+                ? $certificat->getVerdictPropose() : null,
             'service' => $this->serializeService($certificat->getService()),
             'patientId' => $certificat->getPatient()?->getId()?->toRfc4122(),
             'signeAt' => $certificat->getSigneAt()?->format(\DateTimeInterface::ATOM),
@@ -339,26 +383,46 @@ final class AptitudeService
 
         return [
             ...$this->serializeSummary($certificat),
-            'etatCivil' => $certificat->getEtatCivil(),
-            'dateNaissance' => $certificat->getDateNaissance()?->format('Y-m-d'),
-            'lieuNaissance' => $certificat->getLieuNaissance(),
-            'adresse' => $certificat->getAdresse(),
-            'motifAutre' => $certificat->getMotifAutre(),
-            'poidsKg' => $this->asFloat($certificat->getPoidsKg()),
-            'tailleM' => $this->asFloat($certificat->getTailleM()),
-            'perimetreThoraciqueCm' => $this->asFloat($certificat->getPerimetreThoraciqueCm()),
-            'p1' => $certificat->getP1(),
-            'p2' => $certificat->getP2(),
-            'p3' => $certificat->getP3(),
-            'imc' => $this->asFloat($certificat->getImc()),
-            'imcClasse' => $certificat->getImcClasse(),
-            'imcClasseProposee' => AptitudeCalculator::imcClasse($this->asFloat($certificat->getImc())),
-            'pignet' => $this->asFloat($certificat->getPignet()),
-            'pignetRobustesse' => $certificat->getPignetRobustesse(),
-            'ruffier' => $this->asFloat($certificat->getRuffier()),
-            'dickson' => $this->asFloat($certificat->getDickson()),
-            'ruffierClasse' => $certificat->getRuffierClasse(),
-            'dicksonClasse' => $certificat->getDicksonClasse(),
+            'etatCivil' => $this->canViewSection(CliniquePermissions::APTITUDE_IDENTITE_READ, CliniquePermissions::APTITUDE_IDENTITE_UPDATE)
+                ? $certificat->getEtatCivil() : null,
+            'dateNaissance' => $this->canViewSection(CliniquePermissions::APTITUDE_IDENTITE_READ, CliniquePermissions::APTITUDE_IDENTITE_UPDATE)
+                ? $certificat->getDateNaissance()?->format('Y-m-d') : null,
+            'lieuNaissance' => $this->canViewSection(CliniquePermissions::APTITUDE_IDENTITE_READ, CliniquePermissions::APTITUDE_IDENTITE_UPDATE)
+                ? $certificat->getLieuNaissance() : null,
+            'adresse' => $this->canViewSection(CliniquePermissions::APTITUDE_IDENTITE_READ, CliniquePermissions::APTITUDE_IDENTITE_UPDATE)
+                ? $certificat->getAdresse() : null,
+            'motifAutre' => $this->canViewSection(CliniquePermissions::APTITUDE_IDENTITE_READ, CliniquePermissions::APTITUDE_IDENTITE_UPDATE)
+                ? $certificat->getMotifAutre() : null,
+            'poidsKg' => $this->canViewSection(CliniquePermissions::APTITUDE_IMC_READ, CliniquePermissions::APTITUDE_IMC_UPDATE)
+                ? $this->asFloat($certificat->getPoidsKg()) : null,
+            'tailleM' => $this->canViewSection(CliniquePermissions::APTITUDE_IMC_READ, CliniquePermissions::APTITUDE_IMC_UPDATE)
+                ? $this->asFloat($certificat->getTailleM()) : null,
+            'perimetreThoraciqueCm' => $this->canViewSection(CliniquePermissions::APTITUDE_PIGNET_READ, CliniquePermissions::APTITUDE_PIGNET_UPDATE)
+                ? $this->asFloat($certificat->getPerimetreThoraciqueCm()) : null,
+            'p1' => $this->canViewSection(CliniquePermissions::APTITUDE_RUFFIER_READ, CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
+                ? $certificat->getP1() : null,
+            'p2' => $this->canViewSection(CliniquePermissions::APTITUDE_RUFFIER_READ, CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
+                ? $certificat->getP2() : null,
+            'p3' => $this->canViewSection(CliniquePermissions::APTITUDE_RUFFIER_READ, CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
+                ? $certificat->getP3() : null,
+            'imc' => $this->canViewSection(CliniquePermissions::APTITUDE_IMC_READ, CliniquePermissions::APTITUDE_IMC_UPDATE)
+                ? $this->asFloat($certificat->getImc()) : null,
+            'imcClasse' => $this->canViewSection(CliniquePermissions::APTITUDE_IMC_READ, CliniquePermissions::APTITUDE_IMC_UPDATE)
+                ? $certificat->getImcClasse() : null,
+            'imcClasseProposee' => $this->canViewSection(CliniquePermissions::APTITUDE_IMC_READ, CliniquePermissions::APTITUDE_IMC_UPDATE)
+                ? AptitudeCalculator::imcClasse($this->asFloat($certificat->getImc())) : null,
+            'pignet' => $this->canViewSection(CliniquePermissions::APTITUDE_PIGNET_READ, CliniquePermissions::APTITUDE_PIGNET_UPDATE)
+                ? $this->asFloat($certificat->getPignet()) : null,
+            'pignetRobustesse' => $this->canViewSection(CliniquePermissions::APTITUDE_PIGNET_READ, CliniquePermissions::APTITUDE_PIGNET_UPDATE)
+                ? $certificat->getPignetRobustesse() : null,
+            'ruffier' => $this->canViewSection(CliniquePermissions::APTITUDE_RUFFIER_READ, CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
+                ? $this->asFloat($certificat->getRuffier()) : null,
+            'dickson' => $this->canViewSection(CliniquePermissions::APTITUDE_RUFFIER_READ, CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
+                ? $this->asFloat($certificat->getDickson()) : null,
+            'ruffierClasse' => $this->canViewSection(CliniquePermissions::APTITUDE_RUFFIER_READ, CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
+                ? $certificat->getRuffierClasse() : null,
+            'dicksonClasse' => $this->canViewSection(CliniquePermissions::APTITUDE_RUFFIER_READ, CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
+                ? $certificat->getDicksonClasse() : null,
             'signePar' => null !== $signePar ? [
                 'id' => (string) $signePar->getId(),
                 'fullName' => trim(sprintf(
@@ -473,14 +537,18 @@ final class AptitudeService
             || $this->canUpdateSection(CliniquePermissions::APTITUDE_IMC_UPDATE)
             || $this->canUpdateSection(CliniquePermissions::APTITUDE_PIGNET_UPDATE)
             || $this->canUpdateSection(CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
-            || $this->canUpdateSection(CliniquePermissions::APTITUDE_VERDICT_UPDATE)
-            || $this->security->isGranted(CliniquePermissions::APTITUDE_UPDATE);
+            || $this->canUpdateSection(CliniquePermissions::APTITUDE_VERDICT_UPDATE);
     }
 
     private function canUpdateSection(string $permission): bool
     {
-        return $this->security->isGranted($permission)
-            || $this->security->isGranted(CliniquePermissions::APTITUDE_UPDATE);
+        return $this->security->isGranted($permission);
+    }
+
+    private function canViewSection(string $readPermission, string $updatePermission): bool
+    {
+        return $this->security->isGranted($readPermission)
+            || $this->security->isGranted($updatePermission);
     }
 
     private function assertSignable(CertificatAptitude $certificat): void
@@ -516,8 +584,24 @@ final class AptitudeService
     private function assertBrouillon(CertificatAptitude $certificat): void
     {
         if (!$certificat->isBrouillon()) {
-            throw new ConflictException('Seul un brouillon peut être modifié ou supprimé.');
+            throw new ConflictException('Seul un brouillon peut être modifié.');
         }
+    }
+
+    private function assertCanDelete(CertificatAptitude $certificat): void
+    {
+        if ($this->security->isGranted(CliniquePermissions::APTITUDE_DELETE_DEFINITIF)) {
+            return;
+        }
+        if ($certificat->isBrouillon() && $this->security->isGranted(CliniquePermissions::APTITUDE_DELETE)) {
+            return;
+        }
+
+        throw new AccessDeniedHttpException(
+            $certificat->isBrouillon()
+                ? 'Permission requise pour supprimer un brouillon.'
+                : 'Permission requise pour supprimer définitivement un certificat signé ou annulé.'
+        );
     }
 
     /** @return array<string, mixed> */
@@ -638,6 +722,48 @@ final class AptitudeService
         }
 
         return implode(' — ', $parts);
+    }
+
+    /** @return array<string, mixed> */
+    public function serializePublicVerification(CertificatAptitude $certificat): array
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone(self::TIMEZONE));
+        $expired = $certificat->isSigne()
+            && null !== $certificat->getValideJusqua()
+            && $certificat->getValideJusqua() < $now;
+        $doctor = $certificat->getSignePar();
+
+        return [
+            'numero' => $certificat->getNumero(),
+            'statut' => $certificat->getStatut(),
+            'authentique' => CertificatAptitude::STATUT_SIGNE === $certificat->getStatut() && !$expired,
+            'expired' => $expired,
+            'fullName' => $certificat->getFullName(),
+            'sexe' => $certificat->getSexe(),
+            'motif' => $certificat->getMotif(),
+            'motifLabel' => $this->motifLabel($certificat),
+            'filiere' => $this->serializeFiliere($certificat->getFiliere()),
+            'verdict' => $certificat->getVerdict(),
+            'signeAt' => $certificat->getSigneAt()?->format(\DateTimeInterface::ATOM),
+            'valideJusqua' => $certificat->getValideJusqua()?->format(\DateTimeInterface::ATOM),
+            'medecinExaminateur' => null !== $doctor ? trim(sprintf(
+                '%s %s %s',
+                $doctor->getPrenom() ?? '',
+                $doctor->getNom() ?? '',
+                $doctor->getPostNom() ?? '',
+            )) : null,
+            'contactEmail' => 'doc-verification@chu-ukv.cd',
+        ];
+    }
+
+    public function verifyOfficialByNumero(string $numero): CertificatAptitude
+    {
+        $certificat = $this->repository->findOfficialByNumero($numero);
+        if (!$certificat instanceof CertificatAptitude) {
+            throw new NotFoundException('Aucun certificat officiel ne correspond à ce numéro.');
+        }
+
+        return $certificat;
     }
 
     private function motifLabel(CertificatAptitude $certificat): string

@@ -65,11 +65,10 @@ export function matchWritePolicy(method, endpoint) {
 
 export function isAuthBypassEndpoint(endpoint) {
   const path = normalizePath(endpoint);
-  return [
-    '/api/v1/login',
-    '/api/v1/health',
-    '/api/v1/token/refresh',
-  ].includes(path);
+  return path === '/api/v1/login'
+    || path === '/api/v1/health'
+    || path === '/api/v1/token/refresh'
+    || path.startsWith('/api/v1/public');
 }
 
 export function shouldBypassCache(endpoint) {

@@ -1,6 +1,7 @@
 export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',
+  VERIFICATION_APTITUDE: '/verification/aptitude',
   DASHBOARD: '/dashboard',
   PROFILE: '/mon-profil',
   ACCESS_DENIED: '/acces-refuse',

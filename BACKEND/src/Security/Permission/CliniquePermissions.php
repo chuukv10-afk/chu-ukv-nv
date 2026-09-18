@@ -48,6 +48,7 @@ final class CliniquePermissions
     public const APTITUDE_CREATE = 'clinique.aptitude.create';
     public const APTITUDE_UPDATE = 'clinique.aptitude.update';
     public const APTITUDE_DELETE = 'clinique.aptitude.delete';
+    public const APTITUDE_DELETE_DEFINITIF = 'clinique.aptitude.delete_definitif';
     public const APTITUDE_SIGN = 'clinique.aptitude.sign';
     public const APTITUDE_EXPORT = 'clinique.aptitude.export';
     public const APTITUDE_IDENTITE_READ = 'clinique.aptitude.identite.read';
@@ -205,6 +206,11 @@ final class CliniquePermissions
                 [
                     'code' => self::APTITUDE_VERDICT_UPDATE,
                     'libelle' => 'Aptitude — modifier le verdict médical',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_DELETE_DEFINITIF,
+                    'libelle' => 'Supprimer définitivement un certificat d\'aptitude (signé ou annulé compris)',
                     'module' => Permission::MODULE_CLINIQUE,
                 ],
                 [

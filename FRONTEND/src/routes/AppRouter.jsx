@@ -75,19 +75,26 @@ import ImagerieDetailPage from '../features/clinique/imagerie/ImagerieDetailPage
 import AptitudeFormPage from '../features/clinique/aptitude/AptitudeFormPage.jsx';
 import AptitudeStatsPage from '../features/clinique/aptitude/AptitudeStatsPage.jsx';
 import ProfilePage from '../features/profile/ProfilePage.jsx';
+import AptitudeVerificationPage from '../pages/public/AptitudeVerificationPage.jsx';
 import { PermissionGuard } from '../components/auth/PermissionGuard.jsx';
 import { PERMISSIONS } from '../constants/permissions.js';
 import { fetchMe } from '../features/auth/authService.js';
+import { isPublicVerificationLocation } from '../features/auth/authSession.js';
 import { isDesktopApp } from '../offline/desktop.js';
 
 const Router = isDesktopApp() ? HashRouter : BrowserRouter;
 
 export default function AppRouter() {
   const dispatch = useDispatch();
-  const [initializing, setInitializing] = useState(true);
+  const [initializing, setInitializing] = useState(() => !isPublicVerificationLocation());
 
   useEffect(() => {
     const initializeAuth = async () => {
+      if (isPublicVerificationLocation()) {
+        setInitializing(false);
+        return;
+      }
+
       const token = localStorage.getItem(AUTH_TOKEN_KEY);
 
       if (token) {
@@ -107,6 +114,8 @@ export default function AppRouter() {
   return (
     <Router>
       <Routes>
+        <Route path={ROUTES.VERIFICATION_APTITUDE} element={<AptitudeVerificationPage />} />
+
         <Route element={<GuestRoute />}>
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
         </Route>
@@ -114,14 +123,7 @@ export default function AppRouter() {
         <Route element={<RequireAuth />}>
           <Route element={<AppLayout />}>
             <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-            <Route
-              path={ROUTES.PROFILE}
-              element={(
-                <PermissionGuard permission={PERMISSIONS.ADMIN.SIGNATURE_READ}>
-                  <ProfilePage />
-                </PermissionGuard>
-              )}
-            />
+            <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
             <Route
               path={ROUTES.ORGANISATION.DEPARTEMENTS}
               element={(

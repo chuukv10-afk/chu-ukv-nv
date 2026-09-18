@@ -7,8 +7,14 @@ const LOGIN_ENDPOINT = '/api/v1/login';
 
 let redirecting = false;
 
+export function isPublicVerificationLocation() {
+  const path = (window.location.pathname || '').replace(/\/$/, '') || '/';
+  const hashPath = (window.location.hash || '').replace(/^#/, '').split('?')[0];
+  return path === ROUTES.VERIFICATION_APTITUDE || hashPath === ROUTES.VERIFICATION_APTITUDE;
+}
+
 export function handleUnauthorizedApiResponse(status, endpoint = '') {
-  if (status !== 401 || endpoint.includes(LOGIN_ENDPOINT)) {
+  if (status !== 401 || endpoint.includes(LOGIN_ENDPOINT) || isPublicVerificationLocation()) {
     return false;
   }
 

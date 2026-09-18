@@ -81,16 +81,17 @@ export default function AptitudeFormPage() {
   const { showSuccess, showError } = useToast();
   const isNew = !id;
   const canCreate = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_CREATE);
-  const canUpdate = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_UPDATE);
   const canDelete = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_DELETE);
+  const canDeleteDefinitif = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_DELETE_DEFINITIF);
   const canSign = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_SIGN);
   const canExport = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_EXPORT);
   const canReadPatients = hasPermission(PERMISSIONS.PATIENT.PATIENT_READ);
-  const canEditIdentite = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IDENTITE_UPDATE) || canUpdate || canCreate;
-  const canEditImc = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IMC_UPDATE) || canUpdate || canCreate;
-  const canEditPignet = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_PIGNET_UPDATE) || canUpdate || canCreate;
-  const canEditRuffier = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_RUFFIER_UPDATE) || canUpdate || canCreate;
-  const canEditVerdict = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_VERDICT_UPDATE) || canUpdate || canCreate;
+  const sectionCreate = isNew && canCreate;
+  const canEditIdentite = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IDENTITE_UPDATE) || sectionCreate;
+  const canEditImc = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IMC_UPDATE) || sectionCreate;
+  const canEditPignet = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_PIGNET_UPDATE) || sectionCreate;
+  const canEditRuffier = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_RUFFIER_UPDATE) || sectionCreate;
+  const canEditVerdict = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_VERDICT_UPDATE) || sectionCreate;
   const canViewIdentite = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IDENTITE_READ) || canEditIdentite;
   const canViewImc = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IMC_READ) || canEditImc;
   const canViewPignet = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_PIGNET_READ) || canEditPignet;
@@ -275,7 +276,7 @@ export default function AptitudeFormPage() {
         showSuccess('Certificat annulé.');
       } else if (confirmAction === 'delete') {
         await deleteAptitudeApi(detail.id);
-        showSuccess('Brouillon supprimé.');
+        showSuccess(detail.statut === 'BROUILLON' ? 'Brouillon supprimé.' : 'Certificat supprimé définitivement.');
         navigate(ROUTES.CLINIQUE.APTITUDES, { replace: true });
       }
       setConfirmAction(null);
@@ -309,7 +310,7 @@ export default function AptitudeFormPage() {
           {isNew ? 'Nouveau certificat' : 'Certificat d’aptitude physique'}
         </Typography>
         <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
-          Les indices sont calculés automatiquement. Le verdict proposé peut être modifié avant signature.
+          Chaque onglet est soumis à une permission distincte. Sans droit de lecture, l’onglet reste visible mais désactivé.
         </Typography>
       </Box>
 
@@ -673,17 +674,16 @@ export default function AptitudeFormPage() {
             Annuler le certificat
           </Button>
         ) : null}
-        {detail?.statut === 'BROUILLON' ? (
+        {detail && (detail.statut === 'BROUILLON' ? canDelete || canDeleteDefinitif : canDeleteDefinitif) ? (
           <Button
             size="lg"
             color="danger"
             variant="plain"
             startDecorator={<Trash2 size={16} />}
-            disabled={!canDelete}
-            title={!canDelete ? 'Permission requise pour supprimer' : undefined}
-            onClick={() => { if (canDelete) setConfirmAction('delete'); }}
+            title={detail.statut === 'BROUILLON' ? 'Supprimer le brouillon' : 'Supprimer définitivement'}
+            onClick={() => setConfirmAction('delete')}
           >
-            Supprimer
+            {detail.statut === 'BROUILLON' ? 'Supprimer' : 'Supprimer définitivement'}
           </Button>
         ) : null}
       </Stack>
@@ -693,16 +693,19 @@ export default function AptitudeFormPage() {
         title={
           confirmAction === 'signer' ? 'Signer le certificat'
             : confirmAction === 'annuler' ? 'Annuler le certificat'
-              : 'Supprimer le brouillon'
+              : detail?.statut === 'BROUILLON' ? 'Supprimer le brouillon'
+                : 'Supprimer définitivement'
         }
         message={
           confirmAction === 'signer'
             ? 'Le numéro officiel sera attribué et le PDF figé. Continuer ?'
             : confirmAction === 'annuler'
               ? 'Le certificat restera archivé avec son numéro, marqué annulé.'
-              : 'Cette action est définitive.'
+              : detail?.statut === 'BROUILLON'
+                ? 'Cette action est définitive.'
+                : 'Le certificat sera effacé, y compris s’il est signé ou déjà annulé. Cette action est irréversible.'
         }
-        confirmLabel={confirmAction === 'signer' ? 'Signer' : confirmAction === 'annuler' ? 'Annuler le certificat' : 'Supprimer'}
+        confirmLabel={confirmAction === 'signer' ? 'Signer' : confirmAction === 'annuler' ? 'Annuler le certificat' : 'Supprimer définitivement'}
         color={confirmAction === 'signer' ? 'success' : 'danger'}
         loading={confirmLoading}
         onClose={() => { if (!confirmLoading) setConfirmAction(null); }}

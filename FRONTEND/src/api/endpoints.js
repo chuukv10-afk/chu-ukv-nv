@@ -1,6 +1,8 @@
 export const auth = {
   login: '/api/v1/login',
   me: '/api/v1/me',
+  mePassword: '/api/v1/me/password',
+  meAvatar: '/api/v1/me/avatar',
   meSignature: '/api/v1/me/signature',
   health: '/api/v1/health',
   refresh: '/api/v1/token/refresh',
@@ -75,6 +77,10 @@ export const facturation = {
 
 export const dashboard = {
   stats: '/api/v1/dashboard',
+};
+
+export const publicApi = {
+  aptitudeCertificates: '/api/v1/public/aptitude-certificates',
 };
 
 export const admin = {

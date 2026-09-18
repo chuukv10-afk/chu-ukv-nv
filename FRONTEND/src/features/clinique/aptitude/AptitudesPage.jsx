@@ -23,6 +23,7 @@ import {
 } from './aptitudeConstants.js';
 import {
   deleteAptitudeApi,
+  bulkDeleteAptitudesApi,
   downloadAptitudeImportTemplateApi,
   exportAptitudesApi,
   fetchAptitudeFilieresApi,
@@ -50,8 +51,13 @@ export default function AptitudesPage() {
   const { showSuccess, showError } = useToast();
   const canCreate = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_CREATE);
   const canDelete = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_DELETE);
+  const canDeleteDefinitif = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_DELETE_DEFINITIF);
   const canExport = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_EXPORT);
   const canImport = canCreate && hasPermission(PERMISSIONS.PATIENT.PATIENT_CREATE);
+  const canViewVerdict = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_VERDICT_READ)
+    || hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_VERDICT_UPDATE);
+  const showSelection = canExport || canDelete || canDeleteDefinitif;
+  const tableColSpan = 9 + (showSelection ? 1 : 0) + (canViewVerdict ? 1 : 0);
 
   const [items, setItems] = useState([]);
   const [services, setServices] = useState([]);
@@ -70,6 +76,7 @@ export default function AptitudesPage() {
   const [filiereId, setFiliereId] = useState('');
   const [imprime, setImprime] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedStatutById, setSelectedStatutById] = useState({});
   const [batchPdfLoading, setBatchPdfLoading] = useState(false);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const [printConfirmIds, setPrintConfirmIds] = useState([]);
@@ -81,6 +88,8 @@ export default function AptitudesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
@@ -105,19 +114,20 @@ export default function AptitudesPage() {
   useEffect(() => {
     setPage(1);
     setSelectedIds([]);
+    setSelectedStatutById({});
   }, [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, imprime, limit]);
 
   const filters = useMemo(() => ({
     search: debouncedSearch || undefined,
     annee: annee || undefined,
     statut: statut || undefined,
-    verdict: verdict || undefined,
+    verdict: canViewVerdict ? (verdict || undefined) : undefined,
     motif: motif || undefined,
     serviceId: serviceId || undefined,
     filiereId: filiereId && filiereId !== 'none' ? filiereId : undefined,
     sansFiliere: filiereId === 'none' ? true : undefined,
     imprime: imprime || undefined,
-  }), [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, imprime]);
+  }), [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, imprime, canViewVerdict]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -159,28 +169,56 @@ export default function AptitudesPage() {
     }
   };
 
-  const printablePageIds = items.filter((item) => item.statut !== 'BROUILLON').map((item) => item.id);
-  const allPageSelected = printablePageIds.length > 0 && printablePageIds.every((id) => selectedIds.includes(id));
+  const canDeleteRow = (item) => canDeleteDefinitif || (canDelete && item.statut === 'BROUILLON');
+  const canSelectItem = (item) => (canExport && item.statut !== 'BROUILLON') || canDeleteRow(item);
+  const selectablePageIds = items.filter(canSelectItem).map((item) => item.id);
+  const printableSelectedIds = selectedIds.filter((id) => selectedStatutById[id] && selectedStatutById[id] !== 'BROUILLON');
+  const deletableSelectedIds = selectedIds.filter((id) => canDeleteDefinitif || selectedStatutById[id] === 'BROUILLON');
+  const allPageSelected = selectablePageIds.length > 0 && selectablePageIds.every((id) => selectedIds.includes(id));
 
-  const toggleOne = (id) => {
-    setSelectedIds((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
+  const toggleOne = (item) => {
+    const exists = selectedIds.includes(item.id);
+    setSelectedIds((current) => (exists ? current.filter((id) => id !== item.id) : [...current, item.id]));
+    setSelectedStatutById((current) => {
+      const next = { ...current };
+      if (exists) {
+        delete next[item.id];
+      } else {
+        next[item.id] = item.statut;
+      }
+      return next;
+    });
   };
 
   const togglePage = () => {
     setSelectedIds((current) => {
       if (allPageSelected) {
-        return current.filter((id) => !printablePageIds.includes(id));
+        return current.filter((id) => !selectablePageIds.includes(id));
       }
-      return [...new Set([...current, ...printablePageIds])];
+      return [...new Set([...current, ...selectablePageIds])];
+    });
+    setSelectedStatutById((current) => {
+      const next = { ...current };
+      if (allPageSelected) {
+        selectablePageIds.forEach((id) => { delete next[id]; });
+        return next;
+      }
+      items.filter(canSelectItem).forEach((item) => {
+        next[item.id] = item.statut;
+      });
+      return next;
     });
   };
 
   const handleBatchPdf = async () => {
-    if (!canExport || !selectedIds.length) return;
+    if (!canExport || !printableSelectedIds.length) {
+      showError('Sélectionnez au moins un certificat signé ou annulé pour imprimer.');
+      return;
+    }
     setBatchPdfLoading(true);
     try {
-      await openAptitudeBatchPdfApi(selectedIds);
-      setPrintConfirmIds(selectedIds);
+      await openAptitudeBatchPdfApi(printableSelectedIds);
+      setPrintConfirmIds(printableSelectedIds);
       setPrintConfirmOpen(true);
     } catch (err) {
       showError(err.message || 'Impossible de générer le PDF groupé.');
@@ -198,6 +236,7 @@ export default function AptitudesPage() {
       setPrintConfirmOpen(false);
       setPrintConfirmIds([]);
       setSelectedIds([]);
+      setSelectedStatutById({});
       load(page);
     } catch (err) {
       showError(err.message || 'Impossible de marquer l’impression.');
@@ -211,14 +250,37 @@ export default function AptitudesPage() {
     setDeleteLoading(true);
     try {
       await deleteAptitudeApi(deleting.id);
-      showSuccess('Brouillon supprimé.');
+      showSuccess(deleting.statut === 'BROUILLON' ? 'Brouillon supprimé.' : 'Certificat supprimé définitivement.');
       setDeleteOpen(false);
       setDeleting(null);
+      setSelectedIds((current) => current.filter((id) => id !== deleting.id));
+      setSelectedStatutById((current) => {
+        const next = { ...current };
+        delete next[deleting.id];
+        return next;
+      });
       load(page);
     } catch (err) {
       showError(err.message || 'Suppression impossible.');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!deletableSelectedIds.length) return;
+    setBulkDeleteLoading(true);
+    try {
+      const result = await bulkDeleteAptitudesApi(deletableSelectedIds);
+      showSuccess(`${result?.deleted ?? deletableSelectedIds.length} certificat(s) supprimé(s) définitivement.`);
+      setBulkDeleteOpen(false);
+      setSelectedIds([]);
+      setSelectedStatutById({});
+      load(page);
+    } catch (err) {
+      showError(err.message || 'Suppression impossible.');
+    } finally {
+      setBulkDeleteLoading(false);
     }
   };
 
@@ -265,14 +327,27 @@ export default function AptitudesPage() {
           <Button
             variant="outlined"
             startDecorator={<Printer size={18} />}
-            disabled={!canExport || !selectedIds.length}
+            disabled={!canExport || !printableSelectedIds.length}
             loading={batchPdfLoading}
             title={!canExport ? 'Permission requise pour imprimer' : undefined}
             onClick={handleBatchPdf}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
-            Imprimer la sélection{selectedIds.length ? ` (${selectedIds.length})` : ''}
+            Imprimer la sélection{printableSelectedIds.length ? ` (${printableSelectedIds.length})` : ''}
           </Button>
+          {(canDelete || canDeleteDefinitif) ? (
+            <Button
+              color="danger"
+              variant="soft"
+              startDecorator={<Trash2 size={18} />}
+              disabled={!deletableSelectedIds.length}
+              title={!canDeleteDefinitif && !canDelete ? 'Permission requise pour supprimer' : undefined}
+              onClick={() => { if (deletableSelectedIds.length) setBulkDeleteOpen(true); }}
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
+            >
+              Supprimer la sélection{deletableSelectedIds.length ? ` (${deletableSelectedIds.length})` : ''}
+            </Button>
+          ) : null}
           <Button
             variant="outlined"
             startDecorator={<Upload size={18} />}
@@ -312,10 +387,12 @@ export default function AptitudesPage() {
             <Option value="">Tous</Option>
             {APTITUDE_STATUTS.map((s) => <Option key={s} value={s}>{APTITUDE_STATUT_LABELS[s]}</Option>)}
           </Select>
-          <Select placeholder="Verdict" value={verdict} onChange={(_, v) => setVerdict(v ?? '')} sx={aptitudeFilterSx}>
-            <Option value="">Tous</Option>
-            {Object.entries(APTITUDE_VERDICT_LABELS).map(([k, l]) => <Option key={k} value={k}>{l}</Option>)}
-          </Select>
+          {canViewVerdict ? (
+            <Select placeholder="Verdict" value={verdict} onChange={(_, v) => setVerdict(v ?? '')} sx={aptitudeFilterSx}>
+              <Option value="">Tous</Option>
+              {Object.entries(APTITUDE_VERDICT_LABELS).map(([k, l]) => <Option key={k} value={k}>{l}</Option>)}
+            </Select>
+          ) : null}
           <Select placeholder="Motif" value={motif} onChange={(_, v) => setMotif(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             {APTITUDE_MOTIFS.map((m) => <Option key={m.value} value={m.value}>{m.label}</Option>)}
@@ -351,11 +428,11 @@ export default function AptitudesPage() {
             <Stack spacing={1.25}>
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                 <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
-                  {canExport ? (
+                  {showSelection ? (
                     <Checkbox
                       checked={selectedIds.includes(item.id)}
-                      disabled={item.statut === 'BROUILLON'}
-                      onChange={() => toggleOne(item.id)}
+                      disabled={!canSelectItem(item)}
+                      onChange={() => toggleOne(item)}
                       sx={{ mt: 0.4 }}
                     />
                   ) : null}
@@ -374,7 +451,7 @@ export default function AptitudesPage() {
                 {[item.service?.libelle, item.motifLabel, item.filiere?.libelle].filter(Boolean).join(' · ') || '—'}
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {item.verdict ? (
+                {canViewVerdict && item.verdict ? (
                   <Chip size="sm" color={item.verdict === 'APTE' ? 'success' : 'danger'} variant="soft">{item.verdict}</Chip>
                 ) : null}
                 {item.statut !== 'BROUILLON' ? (
@@ -408,14 +485,13 @@ export default function AptitudesPage() {
                     <FileText size={18} />
                   </IconButton>
                 ) : null}
-                {item.statut === 'BROUILLON' ? (
+                {canDeleteRow(item) ? (
                   <IconButton
                     size="md"
                     variant="soft"
                     color="danger"
-                    disabled={!canDelete}
-                    title={canDelete ? 'Supprimer' : 'Permission requise pour supprimer'}
-                    onClick={() => { if (canDelete) { setDeleting(item); setDeleteOpen(true); } }}
+                    title={item.statut === 'BROUILLON' ? 'Supprimer' : 'Supprimer définitivement'}
+                    onClick={() => { setDeleting(item); setDeleteOpen(true); }}
                   >
                     <Trash2 size={18} />
                   </IconButton>
@@ -430,12 +506,12 @@ export default function AptitudesPage() {
         <Table stickyHeader sx={{ minWidth: 960 }}>
           <thead>
             <tr>
-              {canExport ? (
+              {showSelection ? (
                 <th style={{ width: 40 }}>
                   <Checkbox
                     checked={allPageSelected}
-                    indeterminate={selectedIds.some((id) => printablePageIds.includes(id)) && !allPageSelected}
-                    disabled={!printablePageIds.length}
+                    indeterminate={selectedIds.some((id) => selectablePageIds.includes(id)) && !allPageSelected}
+                    disabled={!selectablePageIds.length}
                     onChange={togglePage}
                   />
                 </th>
@@ -445,7 +521,7 @@ export default function AptitudesPage() {
               <th>Service</th>
               <th>Motif</th>
               <th>Filière</th>
-              <th>Verdict</th>
+              {canViewVerdict ? <th>Verdict</th> : null}
               <th>Statut</th>
               <th>Impression</th>
               <th>Signé le</th>
@@ -454,17 +530,17 @@ export default function AptitudesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={canExport ? 11 : 10} style={{ color: LOTRU_NEUTRAL[500] }}>Chargement…</td></tr>
+              <tr><td colSpan={tableColSpan} style={{ color: LOTRU_NEUTRAL[500] }}>Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={canExport ? 11 : 10} style={{ color: LOTRU_NEUTRAL[500] }}>Aucun certificat.</td></tr>
+              <tr><td colSpan={tableColSpan} style={{ color: LOTRU_NEUTRAL[500] }}>Aucun certificat.</td></tr>
             ) : items.map((item) => (
               <tr key={item.id}>
-                {canExport ? (
+                {showSelection ? (
                   <td>
                     <Checkbox
                       checked={selectedIds.includes(item.id)}
-                      disabled={item.statut === 'BROUILLON'}
-                      onChange={() => toggleOne(item.id)}
+                      disabled={!canSelectItem(item)}
+                      onChange={() => toggleOne(item)}
                     />
                   </td>
                 ) : null}
@@ -476,13 +552,15 @@ export default function AptitudesPage() {
                 <td>{item.service?.libelle || '—'}</td>
                 <td>{item.motifLabel || '—'}</td>
                 <td>{item.filiere?.libelle || (item.motif === 'ADMISSION_UKV' ? 'Non renseignée' : '—')}</td>
-                <td>
-                  {item.verdict ? (
-                    <Chip size="sm" color={item.verdict === 'APTE' ? 'success' : 'danger'} variant="soft">
-                      {item.verdict}
-                    </Chip>
-                  ) : '—'}
-                </td>
+                {canViewVerdict ? (
+                  <td>
+                    {item.verdict ? (
+                      <Chip size="sm" color={item.verdict === 'APTE' ? 'success' : 'danger'} variant="soft">
+                        {item.verdict}
+                      </Chip>
+                    ) : '—'}
+                  </td>
+                ) : null}
                 <td>
                   <Chip size="sm" color={APTITUDE_STATUT_COLORS[item.statut] || 'neutral'} variant="soft">
                     {APTITUDE_STATUT_LABELS[item.statut] || item.statut}
@@ -518,14 +596,13 @@ export default function AptitudesPage() {
                         <FileText size={16} />
                       </IconButton>
                     ) : null}
-                    {item.statut === 'BROUILLON' ? (
+                    {canDeleteRow(item) ? (
                       <IconButton
                         size="sm"
                         variant="plain"
                         color="danger"
-                        disabled={!canDelete}
-                        title={canDelete ? 'Supprimer' : 'Permission requise pour supprimer'}
-                        onClick={() => { if (canDelete) { setDeleting(item); setDeleteOpen(true); } }}
+                        title={item.statut === 'BROUILLON' ? 'Supprimer' : 'Supprimer définitivement'}
+                        onClick={() => { setDeleting(item); setDeleteOpen(true); }}
                       >
                         <Trash2 size={16} />
                       </IconButton>
@@ -551,12 +628,26 @@ export default function AptitudesPage() {
 
       <ConfirmModal
         open={deleteOpen}
-        title="Supprimer le brouillon"
-        message={deleting ? `Supprimer le certificat de ${deleting.fullName} ?` : ''}
+        title={deleting && deleting.statut !== 'BROUILLON' ? 'Supprimer définitivement' : 'Supprimer le brouillon'}
+        message={deleting
+          ? (deleting.statut === 'BROUILLON'
+            ? `Supprimer le brouillon de ${deleting.fullName} ?`
+            : `Supprimer définitivement le certificat ${deleting.numero || ''} de ${deleting.fullName} ? Cette action est irréversible. L’annulation archive le document ; la suppression l’efface.`)
+          : ''}
         confirmLabel="Supprimer"
         loading={deleteLoading}
         onClose={() => { if (!deleteLoading) { setDeleteOpen(false); setDeleting(null); } }}
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmModal
+        open={bulkDeleteOpen}
+        title="Supprimer définitivement la sélection"
+        message={`Supprimer définitivement ${deletableSelectedIds.length} certificat(s) ? Cette action est irréversible.`}
+        confirmLabel="Supprimer définitivement"
+        loading={bulkDeleteLoading}
+        onClose={() => { if (!bulkDeleteLoading) setBulkDeleteOpen(false); }}
+        onConfirm={confirmBulkDelete}
       />
 
       <AptitudeImportModal

@@ -18,6 +18,7 @@ final class AptitudePdfService
         private readonly ChuPdfLayoutProvider $layoutProvider,
         private readonly PdfExportService $pdfExportService,
         private readonly PersonnelSignatureService $signatureService,
+        private readonly string $publicFrontendUrl,
     ) {
     }
 
@@ -218,7 +219,7 @@ final class AptitudePdfService
 </p>
 <p class="cap-date">{$dateLine}</p>
 <p class="cap-sign">Le Médecin Examinateur<br>(Nom, Signature et Cachet)<br>{$this->signatureImage($certificat)}<strong>{$doctor}</strong></p>
-<p class="cap-note">Valable trois (03) mois à compter de la date de signature. Nul et de nul effet sans le cachet officiel, la signature du médecin et le code QR d'authentification.</p>
+<p class="cap-note">Valable trois (03) mois à compter de la date de signature. Nul et de nul effet sans le cachet officiel, la signature du médecin et le code QR d'authentification. Scannez le QR pour vérifier ce document sur le portail officiel. Contact : doc-verification@chu-ukv.cd</p>
 <style>
 h1.report-title { margin: 28px 0 10px; font-size: 16px; color: #111; }
 p { margin: 2px 0; }
@@ -246,27 +247,27 @@ HTML;
 
     private function renderHeaderQr(CertificatAptitude $certificat): string
     {
-        return '<img src="' . $this->qrDataUri($certificat) . '" alt="QR certificat" /><div class="cap-qr-caption">Authentification</div>';
+        return '<img src="' . $this->qrDataUri($certificat) . '" alt="QR certificat" /><div class="cap-qr-caption">Scanner pour vérifier</div>';
     }
 
     private function qrDataUri(CertificatAptitude $certificat): string
     {
-        $valide = $certificat->getValideJusqua()?->format('d/m/Y') ?? '—';
-        $payload = implode("\n", [
-            'CHU UKV CAP',
-            (string) ($certificat->getNumero() ?? '—'),
-            $certificat->getFullName(),
-            'Verdict: ' . ($certificat->getVerdict() ?? '—'),
-            'Valable: ' . $valide,
-            'Statut: ' . $certificat->getStatut(),
-        ]);
+        $url = $this->verificationUrl($certificat);
 
         return (new Builder(
-            data: $payload,
+            data: $url,
             errorCorrectionLevel: ErrorCorrectionLevel::Medium,
             size: 280,
             margin: 2,
         ))->build()->getDataUri();
+    }
+
+    private function verificationUrl(CertificatAptitude $certificat): string
+    {
+        $base = rtrim($this->publicFrontendUrl, '/');
+        $numero = (string) ($certificat->getNumero() ?? '');
+
+        return $base . '/verification/aptitude?numero=' . rawurlencode($numero);
     }
 
     private function pignetLabel(?string $value): string

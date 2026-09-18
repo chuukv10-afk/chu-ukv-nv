@@ -28,6 +28,14 @@ final class AdminPermissions
     public const SIGNATURE_READ = 'admin.signature.read';
     public const SIGNATURE_UPDATE = 'admin.signature.update';
 
+    public const PROFIL_IDENTITE_READ = 'admin.profil.identite.read';
+    public const PROFIL_IDENTITE_UPDATE = 'admin.profil.identite.update';
+    public const PROFIL_AUTH_READ = 'admin.profil.auth.read';
+    public const PROFIL_AUTH_UPDATE = 'admin.profil.auth.update';
+    public const PROFIL_AFFECTATION_READ = 'admin.profil.affectation.read';
+    public const PROFIL_PHOTO_READ = 'admin.profil.photo.read';
+    public const PROFIL_PHOTO_UPDATE = 'admin.profil.photo.update';
+
     public const DATABASE_MANAGE = 'admin.database.manage';
     public const DATABASE_EXPORT = 'admin.database.export';
     public const DATABASE_TRUNCATE = 'admin.database.truncate';
@@ -100,6 +108,41 @@ final class AdminPermissions
                 [
                     'code' => self::SIGNATURE_UPDATE,
                     'libelle' => 'Lier ou remplacer sa signature manuscrite',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::PROFIL_IDENTITE_READ,
+                    'libelle' => 'Profil — voir les informations personnelles',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::PROFIL_IDENTITE_UPDATE,
+                    'libelle' => 'Profil — modifier les informations personnelles',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::PROFIL_AUTH_READ,
+                    'libelle' => 'Profil — voir les informations d\'authentification',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::PROFIL_AUTH_UPDATE,
+                    'libelle' => 'Profil — modifier son mot de passe',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::PROFIL_AFFECTATION_READ,
+                    'libelle' => 'Profil — voir son affectation',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::PROFIL_PHOTO_READ,
+                    'libelle' => 'Profil — voir la photo de profil',
+                    'module' => Permission::MODULE_ADMIN,
+                ],
+                [
+                    'code' => self::PROFIL_PHOTO_UPDATE,
+                    'libelle' => 'Profil — modifier la photo de profil',
                     'module' => Permission::MODULE_ADMIN,
                 ],
             ],

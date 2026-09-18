@@ -246,4 +246,28 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    public function findOfficialByNumero(string $numero): ?CertificatAptitude
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($numero)) ?? '';
+        if ('' === $normalized) {
+            return null;
+        }
+
+        $compact = strtoupper(str_replace(' ', '', $normalized));
+
+        return $this->createQueryBuilder('c')
+            ->leftJoin('c.signePar', 'p')
+            ->addSelect('p')
+            ->andWhere('c.statut IN (:statuts)')
+            ->andWhere("REPLACE(UPPER(COALESCE(c.numero, '')), ' ', '') = :compact")
+            ->setParameter('statuts', [
+                CertificatAptitude::STATUT_SIGNE,
+                CertificatAptitude::STATUT_ANNULE,
+            ])
+            ->setParameter('compact', $compact)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 }

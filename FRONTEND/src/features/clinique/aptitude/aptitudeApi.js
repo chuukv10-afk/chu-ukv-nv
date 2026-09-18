@@ -98,6 +98,11 @@ export async function deleteAptitudeApi(id) {
   return callApiDelete(`${clinique.aptitudes}/${id}`);
 }
 
+export async function bulkDeleteAptitudesApi(ids = []) {
+  const response = await callApiPost(`${clinique.aptitudes}/supprimer`, { ids });
+  return unwrapData(response);
+}
+
 export async function signerAptitudeApi(id) {
   const response = await callApiPost(`${clinique.aptitudes}/${id}/signer`);
   return unwrapData(response);

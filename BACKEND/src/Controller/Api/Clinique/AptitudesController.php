@@ -126,6 +126,17 @@ final class AptitudesController extends AbstractController
         );
     }
 
+    #[Route('/supprimer', name: 'api_clinique_aptitudes_bulk_delete', methods: ['POST'])]
+    public function bulkDelete(#[MapRequestPayload] AptitudeIdsInput $input): JsonResponse
+    {
+        $result = $this->aptitudeService->deleteMany($input->ids);
+
+        return $this->apiSuccess(
+            $result,
+            sprintf('%d certificat(s) supprimé(s) définitivement.', $result['deleted']),
+        );
+    }
+
     #[Route('/stats', name: 'api_clinique_aptitudes_stats', methods: ['GET'])]
     #[IsGranted(CliniquePermissions::APTITUDE_READ)]
     public function stats(#[MapQueryString] AptitudeStatsQuery $query = new AptitudeStatsQuery()): JsonResponse
@@ -292,11 +303,10 @@ final class AptitudesController extends AbstractController
     }
 
     #[Route('/{id}', name: 'api_clinique_aptitudes_delete', methods: ['DELETE'], requirements: ['id' => '\d+'])]
-    #[IsGranted(CliniquePermissions::APTITUDE_DELETE)]
     public function delete(int $id): JsonResponse
     {
         $this->aptitudeService->delete($id);
 
-        return $this->apiSuccess(message: 'Certificat d\'aptitude supprimé avec succès.');
+        return $this->apiSuccess(message: 'Certificat d\'aptitude supprimé définitivement.');
     }
 }
