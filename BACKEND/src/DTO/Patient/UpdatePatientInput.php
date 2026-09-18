@@ -62,6 +62,9 @@ final class UpdatePatientInput
         #[Assert\Positive]
         public ?int $filiereId = null,
 
+        #[Assert\Positive]
+        public ?int $organisationId = null,
+
         #[Assert\NotBlank(message: 'Le statut est obligatoire.')]
         public string $status = Patient::STATUS_ACTIF,
     ) {

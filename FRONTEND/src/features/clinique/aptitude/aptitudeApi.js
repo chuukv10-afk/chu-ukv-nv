@@ -130,14 +130,20 @@ export async function downloadAptitudeImportTemplateApi() {
   await downloadFile(`${clinique.aptitudes}/import-modele`, 'GET', null, 'modele-import-etudiants-ukv.xlsx');
 }
 
+export async function previewAptitudeImportApi(file) {
+  const body = new FormData();
+  body.append('file', file);
+  const response = await callApiPost(`${clinique.aptitudes}/import-preview`, body);
+  return unwrapData(response);
+}
+
 export async function importAptitudeEtudiantsApi({
-  file, organisationId, filiereId, serviceId, annee, categorieTarifaire,
+  file, organisationId, filiereId, annee, categorieTarifaire,
 }) {
   const body = new FormData();
   body.append('file', file);
   body.append('organisationId', String(organisationId));
   if (filiereId) body.append('filiereId', String(filiereId));
-  body.append('serviceId', String(serviceId));
   body.append('annee', String(annee));
   body.append('categorieTarifaire', categorieTarifaire || 'A');
   const response = await callApiPost(`${clinique.aptitudes}/import`, body);

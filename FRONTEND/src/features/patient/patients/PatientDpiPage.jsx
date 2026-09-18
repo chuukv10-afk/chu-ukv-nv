@@ -119,6 +119,7 @@ export default function PatientDpiPage() {
   const [formError, setFormError] = useState('');
   const [structures, setStructures] = useState([]);
   const [filieres, setFilieres] = useState([]);
+  const [organisations, setOrganisations] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,10 +142,12 @@ export default function PatientDpiPage() {
       .then((meta) => {
         setStructures(Array.isArray(meta.structures) ? meta.structures : []);
         setFilieres(Array.isArray(meta.filieres) ? meta.filieres.filter(Boolean) : []);
+        setOrganisations(Array.isArray(meta.organisations) ? meta.organisations.filter(Boolean) : []);
       })
       .catch(() => {
         setStructures([]);
         setFilieres([]);
+        setOrganisations([]);
       });
   }, []);
 
@@ -343,6 +346,7 @@ export default function PatientDpiPage() {
     structureId: patient.structure?.id ? String(patient.structure.id) : '',
     numeroAffiliation: patient.numeroAffiliation ?? '',
     codeUkv: patient.codeUkv ?? '',
+    organisationId: patient.organisation?.id ? String(patient.organisation.id) : '',
     filiereId: patient.filiere?.id ? String(patient.filiere.id) : '',
     status: patient.status ?? 'ACTIF',
   };
@@ -608,6 +612,7 @@ export default function PatientDpiPage() {
         error={formError}
         structures={structures}
         filieres={filieres}
+        organisations={organisations}
         readOnlyIdentity={patient.status === 'DECEDE'}
         onClose={() => setFormOpen(false)}
         onSubmit={handlePatientUpdate}

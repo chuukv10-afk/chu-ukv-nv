@@ -50,6 +50,16 @@ final class CliniquePermissions
     public const APTITUDE_DELETE = 'clinique.aptitude.delete';
     public const APTITUDE_SIGN = 'clinique.aptitude.sign';
     public const APTITUDE_EXPORT = 'clinique.aptitude.export';
+    public const APTITUDE_IDENTITE_READ = 'clinique.aptitude.identite.read';
+    public const APTITUDE_IDENTITE_UPDATE = 'clinique.aptitude.identite.update';
+    public const APTITUDE_IMC_READ = 'clinique.aptitude.imc.read';
+    public const APTITUDE_IMC_UPDATE = 'clinique.aptitude.imc.update';
+    public const APTITUDE_PIGNET_READ = 'clinique.aptitude.pignet.read';
+    public const APTITUDE_PIGNET_UPDATE = 'clinique.aptitude.pignet.update';
+    public const APTITUDE_RUFFIER_READ = 'clinique.aptitude.ruffier.read';
+    public const APTITUDE_RUFFIER_UPDATE = 'clinique.aptitude.ruffier.update';
+    public const APTITUDE_VERDICT_READ = 'clinique.aptitude.verdict.read';
+    public const APTITUDE_VERDICT_UPDATE = 'clinique.aptitude.verdict.update';
 
     public const IMAGERIE_READ = 'clinique.imagerie.read';
     public const IMAGERIE_CREATE = 'clinique.imagerie.create';
@@ -147,6 +157,56 @@ final class CliniquePermissions
             ],
             self::crud('aptitude', 'certificat d\'aptitude physique', 'les certificats d\'aptitude physique'),
             [
+                [
+                    'code' => self::APTITUDE_IDENTITE_READ,
+                    'libelle' => 'Aptitude — voir l\'identité du candidat',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_IDENTITE_UPDATE,
+                    'libelle' => 'Aptitude — modifier l\'identité du candidat',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_IMC_READ,
+                    'libelle' => 'Aptitude — voir l\'IMC',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_IMC_UPDATE,
+                    'libelle' => 'Aptitude — saisir / modifier l\'IMC',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_PIGNET_READ,
+                    'libelle' => 'Aptitude — voir l\'indice de Pignet',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_PIGNET_UPDATE,
+                    'libelle' => 'Aptitude — saisir / modifier l\'indice de Pignet',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_RUFFIER_READ,
+                    'libelle' => 'Aptitude — voir l\'indice de Ruffier-Dickson',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_RUFFIER_UPDATE,
+                    'libelle' => 'Aptitude — saisir / modifier l\'indice de Ruffier-Dickson',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_VERDICT_READ,
+                    'libelle' => 'Aptitude — voir le verdict médical',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_VERDICT_UPDATE,
+                    'libelle' => 'Aptitude — modifier le verdict médical',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
                 [
                     'code' => self::APTITUDE_SIGN,
                     'libelle' => 'Signer un certificat d\'aptitude physique',

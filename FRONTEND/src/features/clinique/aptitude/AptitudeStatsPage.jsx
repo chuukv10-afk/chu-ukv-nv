@@ -16,6 +16,7 @@ import {
   APTITUDE_STATUTS,
   APTITUDE_VERDICT_LABELS,
 } from './aptitudeConstants.js';
+import { aptitudeFilterSx } from './aptitudeUi.js';
 import {
   exportAptitudeStatsApi,
   exportAptitudesApi,
@@ -29,7 +30,7 @@ const EMPTY_STATS = {
 
 function KpiCard({ icon, label, value, color = 'neutral' }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2, flex: 1, minWidth: 150 }}>
+    <Card variant="outlined" sx={{ borderRadius: 'lg', p: 2, flex: '1 1 140px', minWidth: { xs: 'calc(50% - 8px)', sm: 150 } }}>
       <Stack direction="row" spacing={1.5} alignItems="center">
         <Box sx={{ color: `${color}.600` }}>{icon}</Box>
         <Box>
@@ -131,9 +132,9 @@ export default function AptitudeStatsPage() {
             Effectifs par filière pour les certificats d’admission UKV.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap sx={{ width: { xs: '100%', md: 'auto' } }}>
           {canExport ? <ExportButtons onExport={handleExportStats} loading={exportLoading} /> : null}
-          <Button variant="outlined" onClick={() => navigate(ROUTES.CLINIQUE.APTITUDES)}>
+          <Button variant="outlined" onClick={() => navigate(ROUTES.CLINIQUE.APTITUDES)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
             Voir les certificats
           </Button>
         </Stack>
@@ -141,26 +142,26 @@ export default function AptitudeStatsPage() {
 
       <Card variant="outlined">
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} flexWrap="wrap" useFlexGap>
-          <Select placeholder="Année" value={annee} onChange={(_, v) => setAnnee(v ?? '')} sx={{ minWidth: 110 }}>
+          <Select placeholder="Année" value={annee} onChange={(_, v) => setAnnee(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Toutes</Option>
             {yearOptions.map((y) => <Option key={y} value={String(y)}>{y}</Option>)}
           </Select>
-          <Select placeholder="Statut" value={statut} onChange={(_, v) => setStatut(v ?? '')} sx={{ minWidth: 140 }}>
+          <Select placeholder="Statut" value={statut} onChange={(_, v) => setStatut(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             {APTITUDE_STATUTS.map((s) => <Option key={s} value={s}>{APTITUDE_STATUT_LABELS[s]}</Option>)}
           </Select>
-          <Select placeholder="Verdict" value={verdict} onChange={(_, v) => setVerdict(v ?? '')} sx={{ minWidth: 120 }}>
+          <Select placeholder="Verdict" value={verdict} onChange={(_, v) => setVerdict(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             {Object.entries(APTITUDE_VERDICT_LABELS).map(([k, l]) => <Option key={k} value={k}>{l}</Option>)}
           </Select>
-          <Select placeholder="Motif" value={motif} onChange={(_, v) => setMotif(v ?? '')} sx={{ minWidth: 220 }}>
+          <Select placeholder="Motif" value={motif} onChange={(_, v) => setMotif(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             {APTITUDE_MOTIFS.map((m) => <Option key={m.value} value={m.value}>{m.label}</Option>)}
           </Select>
         </Stack>
       </Card>
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+      <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
         <KpiCard icon={<BarChart3 size={22} />} label="Total" value={stats.totals.total} />
         <KpiCard icon={<ShieldCheck size={22} />} label="APTE" value={stats.totals.apte} color="success" />
         <KpiCard icon={<ShieldX size={22} />} label="INAPTE" value={stats.totals.inapte} color="danger" />
@@ -192,8 +193,8 @@ export default function AptitudeStatsPage() {
         </Typography>
       )}
 
-      <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto' }}>
-        <Table stickyHeader hoverRow>
+      <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <Table stickyHeader hoverRow sx={{ minWidth: 640 }}>
           <thead>
             <tr>
               <th>Filière</th>

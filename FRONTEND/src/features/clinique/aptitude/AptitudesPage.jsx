@@ -34,7 +34,7 @@ import {
   openAptitudeBatchPdfApi,
   openAptitudePdfApi,
 } from './aptitudeApi.js';
-import AptitudeImportModal from './components/AptitudeImportModal.jsx';
+import { aptitudeFilterSx } from './aptitudeUi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_APTITUDE_PAGE_SIZE, total: 0, totalPages: 0 };
 
@@ -175,7 +175,7 @@ export default function AptitudesPage() {
   };
 
   const handleBatchPdf = async () => {
-    if (!selectedIds.length) return;
+    if (!canExport || !selectedIds.length) return;
     setBatchPdfLoading(true);
     try {
       await openAptitudeBatchPdfApi(selectedIds);
@@ -229,7 +229,7 @@ export default function AptitudesPage() {
       setImportResult(result);
       const errors = Array.isArray(result?.errors) ? result.errors.length : 0;
       showSuccess(
-        `Import : ${result?.createdDpis ?? 0} DPI, ${result?.createdAptitudes ?? 0} brouillon(s)${errors ? `, ${errors} ligne(s) en erreur` : ''}.`,
+        `Import : ${result?.createdDpis ?? 0} DPI, ${result?.createdPatients ?? 0} nouveau(x)${errors ? `, ${errors} ligne(s) en erreur` : ''}.`,
       );
       load(page);
     } catch (err) {
@@ -256,40 +256,41 @@ export default function AptitudesPage() {
             Enregistrement et génération des certificats d’aptitude physique.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button variant="outlined" onClick={() => navigate(ROUTES.CLINIQUE.APTITUDE_STATS)}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap sx={{ width: { xs: '100%', md: 'auto' } }}>
+          <Button variant="outlined" onClick={() => navigate(ROUTES.CLINIQUE.APTITUDE_STATS)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
             Statistiques
           </Button>
           {canExport ? <ExportButtons onExport={handleExport} loading={exportLoading} /> : null}
-          {canExport ? (
-            <Button
-              variant="outlined"
-              startDecorator={<Printer size={18} />}
-              disabled={!selectedIds.length}
-              loading={batchPdfLoading}
-              onClick={handleBatchPdf}
-            >
-              Imprimer la sélection{selectedIds.length ? ` (${selectedIds.length})` : ''}
-            </Button>
-          ) : null}
-          {canImport ? (
-            <Button
-              variant="outlined"
-              startDecorator={<Upload size={18} />}
-              onClick={() => { setImportError(''); setImportResult(null); setImportOpen(true); }}
-            >
-              Importer des étudiants
-            </Button>
-          ) : null}
-          {canCreate ? (
-            <Button
-              startDecorator={<Plus size={18} />}
-              onClick={() => navigate(ROUTES.CLINIQUE.APTITUDE_NEW)}
-              sx={{ bgcolor: LOTRU_PRIMARY[500] }}
-            >
-              Nouveau certificat
-            </Button>
-          ) : null}
+          <Button
+            variant="outlined"
+            startDecorator={<Printer size={18} />}
+            disabled={!canExport || !selectedIds.length}
+            loading={batchPdfLoading}
+            title={!canExport ? 'Permission requise pour imprimer' : undefined}
+            onClick={handleBatchPdf}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Imprimer la sélection{selectedIds.length ? ` (${selectedIds.length})` : ''}
+          </Button>
+          <Button
+            variant="outlined"
+            startDecorator={<Upload size={18} />}
+            disabled={!canImport}
+            title={!canImport ? 'Permission requise pour importer' : undefined}
+            onClick={() => { setImportError(''); setImportResult(null); setImportOpen(true); }}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Importer des étudiants
+          </Button>
+          <Button
+            startDecorator={<Plus size={18} />}
+            disabled={!canCreate}
+            title={!canCreate ? 'Permission requise pour créer' : undefined}
+            onClick={() => navigate(ROUTES.CLINIQUE.APTITUDE_NEW)}
+            sx={{ bgcolor: LOTRU_PRIMARY[500], width: { xs: '100%', sm: 'auto' } }}
+          >
+            Nouveau certificat
+          </Button>
         </Stack>
       </Stack>
 
@@ -300,34 +301,34 @@ export default function AptitudesPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             startDecorator={<Search size={16} />}
-            sx={{ minWidth: 240, flex: 1 }}
+            sx={{ ...aptitudeFilterSx, flex: { xs: '1 1 100%', md: 1 } }}
           />
-          <Select placeholder="Année" value={annee} onChange={(_, v) => setAnnee(v ?? '')} sx={{ minWidth: 110 }}>
+          <Select placeholder="Année" value={annee} onChange={(_, v) => setAnnee(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Toutes</Option>
             {yearOptions.map((y) => <Option key={y} value={String(y)}>{y}</Option>)}
           </Select>
-          <Select placeholder="Statut" value={statut} onChange={(_, v) => setStatut(v ?? '')} sx={{ minWidth: 140 }}>
+          <Select placeholder="Statut" value={statut} onChange={(_, v) => setStatut(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             {APTITUDE_STATUTS.map((s) => <Option key={s} value={s}>{APTITUDE_STATUT_LABELS[s]}</Option>)}
           </Select>
-          <Select placeholder="Verdict" value={verdict} onChange={(_, v) => setVerdict(v ?? '')} sx={{ minWidth: 120 }}>
+          <Select placeholder="Verdict" value={verdict} onChange={(_, v) => setVerdict(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             {Object.entries(APTITUDE_VERDICT_LABELS).map(([k, l]) => <Option key={k} value={k}>{l}</Option>)}
           </Select>
-          <Select placeholder="Motif" value={motif} onChange={(_, v) => setMotif(v ?? '')} sx={{ minWidth: 180 }}>
+          <Select placeholder="Motif" value={motif} onChange={(_, v) => setMotif(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             {APTITUDE_MOTIFS.map((m) => <Option key={m.value} value={m.value}>{m.label}</Option>)}
           </Select>
-          <Select placeholder="Service" value={serviceId} onChange={(_, v) => setServiceId(v ?? '')} sx={{ minWidth: 180 }}>
+          <Select placeholder="Service" value={serviceId} onChange={(_, v) => setServiceId(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             {services.map((s) => <Option key={s.id} value={String(s.id)}>{s.libelle}</Option>)}
           </Select>
-          <Select placeholder="Filière" value={filiereId} onChange={(_, v) => setFiliereId(v ?? '')} sx={{ minWidth: 200 }}>
+          <Select placeholder="Filière" value={filiereId} onChange={(_, v) => setFiliereId(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Toutes</Option>
             <Option value="none">Non renseignée</Option>
             {filieres.map((f) => <Option key={f.id} value={String(f.id)}>{f.code} — {f.libelle}</Option>)}
           </Select>
-          <Select placeholder="Impression" value={imprime} onChange={(_, v) => setImprime(v ?? '')} sx={{ minWidth: 160 }}>
+          <Select placeholder="Impression" value={imprime} onChange={(_, v) => setImprime(v ?? '')} sx={aptitudeFilterSx}>
             <Option value="">Tous</Option>
             <Option value="oui">Déjà imprimés</Option>
             <Option value="non">Non imprimés</Option>
@@ -339,8 +340,93 @@ export default function AptitudesPage() {
         <Typography color="danger" level="body-sm">{listError}</Typography>
       ) : null}
 
-      <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto' }}>
-        <Table stickyHeader>
+      <Stack spacing={1.25} sx={{ display: { xs: 'flex', md: 'none' } }}>
+        {loading ? (
+          <Typography level="body-sm" sx={{ color: 'neutral.500' }}>Chargement…</Typography>
+        ) : items.length === 0 ? (
+          <Typography level="body-sm" sx={{ color: 'neutral.500' }}>Aucun certificat.</Typography>
+        ) : items.map((item) => (
+          <Card key={item.id} variant="outlined" sx={{ p: 1.5 }}>
+            <Stack spacing={1.25}>
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                  {canExport ? (
+                    <Checkbox
+                      checked={selectedIds.includes(item.id)}
+                      disabled={item.statut === 'BROUILLON'}
+                      onChange={() => toggleOne(item.id)}
+                      sx={{ mt: 0.4 }}
+                    />
+                  ) : null}
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography level="title-sm" sx={{ fontWeight: 700 }}>{item.fullName}</Typography>
+                    <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                      {item.numero || 'Sans numéro'} · {item.sexe || '—'}
+                    </Typography>
+                  </Box>
+                </Stack>
+                <Chip size="sm" color={APTITUDE_STATUT_COLORS[item.statut] || 'neutral'} variant="soft">
+                  {APTITUDE_STATUT_LABELS[item.statut] || item.statut}
+                </Chip>
+              </Stack>
+              <Typography level="body-xs" sx={{ color: 'neutral.600' }}>
+                {[item.service?.libelle, item.motifLabel, item.filiere?.libelle].filter(Boolean).join(' · ') || '—'}
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {item.verdict ? (
+                  <Chip size="sm" color={item.verdict === 'APTE' ? 'success' : 'danger'} variant="soft">{item.verdict}</Chip>
+                ) : null}
+                {item.statut !== 'BROUILLON' ? (
+                  <Chip size="sm" color={item.imprime ? 'success' : 'warning'} variant="soft">
+                    {item.imprime ? 'Imprimé' : 'Non imprimé'}
+                  </Chip>
+                ) : null}
+                {item.signeAt ? (
+                  <Typography level="body-xs" sx={{ color: 'neutral.500', alignSelf: 'center' }}>
+                    Signé le {formatDate(item.signeAt)}
+                  </Typography>
+                ) : null}
+              </Stack>
+              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <IconButton
+                  size="md"
+                  variant="soft"
+                  onClick={() => navigate(ROUTES.CLINIQUE.APTITUDE_DETAIL.replace(':id', item.id))}
+                >
+                  <Pencil size={18} />
+                </IconButton>
+                {item.statut !== 'BROUILLON' ? (
+                  <IconButton
+                    size="md"
+                    variant="soft"
+                    loading={pdfLoadingId === item.id}
+                    disabled={!canExport || Boolean(pdfLoadingId)}
+                    title={canExport ? 'Générer le PDF' : 'Permission requise pour imprimer'}
+                    onClick={() => { if (canExport) handlePdf(item.id); }}
+                  >
+                    <FileText size={18} />
+                  </IconButton>
+                ) : null}
+                {item.statut === 'BROUILLON' ? (
+                  <IconButton
+                    size="md"
+                    variant="soft"
+                    color="danger"
+                    disabled={!canDelete}
+                    title={canDelete ? 'Supprimer' : 'Permission requise pour supprimer'}
+                    onClick={() => { if (canDelete) { setDeleting(item); setDeleteOpen(true); } }}
+                  >
+                    <Trash2 size={18} />
+                  </IconButton>
+                ) : null}
+              </Stack>
+            </Stack>
+          </Card>
+        ))}
+      </Stack>
+
+      <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto', display: { xs: 'none', md: 'block' }, WebkitOverflowScrolling: 'touch' }}>
+        <Table stickyHeader sx={{ minWidth: 960 }}>
           <thead>
             <tr>
               {canExport ? (
@@ -419,20 +505,27 @@ export default function AptitudesPage() {
                     >
                       <Pencil size={16} />
                     </IconButton>
-                    {canExport && item.statut !== 'BROUILLON' ? (
+                    {item.statut !== 'BROUILLON' ? (
                       <IconButton
                         size="sm"
                         variant="plain"
                         loading={pdfLoadingId === item.id}
-                        disabled={Boolean(pdfLoadingId)}
-                        title="Générer le PDF"
-                        onClick={() => handlePdf(item.id)}
+                        disabled={!canExport || Boolean(pdfLoadingId)}
+                        title={canExport ? 'Générer le PDF' : 'Permission requise pour imprimer'}
+                        onClick={() => { if (canExport) handlePdf(item.id); }}
                       >
                         <FileText size={16} />
                       </IconButton>
                     ) : null}
-                    {canDelete && item.statut === 'BROUILLON' ? (
-                      <IconButton size="sm" variant="plain" color="danger" onClick={() => { setDeleting(item); setDeleteOpen(true); }}>
+                    {item.statut === 'BROUILLON' ? (
+                      <IconButton
+                        size="sm"
+                        variant="plain"
+                        color="danger"
+                        disabled={!canDelete}
+                        title={canDelete ? 'Supprimer' : 'Permission requise pour supprimer'}
+                        onClick={() => { if (canDelete) { setDeleting(item); setDeleteOpen(true); } }}
+                      >
                         <Trash2 size={16} />
                       </IconButton>
                     ) : null}
@@ -468,7 +561,6 @@ export default function AptitudesPage() {
       <AptitudeImportModal
         open={importOpen}
         organisations={organisations}
-        services={services}
         yearOptions={yearOptions}
         loading={importLoading}
         error={importError}

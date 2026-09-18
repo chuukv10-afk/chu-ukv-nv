@@ -62,6 +62,9 @@ final class CreatePatientInput
         #[Assert\Positive]
         public ?int $filiereId = null,
 
+        #[Assert\Positive]
+        public ?int $organisationId = null,
+
         public string $status = Patient::STATUS_ACTIF,
     ) {
     }

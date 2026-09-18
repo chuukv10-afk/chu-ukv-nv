@@ -170,6 +170,23 @@ final class AptitudesController extends AbstractController
         return $this->aptitudeImportService->createTemplateResponse();
     }
 
+    #[Route('/import-preview', name: 'api_clinique_aptitudes_import_preview', methods: ['POST'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_CREATE)]
+    public function importPreview(Request $request): JsonResponse
+    {
+        $this->denyAccessUnlessGranted(PatientPermissions::PATIENT_CREATE);
+
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile) {
+            throw new ConflictException('Envoyez un fichier Excel (champ file).');
+        }
+
+        return $this->apiSuccess(
+            $this->aptitudeImportService->previewFromUpload($file),
+            'Prévisualisation de l\'import.',
+        );
+    }
+
     #[Route('/import', name: 'api_clinique_aptitudes_import', methods: ['POST'])]
     #[IsGranted(CliniquePermissions::APTITUDE_CREATE)]
     public function import(Request $request): JsonResponse
@@ -184,11 +201,12 @@ final class AptitudesController extends AbstractController
         $organisationId = (int) $request->request->get('organisationId', 0);
         $filiereIdRaw = $request->request->get('filiereId');
         $filiereId = null !== $filiereIdRaw && '' !== (string) $filiereIdRaw ? (int) $filiereIdRaw : null;
-        $serviceId = (int) $request->request->get('serviceId', 0);
+        $serviceIdRaw = $request->request->get('serviceId');
+        $serviceId = null !== $serviceIdRaw && '' !== (string) $serviceIdRaw ? (int) $serviceIdRaw : null;
         $annee = (int) $request->request->get('annee', 0);
         $categorieTarifaire = (string) $request->request->get('categorieTarifaire', 'A');
-        if ($organisationId < 1 || $serviceId < 1) {
-            throw new ConflictException('Choisissez l\'organisation partenaire et le service d\'examen.');
+        if ($organisationId < 1) {
+            throw new ConflictException('Choisissez l\'organisation partenaire.');
         }
         if ($annee < 1) {
             $annee = (int) (new \DateTimeImmutable('now', new \DateTimeZone('Africa/Kinshasa')))->format('Y');
@@ -264,7 +282,7 @@ final class AptitudesController extends AbstractController
     }
 
     #[Route('/{id}', name: 'api_clinique_aptitudes_update', methods: ['PUT'], requirements: ['id' => '\d+'])]
-    #[IsGranted(CliniquePermissions::APTITUDE_UPDATE)]
+    #[IsGranted(CliniquePermissions::APTITUDE_READ)]
     public function update(int $id, #[MapRequestPayload] UpsertAptitudeInput $input): JsonResponse
     {
         return $this->apiSuccess(

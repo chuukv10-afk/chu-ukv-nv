@@ -26,16 +26,20 @@ class PatientRepository extends ServiceEntityRepository
         ?string $status = null,
         ?string $sexe = null,
         ?int $filiereId = null,
+        ?int $organisationId = null,
+        ?string $typeInstitution = null,
     ): array {
         $qb = $this->createQueryBuilder('p')
             ->leftJoin('p.dpi', 'd')
             ->leftJoin('p.filiere', 'f')
+            ->leftJoin('p.organisation', 'o')
             ->addSelect('d')
             ->addSelect('f')
+            ->addSelect('o')
             ->orderBy('p.createdAt', 'DESC')
             ->distinct();
 
-        $this->applyFilters($qb, $search, $status, $sexe, $filiereId);
+        $this->applyFilters($qb, $search, $status, $sexe, $filiereId, $organisationId, $typeInstitution);
 
         $countQb = clone $qb;
         $total = (int) $countQb
@@ -60,16 +64,20 @@ class PatientRepository extends ServiceEntityRepository
         ?string $status = null,
         ?string $sexe = null,
         ?int $filiereId = null,
+        ?int $organisationId = null,
+        ?string $typeInstitution = null,
     ): array {
         $qb = $this->createQueryBuilder('p')
             ->leftJoin('p.dpi', 'd')
             ->leftJoin('p.filiere', 'f')
+            ->leftJoin('p.organisation', 'o')
             ->addSelect('d')
             ->addSelect('f')
+            ->addSelect('o')
             ->orderBy('p.nom', 'ASC')
             ->addOrderBy('p.postNom', 'ASC');
 
-        $this->applyFilters($qb, $search, $status, $sexe, $filiereId);
+        $this->applyFilters($qb, $search, $status, $sexe, $filiereId, $organisationId, $typeInstitution);
 
         return $qb->getQuery()->getResult();
     }
@@ -112,19 +120,42 @@ class PatientRepository extends ServiceEntityRepository
         ?string $status,
         ?string $sexe,
         ?int $filiereId = null,
+        ?int $organisationId = null,
+        ?string $typeInstitution = null,
     ): void {
         $normalizedSearch = null !== $search ? trim($search) : '';
         if ('' !== $normalizedSearch) {
+            $term = '%' . mb_strtolower($normalizedSearch) . '%';
+            $clauses = [
+                'LOWER(p.nom) LIKE :search',
+                'LOWER(p.postNom) LIKE :search',
+                'LOWER(p.prenom) LIKE :search',
+                'p.telephone LIKE :search',
+                'LOWER(d.numDossier) LIKE :search',
+                'LOWER(p.codeUkv) LIKE :search',
+                "LOWER(CONCAT(COALESCE(p.nom, ''), ' ', COALESCE(p.postNom, ''), ' ', COALESCE(p.prenom, ''))) LIKE :search",
+                "LOWER(CONCAT(COALESCE(p.postNom, ''), ' ', COALESCE(p.nom, ''))) LIKE :search",
+            ];
+
+            $tokens = preg_split('/\s+/u', mb_strtolower($normalizedSearch), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if (count($tokens) > 1) {
+                $tokenAnd = [];
+                foreach ($tokens as $index => $token) {
+                    $param = 'searchTok' . $index;
+                    $tokenAnd[] = '(LOWER(p.nom) LIKE :' . $param
+                        . ' OR LOWER(p.postNom) LIKE :' . $param
+                        . ' OR LOWER(p.prenom) LIKE :' . $param
+                        . ' OR LOWER(p.codeUkv) LIKE :' . $param
+                        . ' OR LOWER(d.numDossier) LIKE :' . $param
+                        . ' OR p.telephone LIKE :' . $param . ')';
+                    $qb->setParameter($param, '%' . $token . '%');
+                }
+                $clauses[] = '(' . implode(' AND ', $tokenAnd) . ')';
+            }
+
             $qb
-                ->andWhere(
-                    'LOWER(p.nom) LIKE :search
-                    OR LOWER(p.postNom) LIKE :search
-                    OR LOWER(p.prenom) LIKE :search
-                    OR p.telephone LIKE :search
-                    OR LOWER(d.numDossier) LIKE :search
-                    OR LOWER(p.codeUkv) LIKE :search',
-                )
-                ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
+                ->andWhere(implode(' OR ', $clauses))
+                ->setParameter('search', $term);
         }
 
         if (null !== $status && '' !== trim($status)) {
@@ -143,6 +174,18 @@ class PatientRepository extends ServiceEntityRepository
             $qb
                 ->andWhere('p.filiere = :filiereId')
                 ->setParameter('filiereId', $filiereId);
+        }
+
+        if (null !== $organisationId) {
+            $qb
+                ->andWhere('p.organisation = :organisationId')
+                ->setParameter('organisationId', $organisationId);
+        }
+
+        if (null !== $typeInstitution && '' !== trim($typeInstitution)) {
+            $qb
+                ->andWhere('o.typeInstitution = :typeInstitution')
+                ->setParameter('typeInstitution', strtoupper(trim($typeInstitution)));
         }
     }
 

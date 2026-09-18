@@ -63,6 +63,7 @@ export const EMPTY_PATIENT_FORM = {
   structureId: '',
   numeroAffiliation: '',
   codeUkv: '',
+  organisationId: '',
   filiereId: '',
   status: 'ACTIF',
 };

@@ -100,6 +100,75 @@ final class AptitudeImportService
 
     /**
      * @return array{
+     *     total: int,
+     *     valid: int,
+     *     invalid: int,
+     *     rows: list<array<string, mixed>>
+     * }
+     */
+    public function previewFromUpload(UploadedFile $file): array
+    {
+        [$sheet, $headerRow, $columns] = $this->openMappedSheet($file);
+        $rows = [];
+        $valid = 0;
+        $invalid = 0;
+
+        for ($row = $headerRow + 1; $row <= $sheet->getHighestDataRow(); ++$row) {
+            $nom = $this->cellString($sheet, $row, $columns['nom']);
+            $postNom = $this->cellString($sheet, $row, $columns['postNom']);
+            $prenom = isset($columns['prenom']) ? $this->cellString($sheet, $row, $columns['prenom']) : '';
+            $codeUkv = isset($columns['codeUkv'])
+                ? $this->normalizeCodeUkv($this->cellString($sheet, $row, $columns['codeUkv']))
+                : null;
+            if ('' === $nom && '' === $postNom && '' === $prenom && null === $codeUkv) {
+                continue;
+            }
+
+            $message = null;
+            if ('' === $nom || '' === $postNom) {
+                $message = 'Nom et post-nom obligatoires.';
+            }
+            $sexe = $this->normalizeSexe($this->cellString($sheet, $row, $columns['sexe']));
+            if (null === $message && null === $sexe) {
+                $message = 'Sexe invalide (M ou F).';
+            }
+            $dateNaissance = $this->cellDate($sheet, $row, $columns['dateNaissance']);
+            if (null === $message && null === $dateNaissance) {
+                $message = 'Date de naissance manquante ou illisible.';
+            }
+
+            $ok = null === $message;
+            if ($ok) {
+                ++$valid;
+            } else {
+                ++$invalid;
+            }
+
+            $rows[] = [
+                'row' => $row,
+                'codeUkv' => $codeUkv,
+                'nom' => mb_strtoupper($nom),
+                'postNom' => mb_strtoupper($postNom),
+                'prenom' => '' === $prenom ? '' : mb_strtoupper($prenom),
+                'sexe' => $sexe,
+                'dateNaissance' => $dateNaissance?->format('d/m/Y'),
+                'ok' => $ok,
+                'message' => $message,
+            ];
+        }
+
+        $sheet->getParent()?->disconnectWorksheets();
+
+        return [
+            'total' => count($rows),
+            'valid' => $valid,
+            'invalid' => $invalid,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @return array{
      *     createdPatients: int,
      *     updatedPatients: int,
      *     createdDpis: int,
@@ -113,7 +182,7 @@ final class AptitudeImportService
         UploadedFile $file,
         int $organisationId,
         ?int $filiereId,
-        int $serviceId,
+        ?int $serviceId,
         int $annee,
         string $categorieTarifaire,
     ): array {
@@ -155,9 +224,12 @@ final class AptitudeImportService
             }
         }
 
-        $service = $this->serviceRepository->find($serviceId);
-        if (!$service instanceof Service) {
-            throw new NotFoundException('Service non trouvé.');
+        $service = null;
+        if (null !== $serviceId && $serviceId > 0) {
+            $service = $this->serviceRepository->find($serviceId);
+            if (!$service instanceof Service) {
+                throw new NotFoundException('Service non trouvé.');
+            }
         }
 
         $spreadsheet = IOFactory::load($file->getPathname());
@@ -285,6 +357,10 @@ final class AptitudeImportService
                     ++$createdDpis;
                 }
 
+                if (!$service instanceof Service) {
+                    continue;
+                }
+
                 $existingAptitude = $this->certificatRepository->findActiveAdmissionForPatient($patient, $annee);
                 $patientKey = spl_object_id($patient);
                 if (null !== $existingAptitude || isset($importedAptitudePatients[$patientKey])) {
@@ -390,6 +466,24 @@ final class AptitudeImportService
             mb_strtoupper(trim($prenom)),
             $dateNaissance->format('Y-m-d'),
         );
+    }
+
+    /**
+     * @return array{0: Worksheet, 1: int, 2: array<string, int>}
+     */
+    private function openMappedSheet(UploadedFile $file): array
+    {
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+        if (!in_array($extension, ['xlsx', 'xls'], true)) {
+            throw new ConflictException('Envoyez un fichier Excel (.xlsx).');
+        }
+
+        $spreadsheet = IOFactory::load($file->getPathname());
+        $sheet = $spreadsheet->getActiveSheet();
+        $headerRow = $this->detectHeaderRow($sheet);
+        $columns = $this->mapColumns($sheet, $headerRow);
+
+        return [$sheet, $headerRow, $columns];
     }
 
     /**

@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Alert, Box, Button, Card, Chip, FormControl, FormLabel, Input, Option, Radio, RadioGroup, Select, Stack, Typography,
+  Alert, Box, Button, Card, Chip, FormControl, FormLabel, Input, Option, Radio, RadioGroup, Select, Stack, Tab, TabList, TabPanel, Tabs, Typography,
 } from '@mui/joy';
-import Autocomplete from '@mui/joy/Autocomplete';
-import { ArrowLeft, FileText, Save, Stamp, Trash2, XCircle } from 'lucide-react';
+import { Activity, ArrowLeft, FileText, HeartPulse, Save, Stamp, Trash2, UserRound, XCircle } from 'lucide-react';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
-import { fetchPatientApi, fetchPatientsApi } from '../../patient/patients/patientsApi.js';
+import { fetchPatientApi } from '../../patient/patients/patientsApi.js';
 import { computeAptitudeIndices, formatIndice } from './aptitudeCalc.js';
+import PatientSearchAutocomplete from './components/PatientSearchAutocomplete.jsx';
+import { aptitudeFieldSx } from './aptitudeUi.js';
 import {
   APTITUDE_MOTIFS,
   APTITUDE_STATUT_COLORS,
@@ -85,29 +86,64 @@ export default function AptitudeFormPage() {
   const canSign = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_SIGN);
   const canExport = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_EXPORT);
   const canReadPatients = hasPermission(PERMISSIONS.PATIENT.PATIENT_READ);
+  const canEditIdentite = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IDENTITE_UPDATE) || canUpdate || canCreate;
+  const canEditImc = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IMC_UPDATE) || canUpdate || canCreate;
+  const canEditPignet = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_PIGNET_UPDATE) || canUpdate || canCreate;
+  const canEditRuffier = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_RUFFIER_UPDATE) || canUpdate || canCreate;
+  const canEditVerdict = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_VERDICT_UPDATE) || canUpdate || canCreate;
+  const canViewIdentite = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IDENTITE_READ) || canEditIdentite;
+  const canViewImc = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_IMC_READ) || canEditImc;
+  const canViewPignet = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_PIGNET_READ) || canEditPignet;
+  const canViewRuffier = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_RUFFIER_READ) || canEditRuffier;
+  const canViewVerdict = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_VERDICT_READ) || canEditVerdict;
 
   const [form, setForm] = useState(emptyAptitudeForm);
   const [detail, setDetail] = useState(null);
   const [services, setServices] = useState([]);
   const [filieres, setFilieres] = useState([]);
-  const [patientOptions, setPatientOptions] = useState([]);
-  const [patientQuery, setPatientQuery] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState('');
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [tab, setTab] = useState(
+    canViewIdentite ? 'identite'
+      : canViewImc ? 'imc'
+        : canViewPignet ? 'pignet'
+          : canViewRuffier ? 'ruffier'
+            : canViewVerdict ? 'verdict'
+              : 'identite',
+  );
   const lastPropose = useRef(null);
   const lastImcPropose = useRef(null);
 
   const locked = Boolean(detail && detail.statut !== 'BROUILLON');
-  const canSave = isNew ? canCreate : canUpdate && !locked;
+  const identiteLocked = locked || !canEditIdentite;
+  const imcLocked = locked || !canEditImc;
+  const pignetLocked = locked || !canEditPignet;
+  const ruffierLocked = locked || !canEditRuffier;
+  const verdictLocked = locked || !canEditVerdict;
+  const canSave = isNew ? canCreate : (canEditIdentite || canEditImc || canEditPignet || canEditRuffier || canEditVerdict) && !locked;
 
   const indices = useMemo(() => computeAptitudeIndices(form), [form]);
 
   useEffect(() => {
-    if (locked) return;
+    const available = [
+      canViewIdentite ? 'identite' : null,
+      canViewImc ? 'imc' : null,
+      canViewPignet ? 'pignet' : null,
+      canViewRuffier ? 'ruffier' : null,
+      canViewVerdict ? 'verdict' : null,
+    ].filter(Boolean);
+    if (available.length > 0 && !available.includes(tab)) {
+      setTab(available[0]);
+    }
+  }, [canViewIdentite, canViewImc, canViewPignet, canViewRuffier, canViewVerdict, tab]);
+
+  useEffect(() => {
+    if (verdictLocked) return;
     const proposed = indices.verdictPropose;
     setForm((prev) => {
       if (!proposed) return prev;
@@ -117,10 +153,10 @@ export default function AptitudeFormPage() {
       return prev;
     });
     lastPropose.current = proposed;
-  }, [indices.verdictPropose, locked]);
+  }, [indices.verdictPropose, verdictLocked]);
 
   useEffect(() => {
-    if (locked) return;
+    if (imcLocked) return;
     const proposed = indices.imcClasse;
     setForm((prev) => {
       if (!proposed) return prev;
@@ -130,7 +166,7 @@ export default function AptitudeFormPage() {
       return prev;
     });
     lastImcPropose.current = proposed;
-  }, [indices.imcClasse, locked]);
+  }, [indices.imcClasse, imcLocked]);
 
   useEffect(() => {
     fetchAptitudeServicesApi().then(setServices).catch(() => setServices([]));
@@ -148,30 +184,22 @@ export default function AptitudeFormPage() {
         setForm(formFromDetail(data));
         lastPropose.current = data.verdictPropose;
         lastImcPropose.current = data.imcClasseProposee ?? data.imcClasse;
+        if (data.patientId) {
+          fetchPatientApi(data.patientId).then(setSelectedPatient).catch(() => setSelectedPatient(null));
+        } else {
+          setSelectedPatient(null);
+        }
       })
       .catch((err) => setError(err.message || 'Impossible de charger le certificat.'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id, isNew]);
 
-  useEffect(() => {
-    if (!canReadPatients) return undefined;
-    const q = patientQuery.trim();
-    const timer = window.setTimeout(async () => {
-      try {
-        const result = await fetchPatientsApi({ page: 1, limit: 15, search: q || undefined });
-        setPatientOptions(result.items);
-      } catch {
-        setPatientOptions([]);
-      }
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [patientQuery, canReadPatients]);
-
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const applyPatient = async (patient) => {
     if (!patient) {
+      setSelectedPatient(null);
       setField('patientId', '');
       return;
     }
@@ -181,6 +209,7 @@ export default function AptitudeFormPage() {
     } catch {
       detailPatient = patient;
     }
+    setSelectedPatient(detailPatient);
     setForm((prev) => ({
       ...prev,
       patientId: String(detailPatient.id),
@@ -191,6 +220,7 @@ export default function AptitudeFormPage() {
       dateNaissance: detailPatient.dateNaissance ?? prev.dateNaissance,
       lieuNaissance: detailPatient.lieuNaissance ?? prev.lieuNaissance,
       adresse: detailPatient.adresse ?? prev.adresse,
+      filiereId: detailPatient.filiere?.id ? String(detailPatient.filiere.id) : prev.filiereId,
     }));
   };
 
@@ -285,262 +315,328 @@ export default function AptitudeFormPage() {
 
       {error ? <Alert color="danger" variant="soft">{error}</Alert> : null}
 
-      <Card variant="outlined">
-        <Stack spacing={2}>
-          <Typography level="title-md">I. Identification du candidat</Typography>
-          {canReadPatients && !locked ? (
-            <FormControl>
-              <FormLabel>Lier un patient existant (optionnel)</FormLabel>
-              <Autocomplete
-                options={patientOptions}
-                placeholder="Rechercher un patient…"
-                getOptionLabel={(item) => item.fullName || `${item.nom} ${item.postNom}`}
-                isOptionEqualToValue={(a, b) => String(a.id) === String(b.id)}
-                onInputChange={(_, value) => setPatientQuery(value)}
-                onChange={(_, selected) => applyPatient(selected)}
-                slotProps={{ input: { autoComplete: 'off' } }}
-              />
-            </FormControl>
-          ) : null}
-          <FormControl required>
-            <FormLabel>Service</FormLabel>
-            <Select
-              value={form.serviceId}
-              disabled={locked}
-              onChange={(_, v) => setField('serviceId', v ?? '')}
-            >
-              {services.map((s) => <Option key={s.id} value={String(s.id)}>{s.libelle}</Option>)}
-            </Select>
-          </FormControl>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <FormControl required sx={{ flex: 1 }}>
-              <FormLabel>Nom</FormLabel>
-              <Input value={form.nom} disabled={locked} onChange={(e) => setField('nom', e.target.value)} />
-            </FormControl>
-            <FormControl required sx={{ flex: 1 }}>
-              <FormLabel>Postnom</FormLabel>
-              <Input value={form.postNom} disabled={locked} onChange={(e) => setField('postNom', e.target.value)} />
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>Prénom</FormLabel>
-              <Input value={form.prenom} disabled={locked} onChange={(e) => setField('prenom', e.target.value)} />
-            </FormControl>
-          </Stack>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <FormControl required sx={{ minWidth: 160 }}>
-              <FormLabel>Sexe</FormLabel>
+      <Tabs
+        value={tab}
+        onChange={(_, value) => {
+          if (value === 'identite' && !canViewIdentite) return;
+          if (value === 'imc' && !canViewImc) return;
+          if (value === 'pignet' && !canViewPignet) return;
+          if (value === 'ruffier' && !canViewRuffier) return;
+          if (value === 'verdict' && !canViewVerdict) return;
+          if (value) setTab(value);
+        }}
+      >
+        <TabList
+          sx={{
+            overflowX: 'auto',
+            flexWrap: 'nowrap',
+            WebkitOverflowScrolling: 'touch',
+            '&::-webkit-scrollbar': { height: 0 },
+          }}
+        >
+          <Tab value="identite" disabled={!canViewIdentite} title={!canViewIdentite ? 'Permission requise pour consulter l’identité' : undefined} sx={{ flex: '0 0 auto', minHeight: 44, whiteSpace: 'nowrap' }}>
+            <UserRound size={16} style={{ marginRight: 6 }} />Identité
+          </Tab>
+          <Tab value="imc" disabled={!canViewImc} title={!canViewImc ? 'Permission requise pour consulter l’IMC' : undefined} sx={{ flex: '0 0 auto', minHeight: 44, whiteSpace: 'nowrap' }}>
+            <Activity size={16} style={{ marginRight: 6 }} />IMC
+          </Tab>
+          <Tab value="pignet" disabled={!canViewPignet} title={!canViewPignet ? 'Permission requise pour consulter l’indice de Pignet' : undefined} sx={{ flex: '0 0 auto', minHeight: 44, whiteSpace: 'nowrap' }}>
+            <HeartPulse size={16} style={{ marginRight: 6 }} />Pignet
+          </Tab>
+          <Tab value="ruffier" disabled={!canViewRuffier} title={!canViewRuffier ? 'Permission requise pour consulter Ruffier-Dickson' : undefined} sx={{ flex: '0 0 auto', minHeight: 44, whiteSpace: 'nowrap' }}>
+            <Activity size={16} style={{ marginRight: 6 }} />Ruffier
+          </Tab>
+          <Tab value="verdict" disabled={!canViewVerdict} title={!canViewVerdict ? 'Permission requise pour consulter le verdict' : undefined} sx={{ flex: '0 0 auto', minHeight: 44, whiteSpace: 'nowrap' }}>
+            <Stamp size={16} style={{ marginRight: 6 }} />Verdict
+          </Tab>
+        </TabList>
+
+        <TabPanel value="identite" sx={{ p: 0, pt: 2 }}>
+          <Card variant="outlined">
+            <Stack spacing={2}>
+              <FormControl>
+                <FormLabel>Rechercher un patient (auto-complétion)</FormLabel>
+                <PatientSearchAutocomplete
+                  value={selectedPatient}
+                  disabled={identiteLocked || !canReadPatients}
+                  onSelect={applyPatient}
+                />
+              </FormControl>
+              <FormControl required>
+                <FormLabel>Service</FormLabel>
+                <Select
+                  value={form.serviceId}
+                  disabled={identiteLocked}
+                  sx={aptitudeFieldSx}
+                  slotProps={{ listbox: { sx: { zIndex: 1300 } } }}
+                  onChange={(_, v) => setField('serviceId', v ?? '')}
+                >
+                  {services.map((s) => <Option key={s.id} value={String(s.id)}>{s.libelle}</Option>)}
+                </Select>
+              </FormControl>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                <FormControl required sx={{ flex: 1 }}>
+                  <FormLabel>Nom</FormLabel>
+                  <Input value={form.nom} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('nom', e.target.value)} />
+                </FormControl>
+                <FormControl required sx={{ flex: 1 }}>
+                  <FormLabel>Postnom</FormLabel>
+                  <Input value={form.postNom} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('postNom', e.target.value)} />
+                </FormControl>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>Prénom</FormLabel>
+                  <Input value={form.prenom} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('prenom', e.target.value)} />
+                </FormControl>
+              </Stack>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                <FormControl required sx={{ minWidth: { xs: '100%', md: 160 } }}>
+                  <FormLabel>Sexe</FormLabel>
+                  <RadioGroup
+                    orientation="horizontal"
+                    value={form.sexe}
+                    onChange={(e) => setField('sexe', e.target.value)}
+                    sx={{ gap: 2, minHeight: 44, alignItems: 'center' }}
+                  >
+                    <Radio value="M" label="M" disabled={identiteLocked} />
+                    <Radio value="F" label="F" disabled={identiteLocked} />
+                  </RadioGroup>
+                </FormControl>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>État civil</FormLabel>
+                  <Input value={form.etatCivil} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('etatCivil', e.target.value)} />
+                </FormControl>
+              </Stack>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>Né(e) le</FormLabel>
+                  <Input type="date" value={form.dateNaissance} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('dateNaissance', e.target.value)} />
+                </FormControl>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>à</FormLabel>
+                  <Input value={form.lieuNaissance} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('lieuNaissance', e.target.value)} />
+                </FormControl>
+              </Stack>
+              <FormControl>
+                <FormLabel>Adresse de résidence</FormLabel>
+                <Input value={form.adresse} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('adresse', e.target.value)} />
+              </FormControl>
+              <FormControl required>
+                <FormLabel>Motif de l’examen</FormLabel>
+                <RadioGroup
+                  value={form.motif}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setForm((prev) => ({
+                      ...prev,
+                      motif: next,
+                      filiereId: next === 'ADMISSION_UKV' ? prev.filiereId : '',
+                      motifAutre: next === 'AUTRE' ? prev.motifAutre : '',
+                    }));
+                  }}
+                >
+                  {APTITUDE_MOTIFS.map((m) => (
+                    <Radio key={m.value} value={m.value} label={m.label} disabled={identiteLocked} />
+                  ))}
+                </RadioGroup>
+              </FormControl>
+              {form.motif === 'ADMISSION_UKV' ? (
+                <FormControl required>
+                  <FormLabel>Filière</FormLabel>
+                  <Select
+                    placeholder={filieres.length ? 'Choisir une filière' : 'Aucune filière enregistrée'}
+                    value={form.filiereId}
+                    disabled={identiteLocked}
+                    sx={aptitudeFieldSx}
+                    slotProps={{ listbox: { sx: { zIndex: 1300 } } }}
+                    onChange={(_, v) => setField('filiereId', v ?? '')}
+                  >
+                    {filieres.map((f) => (
+                      <Option key={f.id} value={String(f.id)}>{f.code} — {f.libelle}</Option>
+                    ))}
+                  </Select>
+                </FormControl>
+              ) : null}
+              {form.motif === 'AUTRE' ? (
+                <FormControl>
+                  <FormLabel>Préciser le motif</FormLabel>
+                  <Input value={form.motifAutre} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('motifAutre', e.target.value)} />
+                </FormControl>
+              ) : null}
+            </Stack>
+          </Card>
+        </TabPanel>
+
+        <TabPanel value="imc" sx={{ p: 0, pt: 2 }}>
+          <Card variant="outlined">
+            <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>Poids (kg)</FormLabel>
+                  <Input type="number" value={form.poidsKg} disabled={imcLocked} sx={aptitudeFieldSx} slotProps={{ input: { inputMode: 'decimal', step: '0.1', min: '0' } }} onChange={(e) => setField('poidsKg', e.target.value)} />
+                </FormControl>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>Taille (m)</FormLabel>
+                  <Input
+                    type="number"
+                    slotProps={{ input: { inputMode: 'decimal', step: '0.01', min: '0.5', placeholder: '1.75' } }}
+                    value={form.tailleM}
+                    disabled={imcLocked}
+                    sx={aptitudeFieldSx}
+                    onChange={(e) => setField('tailleM', e.target.value)}
+                  />
+                </FormControl>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>IMC (kg/m²)</FormLabel>
+                  <Input value={formatIndice(indices.imc)} disabled sx={aptitudeFieldSx} />
+                </FormControl>
+              </Stack>
+              <Box>
+                <Typography level="body-sm" sx={{ mb: 0.5, color: 'neutral.500' }}>
+                  Interprétation OMS (proposée, modifiable)
+                </Typography>
+                <RadioGroup
+                  value={form.imcClasse}
+                  onChange={(e) => setField('imcClasse', e.target.value)}
+                >
+                  {Object.entries(IMC_LABELS).map(([value, label]) => (
+                    <Radio key={value} value={value} label={label} disabled={imcLocked} />
+                  ))}
+                </RadioGroup>
+                {indices.imcClasse && form.imcClasse && form.imcClasse !== indices.imcClasse ? (
+                  <Alert color="warning" variant="soft" sx={{ mt: 1 }}>
+                    Proposition automatique : {IMC_LABELS[indices.imcClasse] || indices.imcClasse}.
+                    Vous avez choisi {IMC_LABELS[form.imcClasse] || form.imcClasse}.
+                  </Alert>
+                ) : null}
+              </Box>
+            </Stack>
+          </Card>
+        </TabPanel>
+
+        <TabPanel value="pignet" sx={{ p: 0, pt: 2 }}>
+          <Card variant="outlined">
+            <Stack spacing={2}>
+              <FormControl sx={{ maxWidth: 280 }}>
+                <FormLabel>Périmètre thoracique (cm)</FormLabel>
+                <Input type="number" value={form.perimetreThoraciqueCm} disabled={pignetLocked} sx={aptitudeFieldSx} slotProps={{ input: { inputMode: 'decimal', step: '0.5', min: '0' } }} onChange={(e) => setField('perimetreThoraciqueCm', e.target.value)} />
+              </FormControl>
+              <Typography level="body-sm">Indice de Pignet : <strong>{formatIndice(indices.pignet)}</strong></Typography>
+              <Box>
+                <Typography level="body-sm" sx={{ mb: 0.5, color: 'neutral.500' }}>Constitution physique</Typography>
+                <CheckRow
+                  value={indices.pignetRobustesse}
+                  options={Object.entries(PIGNET_LABELS).map(([value, label]) => ({ value, label }))}
+                />
+              </Box>
+            </Stack>
+          </Card>
+        </TabPanel>
+
+        <TabPanel value="ruffier" sx={{ p: 0, pt: 2 }}>
+          <Card variant="outlined">
+            <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>P1 repos (/min)</FormLabel>
+                  <Input type="number" value={form.p1} disabled={ruffierLocked} sx={aptitudeFieldSx} slotProps={{ input: { inputMode: 'numeric', min: '0' } }} onChange={(e) => setField('p1', e.target.value)} />
+                </FormControl>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>P2 post-effort (/min)</FormLabel>
+                  <Input type="number" value={form.p2} disabled={ruffierLocked} sx={aptitudeFieldSx} slotProps={{ input: { inputMode: 'numeric', min: '0' } }} onChange={(e) => setField('p2', e.target.value)} />
+                </FormControl>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>P3 récupération 1' (/min)</FormLabel>
+                  <Input type="number" value={form.p3} disabled={ruffierLocked} sx={aptitudeFieldSx} slotProps={{ input: { inputMode: 'numeric', min: '0' } }} onChange={(e) => setField('p3', e.target.value)} />
+                </FormControl>
+              </Stack>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                <Typography level="body-sm">Ruffier : <strong>{formatIndice(indices.ruffier)}</strong></Typography>
+                <Typography level="body-sm">Dickson : <strong>{formatIndice(indices.dickson)}</strong></Typography>
+              </Stack>
+              <Box>
+                <Typography level="body-sm" sx={{ mb: 0.5, color: 'neutral.500' }}>Adaptation Ruffier</Typography>
+                <CheckRow
+                  value={indices.ruffierClasse}
+                  options={Object.entries(RUFFIER_LABELS).map(([value, label]) => ({ value, label }))}
+                />
+              </Box>
+              <Box>
+                <Typography level="body-sm" sx={{ mb: 0.5, color: 'neutral.500' }}>Adaptation Dickson</Typography>
+                <CheckRow
+                  value={indices.dicksonClasse}
+                  options={Object.entries(DICKSON_LABELS).map(([value, label]) => ({ value, label }))}
+                />
+              </Box>
+            </Stack>
+          </Card>
+        </TabPanel>
+
+        <TabPanel value="verdict" sx={{ p: 0, pt: 2 }}>
+          <Card variant="outlined">
+            <Stack spacing={2}>
+              <Typography level="body-sm" sx={{ color: 'neutral.600' }}>
+                Après examen clinique complet, le/la candidat(e) est déclaré(e) :
+              </Typography>
               <RadioGroup
                 orientation="horizontal"
-                value={form.sexe}
-                onChange={(e) => setField('sexe', e.target.value)}
+                value={form.verdict}
+                onChange={(e) => setField('verdict', e.target.value)}
+                sx={{ gap: 2, flexWrap: 'wrap', minHeight: 44 }}
               >
-                <Radio value="M" label="M" disabled={locked} />
-                <Radio value="F" label="F" disabled={locked} />
+                <Radio value="APTE" label="APTE" disabled={verdictLocked} />
+                <Radio value="INAPTE" label="INAPTE" disabled={verdictLocked} />
               </RadioGroup>
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>État civil</FormLabel>
-              <Input value={form.etatCivil} disabled={locked} onChange={(e) => setField('etatCivil', e.target.value)} />
-            </FormControl>
-          </Stack>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>Né(e) le</FormLabel>
-              <Input type="date" value={form.dateNaissance} disabled={locked} onChange={(e) => setField('dateNaissance', e.target.value)} />
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>à</FormLabel>
-              <Input value={form.lieuNaissance} disabled={locked} onChange={(e) => setField('lieuNaissance', e.target.value)} />
-            </FormControl>
-          </Stack>
-          <FormControl>
-            <FormLabel>Adresse de résidence</FormLabel>
-            <Input value={form.adresse} disabled={locked} onChange={(e) => setField('adresse', e.target.value)} />
-          </FormControl>
-          <FormControl required>
-            <FormLabel>Motif de l’examen</FormLabel>
-            <RadioGroup
-              value={form.motif}
-              onChange={(e) => {
-                const next = e.target.value;
-                setForm((prev) => ({
-                  ...prev,
-                  motif: next,
-                  filiereId: next === 'ADMISSION_UKV' ? prev.filiereId : '',
-                  motifAutre: next === 'AUTRE' ? prev.motifAutre : '',
-                }));
-              }}
-            >
-              {APTITUDE_MOTIFS.map((m) => (
-                <Radio key={m.value} value={m.value} label={m.label} disabled={locked} />
-              ))}
-            </RadioGroup>
-          </FormControl>
-          {form.motif === 'ADMISSION_UKV' ? (
-            <FormControl required>
-              <FormLabel>Filière UKV</FormLabel>
-              <Select
-                placeholder={filieres.length ? 'Choisir une filière' : 'Aucune filière enregistrée'}
-                value={form.filiereId}
-                disabled={locked}
-                onChange={(_, v) => setField('filiereId', v ?? '')}
-              >
-                {filieres.map((f) => (
-                  <Option key={f.id} value={String(f.id)}>{f.code} — {f.libelle}</Option>
-                ))}
-              </Select>
-              {!locked && filieres.length === 0 ? (
-                <Typography level="body-xs" sx={{ color: 'warning.600', mt: 0.5 }}>
-                  Aucune filière n’est encore enregistrée. Un administrateur doit les créer dans Référentiel → Filières UKV.
-                </Typography>
+              {indices.verdictPropose && form.verdict && form.verdict !== indices.verdictPropose ? (
+                <Alert color="warning" variant="soft">
+                  Proposition automatique : {indices.verdictPropose}. Vous avez choisi {form.verdict}.
+                </Alert>
               ) : null}
-            </FormControl>
-          ) : null}
-          {form.motif === 'AUTRE' ? (
-            <FormControl>
-              <FormLabel>Préciser le motif</FormLabel>
-              <Input value={form.motifAutre} disabled={locked} onChange={(e) => setField('motifAutre', e.target.value)} />
-            </FormControl>
-          ) : null}
-        </Stack>
-      </Card>
+            </Stack>
+          </Card>
+        </TabPanel>
+      </Tabs>
 
-      <Card variant="outlined">
-        <Stack spacing={2}>
-          <Typography level="title-md">II. Indice de masse corporelle (IMC)</Typography>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>Poids (kg)</FormLabel>
-              <Input type="number" value={form.poidsKg} disabled={locked} onChange={(e) => setField('poidsKg', e.target.value)} />
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>Taille (m)</FormLabel>
-              <Input
-                type="number"
-                slotProps={{ input: { step: '0.01', min: '0.5', placeholder: '1.75' } }}
-                value={form.tailleM}
-                disabled={locked}
-                onChange={(e) => setField('tailleM', e.target.value)}
-              />
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>IMC (kg/m²)</FormLabel>
-              <Input value={formatIndice(indices.imc)} disabled />
-            </FormControl>
-          </Stack>
-          <Box>
-            <Typography level="body-sm" sx={{ mb: 0.5, color: 'neutral.500' }}>
-              Interprétation OMS (proposée, modifiable)
-            </Typography>
-            <RadioGroup
-              value={form.imcClasse}
-              onChange={(e) => setField('imcClasse', e.target.value)}
-            >
-              {Object.entries(IMC_LABELS).map(([value, label]) => (
-                <Radio key={value} value={value} label={label} disabled={locked} />
-              ))}
-            </RadioGroup>
-            {indices.imcClasse && form.imcClasse && form.imcClasse !== indices.imcClasse ? (
-              <Alert color="warning" variant="soft" sx={{ mt: 1 }}>
-                Proposition automatique : {IMC_LABELS[indices.imcClasse] || indices.imcClasse}.
-                Vous avez choisi {IMC_LABELS[form.imcClasse] || form.imcClasse}.
-              </Alert>
-            ) : null}
-          </Box>
-        </Stack>
-      </Card>
+      <Box sx={{ display: { xs: 'block', sm: 'none' }, height: 96 }} />
 
-      <Card variant="outlined">
-        <Stack spacing={2}>
-          <Typography level="title-md">III. Indice de Pignet (constitution physique)</Typography>
-          <FormControl sx={{ maxWidth: 280 }}>
-            <FormLabel>Périmètre thoracique (cm)</FormLabel>
-            <Input type="number" value={form.perimetreThoraciqueCm} disabled={locked} onChange={(e) => setField('perimetreThoraciqueCm', e.target.value)} />
-          </FormControl>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-            <Typography level="body-sm">Indice de Pignet : <strong>{formatIndice(indices.pignet)}</strong></Typography>
-          </Stack>
-          <Box>
-            <Typography level="body-sm" sx={{ mb: 0.5, color: 'neutral.500' }}>Constitution physique</Typography>
-            <CheckRow
-              value={indices.pignetRobustesse}
-              options={Object.entries(PIGNET_LABELS).map(([value, label]) => ({ value, label }))}
-            />
-          </Box>
-        </Stack>
-      </Card>
-
-      <Card variant="outlined">
-        <Stack spacing={2}>
-          <Typography level="title-md">IV. Indice de Ruffier-Dickson</Typography>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>P1 repos (/min)</FormLabel>
-              <Input type="number" value={form.p1} disabled={locked} onChange={(e) => setField('p1', e.target.value)} />
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>P2 post-effort (/min)</FormLabel>
-              <Input type="number" value={form.p2} disabled={locked} onChange={(e) => setField('p2', e.target.value)} />
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>P3 récupération 1' (/min)</FormLabel>
-              <Input type="number" value={form.p3} disabled={locked} onChange={(e) => setField('p3', e.target.value)} />
-            </FormControl>
-          </Stack>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-            <Typography level="body-sm">Ruffier : <strong>{formatIndice(indices.ruffier)}</strong></Typography>
-            <Typography level="body-sm">Dickson : <strong>{formatIndice(indices.dickson)}</strong></Typography>
-          </Stack>
-          <Box>
-            <Typography level="body-sm" sx={{ mb: 0.5, color: 'neutral.500' }}>Adaptation Ruffier</Typography>
-            <CheckRow
-              value={indices.ruffierClasse}
-              options={Object.entries(RUFFIER_LABELS).map(([value, label]) => ({ value, label }))}
-            />
-          </Box>
-          <Box>
-            <Typography level="body-sm" sx={{ mb: 0.5, color: 'neutral.500' }}>Adaptation Dickson</Typography>
-            <CheckRow
-              value={indices.dicksonClasse}
-              options={Object.entries(DICKSON_LABELS).map(([value, label]) => ({ value, label }))}
-            />
-          </Box>
-        </Stack>
-      </Card>
-
-      <Card variant="outlined">
-        <Stack spacing={2}>
-          <Typography level="title-md">V. Conclusion et verdict médical</Typography>
-          <Typography level="body-sm" sx={{ color: 'neutral.600' }}>
-            Après examen clinique complet, le/la candidat(e) est déclaré(e) :
-          </Typography>
-          <RadioGroup
-            orientation="horizontal"
-            value={form.verdict}
-            onChange={(e) => setField('verdict', e.target.value)}
-          >
-            <Radio value="APTE" label="APTE" disabled={locked} />
-            <Radio value="INAPTE" label="INAPTE" disabled={locked} />
-          </RadioGroup>
-          {indices.verdictPropose && form.verdict && form.verdict !== indices.verdictPropose ? (
-            <Alert color="warning" variant="soft">
-              Proposition automatique : {indices.verdictPropose}. Vous avez choisi {form.verdict}.
-            </Alert>
-          ) : null}
-        </Stack>
-      </Card>
-
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
-        {canSave ? (
-          <Button startDecorator={<Save size={16} />} loading={saving} onClick={handleSave}>
-            Enregistrer
-          </Button>
-        ) : null}
-        {canSign && detail?.statut === 'BROUILLON' ? (
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={1}
+        justifyContent="flex-end"
+        sx={{
+          position: { xs: 'fixed', sm: 'static' },
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 20,
+          bgcolor: 'background.body',
+          py: { xs: 1.5, sm: 0 },
+          mt: 1,
+          px: { xs: 2, sm: 0 },
+          pb: { xs: 'calc(12px + env(safe-area-inset-bottom, 0px))', sm: 0 },
+          borderTop: { xs: '1px solid', sm: 'none' },
+          borderColor: 'divider',
+          boxShadow: { xs: '0 -8px 24px rgba(15, 23, 42, 0.08)', sm: 'none' },
+        }}
+      >
+        <Button
+          size="lg"
+          startDecorator={<Save size={16} />}
+          loading={saving}
+          disabled={!canSave}
+          title={!canSave ? 'Permission requise pour enregistrer' : undefined}
+          onClick={handleSave}
+        >
+          Enregistrer
+        </Button>
+        {detail?.statut === 'BROUILLON' ? (
           <Button
+            size="lg"
             color="success"
             startDecorator={<Stamp size={16} />}
+            disabled={!canSign}
+            title={!canSign ? 'Permission requise pour signer' : undefined}
             onClick={() => {
+              if (!canSign) return;
               if (form.motif === 'ADMISSION_UKV' && !form.filiereId) {
                 setError('Sélectionnez une filière avant de signer une admission UKV.');
                 return;
@@ -551,24 +647,42 @@ export default function AptitudeFormPage() {
             Signer
           </Button>
         ) : null}
-        {canExport && detail && detail.statut !== 'BROUILLON' ? (
+        {detail && detail.statut !== 'BROUILLON' ? (
           <Button
+            size="lg"
             variant="outlined"
             startDecorator={<FileText size={16} />}
             loading={pdfLoading}
-            disabled={pdfLoading}
+            disabled={!canExport || pdfLoading}
+            title={!canExport ? 'Permission requise pour imprimer' : undefined}
             onClick={handlePdf}
           >
             {pdfLoading ? 'Génération…' : 'PDF'}
           </Button>
         ) : null}
-        {canSign && detail?.statut === 'SIGNE' ? (
-          <Button color="danger" variant="outlined" startDecorator={<XCircle size={16} />} onClick={() => setConfirmAction('annuler')}>
+        {detail?.statut === 'SIGNE' ? (
+          <Button
+            size="lg"
+            color="danger"
+            variant="outlined"
+            startDecorator={<XCircle size={16} />}
+            disabled={!canSign}
+            title={!canSign ? 'Permission requise pour annuler' : undefined}
+            onClick={() => { if (canSign) setConfirmAction('annuler'); }}
+          >
             Annuler le certificat
           </Button>
         ) : null}
-        {canDelete && detail?.statut === 'BROUILLON' ? (
-          <Button color="danger" variant="plain" startDecorator={<Trash2 size={16} />} onClick={() => setConfirmAction('delete')}>
+        {detail?.statut === 'BROUILLON' ? (
+          <Button
+            size="lg"
+            color="danger"
+            variant="plain"
+            startDecorator={<Trash2 size={16} />}
+            disabled={!canDelete}
+            title={!canDelete ? 'Permission requise pour supprimer' : undefined}
+            onClick={() => { if (canDelete) setConfirmAction('delete'); }}
+          >
             Supprimer
           </Button>
         ) : null}

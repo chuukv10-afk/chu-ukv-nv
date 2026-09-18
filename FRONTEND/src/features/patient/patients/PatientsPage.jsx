@@ -27,7 +27,7 @@ import {
   PATIENT_STATUS_COLORS,
   PATIENT_STATUS_LABELS,
 } from './patientConstants.js';
-import { CATEGORIE_TARIFAIRE_LABELS } from '../../facturation/facturationConstants.js';
+import { TYPE_INSTITUTION_LABELS } from '../../referentiel/organisations-partenaires/OrganisationsPartenairesPage.jsx';
 import {
   createPatientApi,
   deletePatientApi,
@@ -86,6 +86,8 @@ export default function PatientsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [sexeFilter, setSexeFilter] = useState('');
   const [filiereFilter, setFiliereFilter] = useState('');
+  const [organisationFilter, setOrganisationFilter] = useState('');
+  const [typeInstitutionFilter, setTypeInstitutionFilter] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_PATIENT_PAGE_SIZE);
   const [exportLoading, setExportLoading] = useState(null);
@@ -98,6 +100,8 @@ export default function PatientsPage() {
   const [editing, setEditing] = useState(null);
   const [structures, setStructures] = useState([]);
   const [filieres, setFilieres] = useState([]);
+  const [organisations, setOrganisations] = useState([]);
+  const [typesInstitution, setTypesInstitution] = useState([]);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(null);
@@ -109,7 +113,7 @@ export default function PatientsPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, sexeFilter, filiereFilter, limit]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, sexeFilter, filiereFilter, organisationFilter, typeInstitutionFilter, limit]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -122,6 +126,8 @@ export default function PatientsPage() {
         status: statusFilter || undefined,
         sexe: sexeFilter || undefined,
         filiereId: filiereFilter || undefined,
+        organisationId: organisationFilter || undefined,
+        typeInstitution: typeInstitutionFilter || undefined,
       });
       setItems(result.items);
       setPagination(result.pagination);
@@ -133,7 +139,7 @@ export default function PatientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch, statusFilter, sexeFilter, filiereFilter]);
+  }, [page, limit, debouncedSearch, statusFilter, sexeFilter, filiereFilter, organisationFilter, typeInstitutionFilter]);
 
   useEffect(() => { load(page); }, [load, page]);
 
@@ -142,10 +148,14 @@ export default function PatientsPage() {
       .then((meta) => {
         setStructures(Array.isArray(meta.structures) ? meta.structures : []);
         setFilieres(Array.isArray(meta.filieres) ? meta.filieres.filter(Boolean) : []);
+        setOrganisations(Array.isArray(meta.organisations) ? meta.organisations.filter(Boolean) : []);
+        setTypesInstitution(Array.isArray(meta.typesInstitution) ? meta.typesInstitution : []);
       })
       .catch(() => {
         setStructures([]);
         setFilieres([]);
+        setOrganisations([]);
+        setTypesInstitution([]);
       });
   }, []);
 
@@ -181,6 +191,7 @@ export default function PatientsPage() {
         structureId: detail.structure?.id ? String(detail.structure.id) : '',
         numeroAffiliation: detail.numeroAffiliation ?? '',
         codeUkv: detail.codeUkv ?? '',
+        organisationId: detail.organisation?.id ? String(detail.organisation.id) : '',
         filiereId: detail.filiere?.id ? String(detail.filiere.id) : '',
         status: detail.status ?? 'ACTIF',
       });
@@ -245,6 +256,8 @@ export default function PatientsPage() {
           status: statusFilter || undefined,
           sexe: sexeFilter || undefined,
           filiereId: filiereFilter || undefined,
+          organisationId: organisationFilter || undefined,
+          typeInstitution: typeInstitutionFilter || undefined,
         },
         filenamePrefix: 'patients',
       });
@@ -321,16 +334,63 @@ export default function PatientsPage() {
                 <Option value="F">Féminin</Option>
               </Select>
               <Select
-                value={filiereFilter}
-                onChange={(_, value) => setFiliereFilter(value ?? '')}
-                placeholder="Filière UKV"
-                sx={{ minWidth: 200 }}
+                value={typeInstitutionFilter}
+                onChange={(_, value) => {
+                  setTypeInstitutionFilter(value ?? '');
+                  setOrganisationFilter('');
+                  setFiliereFilter('');
+                }}
+                placeholder="Type d’institution"
+                sx={{ minWidth: 180 }}
               >
-                <Option value="">Toutes les filières</Option>
-                {filieres.map((item) => (
-                  <Option key={item.id} value={String(item.id)}>{item.code} — {item.libelle}</Option>
+                <Option value="">Tous les types</Option>
+                {(typesInstitution.length ? typesInstitution : Object.entries(TYPE_INSTITUTION_LABELS).map(([code, libelle]) => ({ code, libelle }))).map((item) => (
+                  <Option key={item.code} value={item.code}>{item.libelle}</Option>
                 ))}
               </Select>
+              <Select
+                value={organisationFilter}
+                onChange={(_, value) => {
+                  setOrganisationFilter(value ?? '');
+                  setFiliereFilter('');
+                }}
+                placeholder="Organisation"
+                sx={{ minWidth: 220 }}
+              >
+                <Option value="">Toutes</Option>
+                {organisations
+                  .filter((item) => !typeInstitutionFilter || item.typeInstitution === typeInstitutionFilter)
+                  .map((item) => (
+                    <Option key={item.id} value={String(item.id)}>{item.code} — {item.libelle}</Option>
+                  ))}
+              </Select>
+              {(() => {
+                const selectedOrg = organisations.find((item) => String(item.id) === String(organisationFilter));
+                const showFiliere = selectedOrg?.requiresFiliere
+                  || selectedOrg?.typeInstitution === 'UNIVERSITE'
+                  || typeInstitutionFilter === 'UNIVERSITE';
+                if (!showFiliere) return null;
+                return (
+                  <Select
+                    value={filiereFilter}
+                    onChange={(_, value) => setFiliereFilter(value ?? '')}
+                    placeholder="Filière"
+                    sx={{ minWidth: 200 }}
+                  >
+                    <Option value="">Toutes les filières</Option>
+                    {filieres
+                      .filter((item) => {
+                        if (organisationFilter) return String(item.organisationId) === String(organisationFilter);
+                        return organisations.some((org) => (
+                          org.id === item.organisationId && org.typeInstitution === 'UNIVERSITE'
+                        ));
+                      })
+                      .map((item) => (
+                        <Option key={item.id} value={String(item.id)}>{item.code} — {item.libelle}</Option>
+                      ))}
+                  </Select>
+                );
+              })()}
             </Stack>
 
             {listError ? (
@@ -376,9 +436,13 @@ export default function PatientsPage() {
                       </td>
                       <td>
                         <Typography level="body-sm" sx={{ fontWeight: 600 }}>{item.fullName}</Typography>
-                        {item.filiere || item.codeUkv ? (
+                        {item.organisation || item.filiere || item.codeUkv ? (
                           <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                            UKV{item.codeUkv ? ` ${item.codeUkv}` : ''}{item.filiere ? ` · ${item.filiere.libelle}` : ''}
+                            {[
+                              item.organisation?.libelle,
+                              item.filiere?.libelle,
+                              item.codeUkv,
+                            ].filter(Boolean).join(' · ')}
                           </Typography>
                         ) : null}
                       </td>
@@ -448,6 +512,7 @@ export default function PatientsPage() {
         error={formError}
         structures={structures}
         filieres={filieres}
+        organisations={organisations}
         readOnlyIdentity={formMode === 'edit' && editing?.status === 'DECEDE'}
         onClose={() => setFormOpen(false)}
         onSubmit={handleSubmit}

@@ -15,6 +15,7 @@ use App\Exception\NotFoundException;
 use App\Repository\CertificatAptitudeRepository;
 use App\Repository\FiliereRepository;
 use App\Repository\ServiceRepository;
+use App\Security\Permission\CliniquePermissions;
 use App\Service\Patient\PatientService;
 use App\Service\Referentiel\FiliereService;
 use App\Service\Referentiel\OrganisationPartenaireService;
@@ -218,7 +219,7 @@ final class AptitudeService
         $this->assertValid($input);
         $certificat = new CertificatAptitude();
         $certificat->setAnnee($this->currentYear());
-        $this->hydrate($certificat, $input);
+        $this->hydrate($certificat, $input, true);
         $this->entityManager->persist($certificat);
         $this->entityManager->flush();
 
@@ -227,10 +228,13 @@ final class AptitudeService
 
     public function update(int $id, UpsertAptitudeInput $input): CertificatAptitude
     {
+        if (!$this->canUpdateAnySection()) {
+            throw new ConflictException('Vous n\'avez pas le droit de modifier ce certificat.');
+        }
         $this->assertValid($input);
         $certificat = $this->getById($id);
         $this->assertBrouillon($certificat);
-        $this->hydrate($certificat, $input);
+        $this->hydrate($certificat, $input, false);
         $this->entityManager->flush();
 
         return $certificat;
@@ -369,70 +373,114 @@ final class AptitudeService
         ];
     }
 
-    private function hydrate(CertificatAptitude $certificat, UpsertAptitudeInput $input): void
+    private function hydrate(CertificatAptitude $certificat, UpsertAptitudeInput $input, bool $full): void
     {
-        $service = $this->serviceRepository->find($input->serviceId);
-        if (!$service instanceof Service) {
-            throw new NotFoundException('Service non trouvé.');
+        $applyIdentite = $full || $this->canUpdateSection(CliniquePermissions::APTITUDE_IDENTITE_UPDATE);
+        $applyImc = $full || $this->canUpdateSection(CliniquePermissions::APTITUDE_IMC_UPDATE);
+        $applyPignet = $full || $this->canUpdateSection(CliniquePermissions::APTITUDE_PIGNET_UPDATE);
+        $applyRuffier = $full || $this->canUpdateSection(CliniquePermissions::APTITUDE_RUFFIER_UPDATE);
+        $applyVerdict = $full || $this->canUpdateSection(CliniquePermissions::APTITUDE_VERDICT_UPDATE);
+
+        if ($applyIdentite) {
+            $service = $this->serviceRepository->find($input->serviceId);
+            if (!$service instanceof Service) {
+                throw new NotFoundException('Service non trouvé.');
+            }
+
+            if (CertificatAptitude::MOTIF_AUTRE === $input->motif && (null === $input->motifAutre || '' === trim($input->motifAutre))) {
+                throw new ConflictException('Précisez le motif lorsque « Autre » est sélectionné.');
+            }
+
+            $patient = null;
+            if (null !== $input->patientId) {
+                $patient = $this->patientService->getById($input->patientId);
+            }
+
+            $certificat
+                ->setService($service)
+                ->setPatient($patient)
+                ->setNom(mb_strtoupper(trim($input->nom)))
+                ->setPostNom(mb_strtoupper(trim($input->postNom)))
+                ->setPrenom($this->blankToNull($input->prenom))
+                ->setSexe(strtoupper(trim($input->sexe)))
+                ->setEtatCivil($this->blankToNull($input->etatCivil))
+                ->setDateNaissance($this->parseDate($input->dateNaissance))
+                ->setLieuNaissance($this->blankToNull($input->lieuNaissance))
+                ->setAdresse($this->blankToNull($input->adresse))
+                ->setMotif($input->motif)
+                ->setMotifAutre(CertificatAptitude::MOTIF_AUTRE === $input->motif ? $this->blankToNull($input->motifAutre) : null)
+                ->setFiliere($this->resolveFiliere($input));
         }
 
-        if (CertificatAptitude::MOTIF_AUTRE === $input->motif && (null === $input->motifAutre || '' === trim($input->motifAutre))) {
-            throw new ConflictException('Précisez le motif lorsque « Autre » est sélectionné.');
-        }
-
-        $patient = null;
-        if (null !== $input->patientId) {
-            $patient = $this->patientService->getById($input->patientId);
-        }
-
-        $poids = $this->toFloat($input->poidsKg);
-        $taille = AptitudeCalculator::tailleMetres($this->toFloat($input->tailleM));
-        $perimetre = $this->toFloat($input->perimetreThoraciqueCm);
-        $p1 = $this->toInt($input->p1);
-        $p2 = $this->toInt($input->p2);
-        $p3 = $this->toInt($input->p3);
+        $poids = $applyImc ? $this->toFloat($input->poidsKg) : $this->asFloat($certificat->getPoidsKg());
+        $taille = AptitudeCalculator::tailleMetres(
+            $applyImc ? $this->toFloat($input->tailleM) : $this->asFloat($certificat->getTailleM()),
+        );
+        $perimetre = $applyPignet
+            ? $this->toFloat($input->perimetreThoraciqueCm)
+            : $this->asFloat($certificat->getPerimetreThoraciqueCm());
+        $p1 = $applyRuffier ? $this->toInt($input->p1) : $certificat->getP1();
+        $p2 = $applyRuffier ? $this->toInt($input->p2) : $certificat->getP2();
+        $p3 = $applyRuffier ? $this->toInt($input->p3) : $certificat->getP3();
         $computed = AptitudeCalculator::compute($poids, $taille, $perimetre, $p1, $p2, $p3);
 
-        $verdict = $this->normalizeVerdict($input->verdict);
-        if (null === $verdict) {
-            $verdict = $computed['verdictPropose'];
+        if ($applyImc) {
+            $imcClasse = $this->normalizeImcClasse($input->imcClasse);
+            if (null === $imcClasse) {
+                $imcClasse = $computed['imcClasse'];
+            }
+            $certificat
+                ->setPoidsKg($this->toDecimal($poids))
+                ->setTailleM($this->toDecimal($taille))
+                ->setImc($this->toDecimal($computed['imc']))
+                ->setImcClasse($imcClasse);
         }
 
-        $imcClasse = $this->normalizeImcClasse($input->imcClasse);
-        if (null === $imcClasse) {
-            $imcClasse = $computed['imcClasse'];
+        if ($applyPignet) {
+            $certificat
+                ->setPerimetreThoraciqueCm($this->toDecimal($perimetre))
+                ->setPignet($this->toDecimal($computed['pignet']))
+                ->setPignetRobustesse($computed['pignetRobustesse']);
         }
 
-        $certificat
-            ->setService($service)
-            ->setPatient($patient)
-            ->setNom(mb_strtoupper(trim($input->nom)))
-            ->setPostNom(mb_strtoupper(trim($input->postNom)))
-            ->setPrenom($this->blankToNull($input->prenom))
-            ->setSexe(strtoupper(trim($input->sexe)))
-            ->setEtatCivil($this->blankToNull($input->etatCivil))
-            ->setDateNaissance($this->parseDate($input->dateNaissance))
-            ->setLieuNaissance($this->blankToNull($input->lieuNaissance))
-            ->setAdresse($this->blankToNull($input->adresse))
-            ->setMotif($input->motif)
-            ->setMotifAutre(CertificatAptitude::MOTIF_AUTRE === $input->motif ? $this->blankToNull($input->motifAutre) : null)
-            ->setFiliere($this->resolveFiliere($input))
-            ->setPoidsKg($this->toDecimal($poids))
-            ->setTailleM($this->toDecimal($taille))
-            ->setPerimetreThoraciqueCm($this->toDecimal($perimetre))
-            ->setP1($p1)
-            ->setP2($p2)
-            ->setP3($p3)
-            ->setImc($this->toDecimal($computed['imc']))
-            ->setImcClasse($imcClasse)
-            ->setPignet($this->toDecimal($computed['pignet']))
-            ->setPignetRobustesse($computed['pignetRobustesse'])
-            ->setRuffier($this->toDecimal($computed['ruffier']))
-            ->setDickson($this->toDecimal($computed['dickson']))
-            ->setRuffierClasse($computed['ruffierClasse'])
-            ->setDicksonClasse($computed['dicksonClasse'])
-            ->setVerdictPropose($computed['verdictPropose'])
-            ->setVerdict($verdict);
+        if ($applyRuffier) {
+            $certificat
+                ->setP1($p1)
+                ->setP2($p2)
+                ->setP3($p3)
+                ->setRuffier($this->toDecimal($computed['ruffier']))
+                ->setDickson($this->toDecimal($computed['dickson']))
+                ->setRuffierClasse($computed['ruffierClasse'])
+                ->setDicksonClasse($computed['dicksonClasse']);
+        }
+
+        if ($applyImc || $applyPignet || $applyRuffier) {
+            $certificat->setVerdictPropose($computed['verdictPropose']);
+        }
+
+        if ($applyVerdict) {
+            $verdict = $this->normalizeVerdict($input->verdict);
+            if (null === $verdict) {
+                $verdict = $computed['verdictPropose'];
+            }
+            $certificat->setVerdict($verdict);
+        }
+    }
+
+    private function canUpdateAnySection(): bool
+    {
+        return $this->canUpdateSection(CliniquePermissions::APTITUDE_IDENTITE_UPDATE)
+            || $this->canUpdateSection(CliniquePermissions::APTITUDE_IMC_UPDATE)
+            || $this->canUpdateSection(CliniquePermissions::APTITUDE_PIGNET_UPDATE)
+            || $this->canUpdateSection(CliniquePermissions::APTITUDE_RUFFIER_UPDATE)
+            || $this->canUpdateSection(CliniquePermissions::APTITUDE_VERDICT_UPDATE)
+            || $this->security->isGranted(CliniquePermissions::APTITUDE_UPDATE);
+    }
+
+    private function canUpdateSection(string $permission): bool
+    {
+        return $this->security->isGranted($permission)
+            || $this->security->isGranted(CliniquePermissions::APTITUDE_UPDATE);
     }
 
     private function assertSignable(CertificatAptitude $certificat): void

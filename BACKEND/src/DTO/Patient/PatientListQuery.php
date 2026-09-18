@@ -24,6 +24,12 @@ final class PatientListQuery
 
         #[Assert\Positive]
         public ?int $filiereId = null,
+
+        #[Assert\Positive]
+        public ?int $organisationId = null,
+
+        #[Assert\Length(max: 30)]
+        public ?string $typeInstitution = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;
@@ -35,6 +41,10 @@ final class PatientListQuery
 
         if ('' === $this->sexe) {
             $this->sexe = null;
+        }
+
+        if ('' === $this->typeInstitution) {
+            $this->typeInstitution = null;
         }
     }
 }
