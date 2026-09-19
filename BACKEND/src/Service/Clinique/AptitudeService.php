@@ -220,11 +220,19 @@ final class AptitudeService
     public function create(UpsertAptitudeInput $input): CertificatAptitude
     {
         $this->assertValid($input);
-        $certificat = new CertificatAptitude();
-        $certificat->setAnnee($this->currentYear());
-        $this->hydrate($certificat, $input, true);
-        $this->entityManager->persist($certificat);
-        $this->entityManager->flush();
+        $this->entityManager->beginTransaction();
+        try {
+            $certificat = new CertificatAptitude();
+            $certificat->setAnnee($this->currentYear());
+            $this->hydrate($certificat, $input, true);
+            $this->allocateNumero($certificat);
+            $this->entityManager->persist($certificat);
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+        } catch (\Throwable $exception) {
+            $this->entityManager->rollback();
+            throw $exception;
+        }
 
         return $certificat;
     }
@@ -238,6 +246,19 @@ final class AptitudeService
         $certificat = $this->getById($id);
         $this->assertBrouillon($certificat);
         $this->hydrate($certificat, $input, false);
+        if (!$this->hasNumero($certificat)) {
+            $this->entityManager->beginTransaction();
+            try {
+                $this->allocateNumero($certificat);
+                $this->entityManager->flush();
+                $this->entityManager->commit();
+            } catch (\Throwable $exception) {
+                $this->entityManager->rollback();
+                throw $exception;
+            }
+
+            return $certificat;
+        }
         $this->entityManager->flush();
 
         return $certificat;
@@ -304,15 +325,12 @@ final class AptitudeService
         }
 
         $now = new \DateTimeImmutable('now', new \DateTimeZone(self::TIMEZONE));
-        $year = (int) $now->format('Y');
         $this->entityManager->beginTransaction();
         try {
-            $sequence = $this->repository->nextSequenceForYear($year);
+            $this->allocateNumero($certificat);
 
             $certificat
                 ->setStatut(CertificatAptitude::STATUT_SIGNE)
-                ->setAnnee($year)
-                ->setNumero(sprintf('%04d / CHU-UKV / CAP / %d', $sequence, $year))
                 ->setSigneAt($now)
                 ->setValideJusqua($now->modify('+3 months'))
                 ->setSignePar($personnel);
@@ -852,6 +870,24 @@ final class AptitudeService
     private function currentYear(): int
     {
         return (int) (new \DateTimeImmutable('now', new \DateTimeZone(self::TIMEZONE)))->format('Y');
+    }
+
+    private function hasNumero(CertificatAptitude $certificat): bool
+    {
+        return null !== $certificat->getNumero() && '' !== trim($certificat->getNumero());
+    }
+
+    private function allocateNumero(CertificatAptitude $certificat): void
+    {
+        if ($this->hasNumero($certificat)) {
+            return;
+        }
+
+        $year = (int) ($certificat->getAnnee() ?: $this->currentYear());
+        $sequence = $this->repository->nextSequenceForYear($year);
+        $certificat
+            ->setAnnee($year)
+            ->setNumero($this->repository->formatNumero($sequence, $year));
     }
 
     private function parseDate(?string $value): ?\DateTimeImmutable

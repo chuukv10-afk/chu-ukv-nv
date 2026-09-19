@@ -249,6 +249,7 @@ final class AptitudeImportService
         /** @var array<string, Patient> $localByIdentity */
         $localByIdentity = [];
         $importedAptitudePatients = [];
+        $numeroSequence = null;
 
         $this->entityManager->beginTransaction();
         try {
@@ -371,8 +372,12 @@ final class AptitudeImportService
                     continue;
                 }
 
+                if (null === $numeroSequence) {
+                    $numeroSequence = $this->certificatRepository->nextSequenceForYear($annee);
+                }
                 $aptitude = (new CertificatAptitude())
                     ->setAnnee($annee)
+                    ->setNumero($this->certificatRepository->formatNumero($numeroSequence, $annee))
                     ->setStatut(CertificatAptitude::STATUT_BROUILLON)
                     ->setService($service)
                     ->setPatient($patient)
@@ -386,6 +391,7 @@ final class AptitudeImportService
                 $this->entityManager->persist($aptitude);
                 $importedAptitudePatients[$patientKey] = true;
                 ++$createdAptitudes;
+                ++$numeroSequence;
             }
 
             $this->entityManager->flush();

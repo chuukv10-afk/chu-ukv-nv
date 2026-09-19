@@ -117,12 +117,20 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         return $qb->getQuery()->getArrayResult();
     }
 
+    public function formatNumero(int $sequence, int $year): string
+    {
+        return sprintf('%04d / CHU-UKV / CAP / %d', $sequence, $year);
+    }
+
     public function nextSequenceForYear(int $year): int
     {
         $max = $this->getEntityManager()->getConnection()->fetchOne(
-            'SELECT MAX(CAST(SUBSTRING_INDEX(numero, \' \', 1) AS UNSIGNED))
+            'SELECT CAST(SUBSTRING_INDEX(numero, \' \', 1) AS UNSIGNED)
              FROM certificat_aptitude
-             WHERE numero LIKE :pattern',
+             WHERE numero LIKE :pattern
+             ORDER BY CAST(SUBSTRING_INDEX(numero, \' \', 1) AS UNSIGNED) DESC
+             LIMIT 1
+             FOR UPDATE',
             ['pattern' => '% / CHU-UKV / CAP / ' . $year],
         );
 

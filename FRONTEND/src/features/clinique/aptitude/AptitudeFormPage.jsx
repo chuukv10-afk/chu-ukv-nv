@@ -235,7 +235,9 @@ export default function AptitudeFormPage() {
     try {
       const payload = toPayload(form);
       const saved = isNew ? await createAptitudeApi(payload) : await updateAptitudeApi(id, payload);
-      showSuccess(isNew ? 'Brouillon enregistré.' : 'Certificat mis à jour.');
+      showSuccess(isNew
+        ? (saved.numero ? `Brouillon enregistré. N° ${saved.numero}` : 'Brouillon enregistré.')
+        : (saved.numero ? `Certificat mis à jour. N° ${saved.numero}` : 'Certificat mis à jour.'));
       if (isNew) {
         navigate(ROUTES.CLINIQUE.APTITUDE_DETAIL.replace(':id', saved.id), { replace: true });
       } else {
@@ -307,10 +309,14 @@ export default function AptitudeFormPage() {
 
       <Box>
         <Typography level="h2" sx={{ fontWeight: 700 }}>
-          {isNew ? 'Nouveau certificat' : 'Certificat d’aptitude physique'}
+          {isNew
+            ? 'Nouveau certificat'
+            : (detail?.numero ? `N° ${detail.numero}` : 'Certificat d’aptitude physique')}
         </Typography>
         <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
-          Chaque onglet est soumis à une permission distincte. Sans droit de lecture, l’onglet reste visible mais désactivé.
+          {isNew
+            ? 'Le numéro officiel (N° … / CHU-UKV / CAP / année) est attribué dès l’enregistrement, pour identifier le certificat.'
+            : 'Chaque onglet est soumis à une permission distincte. Sans droit de lecture, l’onglet reste visible mais désactivé.'}
         </Typography>
       </Box>
 
