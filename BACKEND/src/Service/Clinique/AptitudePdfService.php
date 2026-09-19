@@ -79,6 +79,78 @@ final class AptitudePdfService
         );
     }
 
+    public function createJetonsResponse(int $annee): Response
+    {
+        if ($annee < 2000 || $annee > 2100) {
+            throw new ConflictException('Année invalide pour les jetons.');
+        }
+
+        $yearLabel = (string) $annee;
+        $tickets = '';
+        for ($index = 0; $index < 10; ++$index) {
+            $tickets .= <<<HTML
+<div class="cap-jeton">
+    <div class="cap-jeton-brand">CHU UKV · Aptitude physique</div>
+    <div class="cap-jeton-num">
+        N° <span class="cap-dots cap-dots-code"></span>
+        <span class="cap-jeton-static"> / CHU-UKV / CAP / {$yearLabel}</span>
+    </div>
+    <div class="cap-jeton-vitals">
+        <span>Poids (Kg) <span class="cap-dots cap-dots-vital"></span></span>
+        <span>Taille (Cm) <span class="cap-dots cap-dots-vital"></span></span>
+    </div>
+</div>
+HTML;
+        }
+
+        $html = $this->layoutProvider->buildDocument(
+            'Jetons d\'aptitude physique',
+            <<<HTML
+<style>
+h1.report-title { font-size: 13px; margin: 4px 0 6px; }
+.cap-jeton-hint { font-size: 9px; color: #555; margin: 0 0 6px; text-align: center; }
+.cap-jetons { width: 100%; }
+.cap-jeton {
+    display: inline-block;
+    width: 47%;
+    vertical-align: top;
+    box-sizing: border-box;
+    border: 1px solid #1E5AA8;
+    border-radius: 6px;
+    padding: 8px 10px 10px;
+    margin: 0 1.5% 8px 0;
+    min-height: 92px;
+}
+.cap-jeton-brand { font-size: 8px; letter-spacing: 0.4px; color: #1E5AA8; text-transform: uppercase; margin-bottom: 6px; }
+.cap-jeton-num { font-size: 11px; white-space: nowrap; }
+.cap-jeton-static { font-weight: bold; }
+.cap-jeton-vitals { margin-top: 10px; font-size: 10px; }
+.cap-jeton-vitals span { margin-right: 10px; }
+.cap-dots {
+    display: inline-block;
+    border-bottom: 1.6px dotted #111;
+    vertical-align: bottom;
+    height: 14px;
+}
+.cap-dots-code { width: 62px; }
+.cap-dots-vital { width: 58px; margin: 0 4px 0 2px; }
+</style>
+<p class="cap-jeton-hint">Écrire uniquement la partie variable du n° (ex. 0042), le poids et la taille.</p>
+<div class="cap-jetons">{$tickets}</div>
+HTML,
+            '',
+            new \DateTimeImmutable('now', new \DateTimeZone('Africa/Kinshasa')),
+            'portrait',
+        );
+
+        return $this->pdfExportService->createDownloadResponse(
+            $html,
+            sprintf('jetons-aptitude-%d.pdf', $annee),
+            'portrait',
+            inline: true,
+        );
+    }
+
     private function renderBody(CertificatAptitude $certificat): string
     {
         $numero = $this->e($certificat->getNumero() ?? '—');
@@ -331,12 +403,24 @@ HTML;
             return '';
         }
 
-        return trim(sprintf(
-            '%s %s %s',
-            $doctor->getPrenom() ?? '',
-            $doctor->getNom() ?? '',
-            $doctor->getPostNom() ?? '',
-        ));
+        $name = trim(preg_replace(
+            '/\s+/',
+            ' ',
+            sprintf(
+                '%s %s %s',
+                $doctor->getPrenom() ?? '',
+                $doctor->getNom() ?? '',
+                $doctor->getPostNom() ?? '',
+            ),
+        ) ?? '');
+        if ('' === $name) {
+            return '';
+        }
+        if (1 === preg_match('/^dr\.?\s/iu', $name)) {
+            return (string) preg_replace('/^dr\.?\s+/iu', 'Dr. ', $name);
+        }
+
+        return 'Dr. ' . $name;
     }
 
     private function filiereLine(CertificatAptitude $certificat): string

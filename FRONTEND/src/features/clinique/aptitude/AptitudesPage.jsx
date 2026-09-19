@@ -33,6 +33,7 @@ import {
   importAptitudeEtudiantsApi,
   markAptitudesPrintedApi,
   openAptitudeBatchPdfApi,
+  openAptitudeJetonsPdfApi,
   openAptitudePdfApi,
 } from './aptitudeApi.js';
 import { aptitudeFilterSx } from './aptitudeUi.js';
@@ -68,6 +69,8 @@ export default function AptitudesPage() {
   const [listError, setListError] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [numero, setNumero] = useState('');
+  const [debouncedNumero, setDebouncedNumero] = useState('');
   const [annee, setAnnee] = useState('');
   const [statut, setStatut] = useState('');
   const [verdict, setVerdict] = useState('');
@@ -78,6 +81,7 @@ export default function AptitudesPage() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedStatutById, setSelectedStatutById] = useState({});
   const [batchPdfLoading, setBatchPdfLoading] = useState(false);
+  const [jetonsLoading, setJetonsLoading] = useState(false);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const [printConfirmIds, setPrintConfirmIds] = useState([]);
   const [printConfirmLoading, setPrintConfirmLoading] = useState(false);
@@ -112,14 +116,22 @@ export default function AptitudesPage() {
   }, [search]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedNumero(numero.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [numero]);
+
+  useEffect(() => {
     setPage(1);
     setSelectedIds([]);
     setSelectedStatutById({});
-  }, [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, imprime, limit]);
+  }, [debouncedSearch, debouncedNumero, annee, statut, verdict, motif, serviceId, filiereId, imprime, limit]);
+
+  const numeroYear = annee || String(yearOptions[0] ?? new Date().getFullYear());
 
   const filters = useMemo(() => ({
     search: debouncedSearch || undefined,
-    annee: annee || undefined,
+    numero: debouncedNumero || undefined,
+    annee: annee || (debouncedNumero ? numeroYear : undefined),
     statut: statut || undefined,
     verdict: canViewVerdict ? (verdict || undefined) : undefined,
     motif: motif || undefined,
@@ -127,7 +139,7 @@ export default function AptitudesPage() {
     filiereId: filiereId && filiereId !== 'none' ? filiereId : undefined,
     sansFiliere: filiereId === 'none' ? true : undefined,
     imprime: imprime || undefined,
-  }), [debouncedSearch, annee, statut, verdict, motif, serviceId, filiereId, imprime, canViewVerdict]);
+  }), [debouncedSearch, debouncedNumero, annee, numeroYear, statut, verdict, motif, serviceId, filiereId, imprime, canViewVerdict]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -166,6 +178,17 @@ export default function AptitudesPage() {
       showError(err.message || 'Impossible de générer le PDF.');
     } finally {
       setPdfLoadingId(null);
+    }
+  };
+
+  const handleJetons = async () => {
+    setJetonsLoading(true);
+    try {
+      await openAptitudeJetonsPdfApi(Number(numeroYear));
+    } catch (err) {
+      showError(err.message || 'Impossible de générer les jetons.');
+    } finally {
+      setJetonsLoading(false);
     }
   };
 
@@ -326,6 +349,17 @@ export default function AptitudesPage() {
           {canExport ? <ExportButtons onExport={handleExport} loading={exportLoading} /> : null}
           <Button
             variant="outlined"
+            startDecorator={<FileText size={18} />}
+            disabled={!canExport}
+            loading={jetonsLoading}
+            title={!canExport ? 'Permission requise pour imprimer' : undefined}
+            onClick={handleJetons}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Jetons (10 / A4)
+          </Button>
+          <Button
+            variant="outlined"
             startDecorator={<Printer size={18} />}
             disabled={!canExport || !printableSelectedIds.length}
             loading={batchPdfLoading}
@@ -371,9 +405,29 @@ export default function AptitudesPage() {
       </Stack>
 
       <Card variant="outlined">
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} flexWrap="wrap" useFlexGap>
+        <Stack spacing={1.5}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={1}
+            alignItems={{ sm: 'center' }}
+            flexWrap="wrap"
+            useFlexGap
+          >
+            <Typography level="body-sm" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>N°</Typography>
+            <Input
+              placeholder="0042"
+              value={numero}
+              onChange={(e) => setNumero(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+              sx={{ ...aptitudeFilterSx, minWidth: { xs: '100%', sm: 110 }, maxWidth: { sm: 140 }, flex: { xs: '1 1 100%', sm: '0 0 110px' } }}
+              slotProps={{ input: { inputMode: 'numeric', 'aria-label': 'Début du numéro' } }}
+            />
+            <Typography level="body-sm" sx={{ color: 'neutral.600', fontFamily: 'var(--joy-fontFamily-code, ui-monospace, monospace)', whiteSpace: 'nowrap' }}>
+              / CHU-UKV / CAP / {numeroYear}
+            </Typography>
+          </Stack>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} flexWrap="wrap" useFlexGap>
           <Input
-            placeholder="Rechercher un candidat, un n°…"
+            placeholder="Rechercher un candidat…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             startDecorator={<Search size={16} />}
@@ -411,6 +465,7 @@ export default function AptitudesPage() {
             <Option value="oui">Déjà imprimés</Option>
             <Option value="non">Non imprimés</Option>
           </Select>
+        </Stack>
         </Stack>
       </Card>
 

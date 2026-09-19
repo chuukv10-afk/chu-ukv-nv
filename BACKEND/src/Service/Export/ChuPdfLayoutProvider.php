@@ -138,7 +138,8 @@ HTML;
 
     private function renderFooter(string $orientation = 'landscape'): string
     {
-        $pageNumberX = 'landscape' === $orientation ? 395 : 280;
+        $rightMargin = 20;
+        $fromBottom = 'landscape' === $orientation ? 24 : 28;
 
         return <<<HTML
 <div class="chu-footer-inner">
@@ -153,7 +154,12 @@ HTML;
 <script type="text/php">
 if (isset(\$pdf)) {
     \$font = \$fontMetrics->getFont('DejaVu Sans');
-    \$pdf->page_text({$pageNumberX}, 18, 'Page {PAGE_NUM} / {PAGE_COUNT}', \$font, 7, [0.25, 0.25, 0.25]);
+    \$size = 8;
+    \$text = 'Page {PAGE_NUM} / {PAGE_COUNT}';
+    \$textWidth = \$fontMetrics->getTextWidth('Page 000 / 000', \$font, \$size);
+    \$x = \$pdf->get_width() - \$textWidth - {$rightMargin};
+    \$y = \$pdf->get_height() - {$fromBottom};
+    \$pdf->page_text(\$x, \$y, \$text, \$font, \$size, [0.25, 0.25, 0.25]);
 }
 </script>
 HTML;
@@ -265,7 +271,7 @@ body {
     position: fixed;
     bottom: -36px;
     left: 0;
-    right: 0;
+    right: 72px;
     height: 34px;
 }
 

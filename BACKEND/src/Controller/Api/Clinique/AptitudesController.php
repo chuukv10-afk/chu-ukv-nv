@@ -102,6 +102,15 @@ final class AptitudesController extends AbstractController
         return $this->apiSuccess($this->aptitudeService->listOrganisations(), 'Organisations partenaires récupérées avec succès.');
     }
 
+    #[Route('/jetons', name: 'api_clinique_aptitudes_jetons', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_EXPORT)]
+    public function jetons(Request $request): Response
+    {
+        $annee = (int) $request->query->get('annee', (new \DateTimeImmutable('now', new \DateTimeZone('Africa/Kinshasa')))->format('Y'));
+
+        return $this->aptitudePdfService->createJetonsResponse($annee);
+    }
+
     #[Route('/pdf-lot', name: 'api_clinique_aptitudes_pdf_lot', methods: ['GET'])]
     #[IsGranted(CliniquePermissions::APTITUDE_EXPORT)]
     public function pdfLot(#[MapQueryString] AptitudeIdsQuery $query): Response

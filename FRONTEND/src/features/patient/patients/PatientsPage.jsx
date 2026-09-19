@@ -26,6 +26,7 @@ import {
   PATIENT_SEX_LABELS,
   PATIENT_STATUS_COLORS,
   PATIENT_STATUS_LABELS,
+  CATEGORIE_TARIFAIRE_LABELS,
 } from './patientConstants.js';
 import { TYPE_INSTITUTION_LABELS } from '../../referentiel/organisations-partenaires/OrganisationsPartenairesPage.jsx';
 import {
@@ -449,7 +450,7 @@ export default function PatientsPage() {
                       <td>{PATIENT_SEX_LABELS[item.sexe] ?? item.sexe}</td>
                       <td>{formatDate(item.dateNaissance)}</td>
                       <td>{item.telephone ?? '—'}</td>
-                      <td>{CATEGORIE_TARIFAIRE_LABELS[item.categorieTarifaire] ?? item.categorieTarifaire ?? '—'}</td>
+                      <td>{item.categorieTarifaire ? (CATEGORIE_TARIFAIRE_LABELS[item.categorieTarifaire] ?? item.categorieTarifaire) : '—'}</td>
                       <td>
                         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                           <StatusChip status={item.status} />

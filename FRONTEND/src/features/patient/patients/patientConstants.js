@@ -47,6 +47,8 @@ export const GROUPE_SANGUIN_OPTIONS = [
 export const DEFAULT_PATIENT_PAGE_SIZE = 10;
 export const PATIENT_PAGE_SIZE_OPTIONS = [10, 25, 50];
 
+export { CATEGORIE_TARIFAIRE_LABELS } from '../../facturation/facturationConstants.js';
+
 export const EMPTY_PATIENT_FORM = {
   nom: '',
   postNom: '',

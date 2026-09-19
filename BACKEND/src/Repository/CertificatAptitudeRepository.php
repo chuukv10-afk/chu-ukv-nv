@@ -32,8 +32,9 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         ?int $filiereId = null,
         bool $sansFiliere = false,
         ?string $imprime = null,
+        ?string $numero = null,
     ): array {
-        $qb = $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime);
+        $qb = $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime, $numero);
 
         $total = (int) (clone $qb)
             ->select('COUNT(c.id)')
@@ -63,8 +64,9 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         ?int $filiereId = null,
         bool $sansFiliere = false,
         ?string $imprime = null,
+        ?string $numero = null,
     ): array {
-        return $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime)
+        return $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime, $numero)
             ->getQuery()
             ->getResult();
     }
@@ -137,6 +139,7 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         ?int $filiereId = null,
         bool $sansFiliere = false,
         ?string $imprime = null,
+        ?string $numero = null,
     ): \Doctrine\ORM\QueryBuilder {
         $qb = $this->createQueryBuilder('c')
             ->leftJoin('c.service', 's')->addSelect('s')
@@ -156,6 +159,8 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
                 )
                 ->setParameter('search', $term);
         }
+
+        $this->applyNumeroFilter($qb, $numero, $annee);
 
         if (null !== $annee && $annee > 0) {
             $qb->andWhere('c.annee = :annee')->setParameter('annee', $annee);
@@ -269,5 +274,27 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    private function applyNumeroFilter(\Doctrine\ORM\QueryBuilder $qb, ?string $numero, ?int $annee): void
+    {
+        $digits = preg_replace('/\D+/', '', (string) $numero) ?? '';
+        if ('' === $digits) {
+            return;
+        }
+
+        $compact = ltrim($digits, '0');
+        if ('' === $compact) {
+            $compact = '0';
+        }
+        $padded = str_pad($compact, 4, '0', STR_PAD_LEFT);
+        $suffix = null !== $annee && $annee > 0
+            ? ' / CHU-UKV / CAP / ' . $annee
+            : ' / CHU-UKV / CAP / %';
+
+        $qb
+            ->andWhere('(c.numero LIKE :numeroRaw OR c.numero LIKE :numeroPadded)')
+            ->setParameter('numeroRaw', $digits . '%')
+            ->setParameter('numeroPadded', $padded . $suffix);
     }
 }

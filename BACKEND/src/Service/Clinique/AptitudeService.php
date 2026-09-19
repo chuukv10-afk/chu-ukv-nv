@@ -57,6 +57,7 @@ final class AptitudeService
             $query->filiereId,
             $query->sansFiliere,
             $query->imprime,
+            $query->numero,
         );
 
         return new PaginatedResult(
@@ -83,6 +84,7 @@ final class AptitudeService
             $query->filiereId,
             $query->sansFiliere,
             $query->imprime,
+            $query->numero,
         );
 
         $rows = [];
@@ -557,20 +559,11 @@ final class AptitudeService
         if ('' === trim($certificat->getNom()) || '' === trim($certificat->getPostNom())) {
             $missing[] = 'identité';
         }
-        if (null === $certificat->getDateNaissance() || null === $this->blankToNull($certificat->getLieuNaissance())) {
-            $missing[] = 'naissance';
+        if ('' === trim((string) $certificat->getSexe())) {
+            $missing[] = 'sexe';
         }
-        if (null === $this->blankToNull($certificat->getAdresse())) {
-            $missing[] = 'adresse';
-        }
-        if (null === $certificat->getPoidsKg() || null === $certificat->getTailleM() || null === $certificat->getPerimetreThoraciqueCm()) {
-            $missing[] = 'mesures anthropométriques';
-        }
-        if (null === $certificat->getP1() || null === $certificat->getP2() || null === $certificat->getP3()) {
-            $missing[] = 'fréquences cardiaques';
-        }
-        if (null === $certificat->getVerdict()) {
-            $missing[] = 'verdict';
+        if (null === $certificat->getService()) {
+            $missing[] = 'service';
         }
         if (CertificatAptitude::MOTIF_ADMISSION_UKV === $certificat->getMotif() && !$certificat->getFiliere() instanceof Filiere) {
             $missing[] = 'filière';

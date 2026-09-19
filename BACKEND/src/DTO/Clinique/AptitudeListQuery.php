@@ -38,9 +38,15 @@ final class AptitudeListQuery
 
         #[Assert\Choice(choices: ['oui', 'non'])]
         public ?string $imprime = null,
+
+        #[Assert\Length(max: 20)]
+        public ?string $numero = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;
+        }
+        if ('' === $this->numero) {
+            $this->numero = null;
         }
         if ('' === $this->statut) {
             $this->statut = null;

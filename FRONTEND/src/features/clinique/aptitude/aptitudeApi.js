@@ -122,6 +122,10 @@ export async function openAptitudeBatchPdfApi(ids = []) {
   await openFileInBrowser(`${clinique.aptitudes}/pdf-lot${query}`);
 }
 
+export async function openAptitudeJetonsPdfApi(annee) {
+  await openFileInBrowser(`${clinique.aptitudes}/jetons${buildQueryString({ annee })}`);
+}
+
 export async function markAptitudesPrintedApi(ids = []) {
   const response = await callApiPost(`${clinique.aptitudes}/marquer-imprime`, { ids });
   return unwrapData(response);
