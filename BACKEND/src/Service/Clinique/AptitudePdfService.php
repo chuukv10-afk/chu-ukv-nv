@@ -86,57 +86,74 @@ final class AptitudePdfService
         }
 
         $yearLabel = (string) $annee;
-        $tickets = '';
+        $rows = '';
         for ($index = 0; $index < 10; ++$index) {
-            $tickets .= <<<HTML
-<div class="cap-jeton">
-    <div class="cap-jeton-brand">CHU UKV · Aptitude physique</div>
-    <div class="cap-jeton-num">
-        N° <span class="cap-dots cap-dots-code"></span>
-        <span class="cap-jeton-static"> / CHU-UKV / CAP / {$yearLabel}</span>
+            if (0 === $index % 2) {
+                $rows .= '<tr>';
+            }
+            $rows .= <<<HTML
+<td class="cap-jeton-cell">
+    <div class="cap-jeton">
+        <div class="cap-jeton-brand">CHU UKV · Aptitude physique</div>
+        <div class="cap-jeton-num">
+            N° <span class="cap-dots cap-dots-code"></span>
+            <span class="cap-jeton-static"> / CHU-UKV / CAP / {$yearLabel}</span>
+        </div>
+        <table class="cap-jeton-vitals">
+            <tr>
+                <td>Poids (Kg)<div class="cap-dots cap-dots-vital"></div></td>
+                <td>Taille (m)<div class="cap-dots cap-dots-vital"></div></td>
+                <td>PT (cm)<div class="cap-dots cap-dots-vital"></div></td>
+            </tr>
+        </table>
     </div>
-    <div class="cap-jeton-vitals">
-        <span>Poids (Kg) <span class="cap-dots cap-dots-vital"></span></span>
-        <span>Taille (Cm) <span class="cap-dots cap-dots-vital"></span></span>
-    </div>
-</div>
+</td>
 HTML;
+            if (1 === $index % 2) {
+                $rows .= '</tr>';
+            }
         }
 
         $html = $this->layoutProvider->buildDocument(
             'Jetons d\'aptitude physique',
             <<<HTML
 <style>
-h1.report-title { font-size: 13px; margin: 4px 0 6px; }
-.cap-jeton-hint { font-size: 9px; color: #555; margin: 0 0 6px; text-align: center; }
-.cap-jetons { width: 100%; }
+h1.report-title { font-size: 11px; margin: 0 0 3px; }
+.cap-jeton-hint { font-size: 8px; color: #555; margin: 0 0 2px; text-align: center; }
+.cap-jetons {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 5px 4px;
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+.cap-jeton-cell { width: 50%; vertical-align: top; padding: 0; }
 .cap-jeton {
-    display: inline-block;
-    width: 47%;
-    vertical-align: top;
     box-sizing: border-box;
     border: 1px solid #1E5AA8;
-    border-radius: 6px;
-    padding: 8px 10px 10px;
-    margin: 0 1.5% 8px 0;
-    min-height: 92px;
+    border-radius: 5px;
+    padding: 5px 7px 6px;
 }
-.cap-jeton-brand { font-size: 8px; letter-spacing: 0.4px; color: #1E5AA8; text-transform: uppercase; margin-bottom: 6px; }
-.cap-jeton-num { font-size: 11px; white-space: nowrap; }
+.cap-jeton-brand { font-size: 7.5px; letter-spacing: 0.3px; color: #1E5AA8; text-transform: uppercase; margin-bottom: 3px; }
+.cap-jeton-num { font-size: 10px; white-space: nowrap; }
 .cap-jeton-static { font-weight: bold; }
-.cap-jeton-vitals { margin-top: 10px; font-size: 10px; }
-.cap-jeton-vitals span { margin-right: 10px; }
-.cap-dots {
-    display: inline-block;
-    border-bottom: 1.6px dotted #111;
-    vertical-align: bottom;
-    height: 14px;
+.cap-jeton-vitals { width: 100%; margin-top: 5px; border-collapse: collapse; }
+.cap-jeton-vitals td {
+    width: 33%;
+    font-size: 9px;
+    padding: 0 4px 0 0;
+    border: none;
+    vertical-align: top;
 }
-.cap-dots-code { width: 62px; }
-.cap-dots-vital { width: 58px; margin: 0 4px 0 2px; }
+.cap-dots {
+    border-bottom: 1.5px dotted #111;
+    height: 12px;
+}
+.cap-dots-code { display: inline-block; width: 52px; vertical-align: bottom; }
+.cap-dots-vital { display: block; width: 100%; margin-top: 2px; }
 </style>
-<p class="cap-jeton-hint">Écrire uniquement la partie variable du n° (ex. 0042), le poids et la taille.</p>
-<div class="cap-jetons">{$tickets}</div>
+<p class="cap-jeton-hint">Écrire uniquement la partie variable du n° (ex. 0042), le poids (Kg), la taille (m) et le PT (périmètre thoracique, cm). 10 jetons / page.</p>
+<table class="cap-jetons">{$rows}</table>
 HTML,
             '',
             new \DateTimeImmutable('now', new \DateTimeZone('Africa/Kinshasa')),
