@@ -26,9 +26,10 @@ final class ChuPdfLayoutProvider
         ?string $closingAuthor = null,
         ?string $headerRightHtml = null,
         bool $includeDocumentChrome = true,
+        bool $showPageNumbers = true,
     ): string {
         $headerHtml = $this->renderHeader($orientation, $headerRightHtml);
-        $footerHtml = $this->renderFooter($orientation);
+        $footerHtml = $this->renderFooter($orientation, $showPageNumbers);
         $closingHtml = $this->renderClosingHtml($closingDateLine, $closingAuthor);
         $styles = $this->baseStyles($orientation);
         $safeTitle = htmlspecialchars(mb_strtoupper($reportTitle, 'UTF-8'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -143,21 +144,11 @@ HTML;
 HTML;
     }
 
-    private function renderFooter(string $orientation = 'landscape'): string
+    private function renderFooter(string $orientation = 'landscape', bool $showPageNumbers = true): string
     {
         $rightMargin = 20;
         $fromBottom = 'landscape' === $orientation ? 24 : 28;
-
-        return <<<HTML
-<div class="chu-footer-inner">
-    <div class="chu-footer-line">
-        N° 186 Bis, Av. UKV, Cellule Kinsamuna, Secteur de Boma Bungu, Territoire de Muanda,
-        Kongo Central, République Démocratique du Congo; B.P 314;
-    </div>
-    <div class="chu-footer-line">
-        (+243) 821 944 140 – 89 995 683 6; E-mail: <strong>contact@chu-ukv.cd</strong>; Web: <strong>www.chu-ukv.cd</strong>
-    </div>
-</div>
+        $pageScript = $showPageNumbers ? <<<HTML
 <script type="text/php">
 if (isset(\$pdf)) {
     \$font = \$fontMetrics->getFont('DejaVu Sans');
@@ -169,6 +160,19 @@ if (isset(\$pdf)) {
     \$pdf->page_text(\$x, \$y, \$text, \$font, \$size, [0.25, 0.25, 0.25]);
 }
 </script>
+HTML : '';
+
+        return <<<HTML
+<div class="chu-footer-inner">
+    <div class="chu-footer-line">
+        N° 186 Bis, Av. UKV, Cellule Kinsamuna, Secteur de Boma Bungu, Territoire de Muanda,
+        Kongo Central, République Démocratique du Congo; B.P 314;
+    </div>
+    <div class="chu-footer-line">
+        (+243) 821 944 140 – 89 995 683 6; E-mail: <strong>contact@chu-ukv.cd</strong>; Web: <strong>www.chu-ukv.cd</strong>
+    </div>
+</div>
+{$pageScript}
 HTML;
     }
 

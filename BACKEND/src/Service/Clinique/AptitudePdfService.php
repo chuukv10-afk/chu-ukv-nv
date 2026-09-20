@@ -37,6 +37,8 @@ final class AptitudePdfService
             null,
             null,
             $this->renderHeaderQr($certificat),
+            true,
+            false,
         );
 
         $slug = preg_replace('/[^A-Za-z0-9]+/', '-', (string) ($certificat->getNumero() ?? $certificat->getId())) ?: 'cap';
@@ -80,6 +82,7 @@ final class AptitudePdfService
             null,
             null,
             null,
+            false,
             false,
         );
 
