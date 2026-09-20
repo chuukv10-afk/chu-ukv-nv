@@ -29,7 +29,7 @@ final class AptitudePdfService
         }
 
         $html = $this->layoutProvider->buildDocument(
-            'Certificat d\'aptitude physique',
+            'Attestation d\'aptitude physique',
             $this->renderBody($certificat),
             $this->doctorName($certificat),
             $certificat->getSigneAt(),
@@ -43,7 +43,7 @@ final class AptitudePdfService
 
         return $this->pdfExportService->createDownloadResponse(
             $html,
-            'certificat-aptitude-' . $slug . '.pdf',
+            'attestation-aptitude-' . $slug . '.pdf',
             'portrait',
             inline: true,
         );
@@ -54,26 +54,38 @@ final class AptitudePdfService
      */
     public function createBatchResponse(array $certificats): Response
     {
+        $title = htmlspecialchars(
+            mb_strtoupper('Attestation d\'aptitude physique', 'UTF-8'),
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8',
+        );
         $parts = [];
         foreach ($certificats as $index => $certificat) {
             $style = $index > 0 ? ' style="page-break-before: always;"' : '';
             $parts[] = '<div class="cap-batch-item"' . $style . '>'
-                . '<div class="cap-batch-qr">' . $this->renderHeaderQr($certificat) . '</div>'
+                . '<header class="chu-header">'
+                . $this->layoutProvider->renderHeader('portrait', $this->renderHeaderQr($certificat))
+                . '</header>'
+                . '<h1 class="report-title">' . $title . '</h1>'
                 . $this->renderBody($certificat)
                 . '</div>';
         }
 
         $html = $this->layoutProvider->buildDocument(
-            'Certificats d\'aptitude physique',
+            'Attestation d\'aptitude physique',
             implode('', $parts),
             '',
             new \DateTimeImmutable('now', new \DateTimeZone('Africa/Kinshasa')),
             'portrait',
+            null,
+            null,
+            null,
+            false,
         );
 
         return $this->pdfExportService->createDownloadResponse(
             $html,
-            'certificats-aptitude-' . (new \DateTimeImmutable())->format('Ymd_His') . '.pdf',
+            'attestations-aptitude-' . (new \DateTimeImmutable())->format('Ymd_His') . '.pdf',
             'portrait',
             inline: true,
         );
@@ -87,7 +99,7 @@ final class AptitudePdfService
 
         $yearLabel = (string) $annee;
         $rows = '';
-        for ($index = 0; $index < 10; ++$index) {
+        for ($index = 0; $index < 20; ++$index) {
             if (0 === $index % 2) {
                 $rows .= '<tr>';
             }
@@ -118,41 +130,39 @@ HTML;
             'Jetons d\'aptitude physique',
             <<<HTML
 <style>
-h1.report-title { font-size: 11px; margin: 0 0 3px; }
-.cap-jeton-hint { font-size: 8px; color: #555; margin: 0 0 2px; text-align: center; }
+h1.report-title { font-size: 10px; margin: 0 0 2px; }
+.cap-jeton-hint { font-size: 7.5px; color: #555; margin: 0 0 2px; text-align: center; }
 .cap-jetons {
     width: 100%;
     border-collapse: separate;
-    border-spacing: 5px 4px;
-    page-break-inside: avoid;
-    page-break-after: avoid;
+    border-spacing: 4px 3px;
 }
 .cap-jeton-cell { width: 50%; vertical-align: top; padding: 0; }
 .cap-jeton {
     box-sizing: border-box;
     border: 1px solid #1E5AA8;
-    border-radius: 5px;
-    padding: 5px 7px 6px;
+    border-radius: 4px;
+    padding: 3px 6px 4px;
 }
-.cap-jeton-brand { font-size: 7.5px; letter-spacing: 0.3px; color: #1E5AA8; text-transform: uppercase; margin-bottom: 3px; }
-.cap-jeton-num { font-size: 10px; white-space: nowrap; }
+.cap-jeton-brand { font-size: 6.5px; letter-spacing: 0.2px; color: #1E5AA8; text-transform: uppercase; margin-bottom: 2px; }
+.cap-jeton-num { font-size: 9px; white-space: nowrap; }
 .cap-jeton-static { font-weight: bold; }
-.cap-jeton-vitals { width: 100%; margin-top: 5px; border-collapse: collapse; }
+.cap-jeton-vitals { width: 100%; margin-top: 3px; border-collapse: collapse; }
 .cap-jeton-vitals td {
     width: 33%;
-    font-size: 9px;
-    padding: 0 4px 0 0;
+    font-size: 8px;
+    padding: 0 3px 0 0;
     border: none;
     vertical-align: top;
 }
 .cap-dots {
-    border-bottom: 1.5px dotted #111;
-    height: 12px;
+    border-bottom: 1.4px dotted #111;
+    height: 10px;
 }
-.cap-dots-code { display: inline-block; width: 52px; vertical-align: bottom; }
-.cap-dots-vital { display: block; width: 100%; margin-top: 2px; }
+.cap-dots-code { display: inline-block; width: 46px; vertical-align: bottom; }
+.cap-dots-vital { display: block; width: 100%; margin-top: 1px; }
 </style>
-<p class="cap-jeton-hint">Écrire uniquement la partie variable du n° (ex. 0042), le poids (Kg), la taille (m) et le PT (périmètre thoracique, cm). 10 jetons / page.</p>
+<p class="cap-jeton-hint">Écrire uniquement la partie variable du n° (ex. 0042), le poids (Kg), la taille (m) et le PT (périmètre thoracique, cm). 20 jetons / page.</p>
 <table class="cap-jetons">{$rows}</table>
 HTML,
             '',
@@ -307,7 +317,8 @@ HTML,
     &nbsp; à exercer les activités liées au motif de la consultation mentionné en Section I.
 </p>
 <p class="cap-date">{$dateLine}</p>
-<p class="cap-sign">Le Médecin Examinateur<br>(Nom, Signature et Cachet)<br>{$this->signatureImage($certificat)}<strong>{$doctor}</strong></p>
+<div class="cap-sign-space"></div>
+<p class="cap-sign">Le Médecin examinateur<br>{$this->signatureImage($certificat)}<strong>{$doctor}</strong></p>
 <p class="cap-note">Valable trois (03) mois à compter de la date de signature. Nul et de nul effet sans le cachet officiel, la signature du médecin et le code QR d'authentification. Scannez le QR pour vérifier ce document sur le portail officiel. Contact : doc-verification@chu-ukv.cd</p>
 <style>
 h1.report-title { margin: 28px 0 10px; font-size: 16px; color: #111; }
@@ -322,9 +333,10 @@ p { margin: 2px 0; }
 .cap-grid { width: 100%; border-collapse: collapse; margin: 2px 0 4px; }
 .cap-grid td { border: 1px solid #d0d7de; padding: 3px 6px; width: 50%; vertical-align: top; }
 .cap-verdict { font-size: 12px; margin: 6px 0; }
-.cap-date { text-align: right; margin-top: 24px; }
-.cap-sign { text-align: right; margin-top: 10px; }
-.cap-signature-img { display: block; max-height: 58px; max-width: 170px; margin: 6px 0 4px auto; }
+.cap-date { text-align: right; margin-top: 16px; margin-bottom: 0; }
+.cap-sign-space { min-height: 72px; margin: 8px 0 4px; text-align: right; }
+.cap-sign { text-align: right; margin-top: 0; }
+.cap-signature-img { display: block; max-height: 52px; max-width: 160px; margin: 0 0 0 auto; }
 .cap-note { font-size: 8px; font-style: italic; color: #444; margin-top: 8px; }
 .cap-watermark {
     position: fixed; top: 42%; left: 8%; font-size: 64px; color: #c00; opacity: 0.18;
@@ -410,7 +422,7 @@ HTML;
             return '';
         }
 
-        return '<img class="cap-signature-img" src="' . $dataUri . '" alt="Signature" /><br>';
+        return '<img class="cap-signature-img" src="' . $dataUri . '" alt="Signature" />';
     }
 
     private function doctorName(CertificatAptitude $certificat): string

@@ -31,6 +31,7 @@ import {
   fetchAptitudeApi,
   fetchAptitudeFilieresApi,
   fetchAptitudeServicesApi,
+  markAptitudesPrintedApi,
   openAptitudePdfApi,
   signerAptitudeApi,
   updateAptitudeApi,
@@ -109,6 +110,8 @@ export default function AptitudeFormPage() {
   const [error, setError] = useState('');
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+  const [printConfirmLoading, setPrintConfirmLoading] = useState(false);
   const [tab, setTab] = useState(
     canViewIdentite ? 'identite'
       : canViewImc ? 'imc'
@@ -256,10 +259,26 @@ export default function AptitudeFormPage() {
     setPdfLoading(true);
     try {
       await openAptitudePdfApi(detail.id);
+      setPrintConfirmOpen(true);
     } catch (err) {
       showError(err.message || 'Impossible de générer le PDF.');
     } finally {
       setPdfLoading(false);
+    }
+  };
+
+  const confirmPrinted = async () => {
+    if (!detail) return;
+    setPrintConfirmLoading(true);
+    try {
+      await markAptitudesPrintedApi([detail.id]);
+      setDetail((current) => (current ? { ...current, imprime: true } : current));
+      setPrintConfirmOpen(false);
+      showSuccess('Attestation marquée comme imprimée.');
+    } catch (err) {
+      showError(err.message || 'Impossible de marquer l’impression.');
+    } finally {
+      setPrintConfirmLoading(false);
     }
   };
 
@@ -300,10 +319,17 @@ export default function AptitudeFormPage() {
           Retour
         </Button>
         {detail ? (
-          <Chip size="sm" color={APTITUDE_STATUT_COLORS[detail.statut] || 'neutral'} variant="soft">
-            {APTITUDE_STATUT_LABELS[detail.statut] || detail.statut}
-            {detail.numero ? ` · ${detail.numero}` : ''}
-          </Chip>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip size="sm" color={APTITUDE_STATUT_COLORS[detail.statut] || 'neutral'} variant="soft">
+              {APTITUDE_STATUT_LABELS[detail.statut] || detail.statut}
+              {detail.numero ? ` · ${detail.numero}` : ''}
+            </Chip>
+            {detail.statut !== 'BROUILLON' ? (
+              <Chip size="sm" color={detail.imprime ? 'success' : 'warning'} variant="soft">
+                {detail.imprime ? 'Imprimé' : 'Non imprimé'}
+              </Chip>
+            ) : null}
+          </Stack>
         ) : null}
       </Stack>
 
@@ -311,7 +337,7 @@ export default function AptitudeFormPage() {
         <Typography level="h2" sx={{ fontWeight: 700 }}>
           {isNew
             ? 'Nouveau certificat'
-            : (detail?.numero ? `N° ${detail.numero}` : 'Certificat d’aptitude physique')}
+            : (detail?.numero ? `N° ${detail.numero}` : 'Attestation d’aptitude physique')}
         </Typography>
         <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
           {isNew
@@ -716,6 +742,17 @@ export default function AptitudeFormPage() {
         loading={confirmLoading}
         onClose={() => { if (!confirmLoading) setConfirmAction(null); }}
         onConfirm={runConfirm}
+      />
+      <ConfirmModal
+        open={printConfirmOpen}
+        title="Impression effectuée ?"
+        message="Confirmez-vous que cette attestation a bien été imprimée ?"
+        confirmLabel="Oui, déjà imprimé"
+        cancelLabel="Pas encore"
+        color="primary"
+        loading={printConfirmLoading}
+        onClose={() => { if (!printConfirmLoading) setPrintConfirmOpen(false); }}
+        onConfirm={confirmPrinted}
       />
     </Stack>
   );

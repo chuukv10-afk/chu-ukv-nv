@@ -263,25 +263,100 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
     public function findOfficialByNumero(string $numero): ?CertificatAptitude
     {
         $normalized = preg_replace('/\s+/', ' ', trim($numero)) ?? '';
+        $normalized = str_replace('+', ' ', $normalized);
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? '';
         if ('' === $normalized) {
             return null;
         }
 
-        $compact = strtoupper(str_replace(' ', '', $normalized));
+        $exact = $this->findOfficialMatching('c.numero = :numero', ['numero' => $normalized]);
+        if ($exact instanceof CertificatAptitude) {
+            return $exact;
+        }
 
+        $canonical = $this->canonicalNumero($normalized);
+        if (null !== $canonical && $canonical !== $normalized) {
+            $byCanonical = $this->findOfficialMatching('c.numero = :numero', ['numero' => $canonical]);
+            if ($byCanonical instanceof CertificatAptitude) {
+                return $byCanonical;
+            }
+        }
+
+        $compactNeedle = $this->compactNumero($normalized);
+        $like = $canonical ?? $normalized;
+        $prefix = preg_match('/^(\d{1,6})/', $like, $match) ? $match[1] : '';
+        $qb = $this->createOfficialQueryBuilder()
+            ->andWhere('c.numero IS NOT NULL')
+            ->setMaxResults(30);
+        if ('' !== $prefix) {
+            $qb
+                ->andWhere('(c.numero LIKE :like OR c.numero LIKE :padded)')
+                ->setParameter('like', $prefix . '%')
+                ->setParameter('padded', str_pad(ltrim($prefix, '0') !== '' ? ltrim($prefix, '0') : '0', 4, '0', STR_PAD_LEFT) . ' / CHU-UKV / CAP / %');
+        } else {
+            $qb
+                ->andWhere('c.numero LIKE :like')
+                ->setParameter('like', '%' . $like . '%');
+        }
+
+        foreach ($qb->getQuery()->getResult() as $candidate) {
+            if (!$candidate instanceof CertificatAptitude) {
+                continue;
+            }
+            if ($this->compactNumero((string) $candidate->getNumero()) === $compactNeedle) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $parameters */
+    private function findOfficialMatching(string $where, array $parameters): ?CertificatAptitude
+    {
+        $qb = $this->createOfficialQueryBuilder()
+            ->andWhere($where)
+            ->setMaxResults(1);
+        foreach ($parameters as $name => $value) {
+            $qb->setParameter($name, $value);
+        }
+
+        $found = $qb->getQuery()->getOneOrNullResult();
+
+        return $found instanceof CertificatAptitude ? $found : null;
+    }
+
+    private function createOfficialQueryBuilder(): \Doctrine\ORM\QueryBuilder
+    {
         return $this->createQueryBuilder('c')
             ->leftJoin('c.signePar', 'p')
             ->addSelect('p')
             ->andWhere('c.statut IN (:statuts)')
-            ->andWhere("REPLACE(UPPER(COALESCE(c.numero, '')), ' ', '') = :compact")
             ->setParameter('statuts', [
                 CertificatAptitude::STATUT_SIGNE,
                 CertificatAptitude::STATUT_ANNULE,
-            ])
-            ->setParameter('compact', $compact)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
+            ]);
+    }
+
+    private function canonicalNumero(string $numero): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $numero) ?? '';
+        if (!preg_match('/(20\d{2})\s*$/', $numero, $yearMatch) || '' === $digits) {
+            return null;
+        }
+
+        $year = $yearMatch[1];
+        $sequence = preg_replace('/' . preg_quote($year, '/') . '$/', '', $digits) ?? $digits;
+        if ('' === $sequence) {
+            $sequence = $digits;
+        }
+
+        return sprintf('%04d / CHU-UKV / CAP / %s', (int) $sequence, $year);
+    }
+
+    private function compactNumero(string $numero): string
+    {
+        return strtoupper((string) preg_replace('/[^A-Z0-9]+/i', '', $numero));
     }
 
     private function applyNumeroFilter(\Doctrine\ORM\QueryBuilder $qb, ?string $numero, ?int $annee): void

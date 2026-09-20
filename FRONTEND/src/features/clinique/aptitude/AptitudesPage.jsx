@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Button, Card, Checkbox, Chip, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
+  Box, Button, Card, Checkbox, Chip, FormControl, FormLabel, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
 import { FileText, Pencil, Plus, Printer, Search, Trash2, Upload } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
@@ -77,7 +77,7 @@ export default function AptitudesPage() {
   const [motif, setMotif] = useState('');
   const [serviceId, setServiceId] = useState('');
   const [filiereId, setFiliereId] = useState('');
-  const [imprime, setImprime] = useState('');
+  const [imprime, setImprime] = useState('tous');
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedStatutById, setSelectedStatutById] = useState({});
   const [batchPdfLoading, setBatchPdfLoading] = useState(false);
@@ -138,7 +138,7 @@ export default function AptitudesPage() {
     serviceId: serviceId || undefined,
     filiereId: filiereId && filiereId !== 'none' ? filiereId : undefined,
     sansFiliere: filiereId === 'none' ? true : undefined,
-    imprime: imprime || undefined,
+    imprime: imprime === 'oui' || imprime === 'non' ? imprime : undefined,
   }), [debouncedSearch, debouncedNumero, annee, numeroYear, statut, verdict, motif, serviceId, filiereId, imprime, canViewVerdict]);
 
   const load = useCallback(async (targetPage = page) => {
@@ -356,7 +356,7 @@ export default function AptitudesPage() {
             onClick={handleJetons}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
-            Jetons (10 / A4)
+            Jetons (20 / A4)
           </Button>
           <Button
             variant="outlined"
@@ -368,6 +368,19 @@ export default function AptitudesPage() {
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Imprimer la sélection{printableSelectedIds.length ? ` (${printableSelectedIds.length})` : ''}
+          </Button>
+          <Button
+            variant="soft"
+            disabled={!canExport || !printableSelectedIds.length}
+            title={!canExport ? 'Permission requise pour imprimer' : undefined}
+            onClick={() => {
+              if (!printableSelectedIds.length) return;
+              setPrintConfirmIds(printableSelectedIds);
+              setPrintConfirmOpen(true);
+            }}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Marquer imprimé
           </Button>
           {(canDelete || canDeleteDefinitif) ? (
             <Button
@@ -460,11 +473,14 @@ export default function AptitudesPage() {
             <Option value="none">Non renseignée</Option>
             {filieres.map((f) => <Option key={f.id} value={String(f.id)}>{f.code} — {f.libelle}</Option>)}
           </Select>
-          <Select placeholder="Impression" value={imprime} onChange={(_, v) => setImprime(v ?? '')} sx={aptitudeFilterSx}>
-            <Option value="">Tous</Option>
-            <Option value="oui">Déjà imprimés</Option>
-            <Option value="non">Non imprimés</Option>
-          </Select>
+          <FormControl sx={aptitudeFilterSx}>
+            <FormLabel>Impression</FormLabel>
+            <Select value={imprime} onChange={(_, v) => setImprime(v || 'tous')}>
+              <Option value="tous">Tous</Option>
+              <Option value="oui">Imprimé</Option>
+              <Option value="non">Non imprimé</Option>
+            </Select>
+          </FormControl>
         </Stack>
         </Stack>
       </Card>
@@ -719,11 +735,13 @@ export default function AptitudesPage() {
 
       <ConfirmModal
         open={printConfirmOpen}
-        title="Confirmer l’impression"
+        title="Impression effectuée ?"
         message={printConfirmIds.length > 1
-          ? `Marquer ces ${printConfirmIds.length} certificats comme déjà imprimés ?`
-          : 'Marquer ce certificat comme déjà imprimé ?'}
+          ? `Confirmez-vous que ces ${printConfirmIds.length} attestations ont bien été imprimées ?`
+          : 'Confirmez-vous que cette attestation a bien été imprimée ?'}
         confirmLabel="Oui, déjà imprimé"
+        cancelLabel="Pas encore"
+        color="primary"
         loading={printConfirmLoading}
         onClose={() => { if (!printConfirmLoading) { setPrintConfirmOpen(false); setPrintConfirmIds([]); } }}
         onConfirm={confirmPrinted}

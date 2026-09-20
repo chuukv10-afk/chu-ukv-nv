@@ -52,7 +52,7 @@ export default function AptitudeVerificationPage() {
   const verify = async (value) => {
     const trimmed = String(value || '').trim();
     if (!trimmed) {
-      setError('Indiquez le numéro du certificat.');
+      setError('Indiquez le numéro de l’attestation.');
       setResult(null);
       return;
     }
@@ -120,10 +120,10 @@ export default function AptitudeVerificationPage() {
               sx={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 'sm' }}
             />
             <Typography level="h3" fontWeight="xl" sx={{ textAlign: 'center' }}>
-              Vérification de certificat
+              Vérification d’attestation
             </Typography>
             <Typography level="body-sm" textColor="neutral.500" sx={{ textAlign: 'center' }}>
-              Portail public — Certificat d’aptitude physique, Cliniques Universitaires de l’UKV
+              Portail public — Attestation d’aptitude physique, Cliniques Universitaires de l’UKV
             </Typography>
           </Stack>
 
@@ -136,11 +136,11 @@ export default function AptitudeVerificationPage() {
             }}
           >
             <FormControl>
-              <FormLabel>Numéro du certificat</FormLabel>
+              <FormLabel>Numéro de l’attestation</FormLabel>
               <Input
                 value={numero}
                 onChange={(event) => setNumero(event.target.value)}
-                placeholder="Ex. CAP-2026-00012"
+                placeholder="Ex. 0042 / CHU-UKV / CAP / 2026"
                 sx={{ '--Input-minHeight': '44px', fontSize: { xs: '16px', md: '14px' } }}
               />
             </FormControl>
@@ -179,7 +179,7 @@ export default function AptitudeVerificationPage() {
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <Box sx={{ flex: 1 }}>
-                  <Row label="N° de certificat" value={result.numero} />
+                  <Row label="N° d’attestation" value={result.numero} />
                 </Box>
                 <Box sx={{ flex: 1 }}>
                   <Row label="Valable jusqu’au" value={formatDate(result.valideJusqua)} />
@@ -207,7 +207,7 @@ export default function AptitudeVerificationPage() {
 
           {!result && !error ? (
             <Typography level="body-xs" sx={{ color: 'neutral.500', mt: 2, textAlign: 'center' }}>
-              Saisissez le numéro figurant sur le certificat, ou scannez le QR code du document.
+              Saisissez le numéro figurant sur l’attestation, ou scannez le QR code du document.
             </Typography>
           ) : null}
         </CardContent>

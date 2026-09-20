@@ -25,12 +25,19 @@ final class ChuPdfLayoutProvider
         ?string $closingDateLine = null,
         ?string $closingAuthor = null,
         ?string $headerRightHtml = null,
+        bool $includeDocumentChrome = true,
     ): string {
         $headerHtml = $this->renderHeader($orientation, $headerRightHtml);
         $footerHtml = $this->renderFooter($orientation);
         $closingHtml = $this->renderClosingHtml($closingDateLine, $closingAuthor);
         $styles = $this->baseStyles($orientation);
         $safeTitle = htmlspecialchars(mb_strtoupper($reportTitle, 'UTF-8'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $chromeHeader = $includeDocumentChrome
+            ? '<header class="chu-header">' . $headerHtml . '</header>'
+            : '';
+        $titleHtml = $includeDocumentChrome && '' !== trim($reportTitle)
+            ? '<h1 class="report-title">' . $safeTitle . '</h1>'
+            : '';
 
         return <<<HTML
 <!DOCTYPE html>
@@ -40,11 +47,11 @@ final class ChuPdfLayoutProvider
     <style>{$styles}</style>
 </head>
 <body>
-    <header class="chu-header">{$headerHtml}</header>
+    {$chromeHeader}
     <footer class="chu-footer">{$footerHtml}</footer>
 
     <main class="chu-content">
-        <h1 class="report-title">{$safeTitle}</h1>
+        {$titleHtml}
         {$contentHtml}
         {$closingHtml}
     </main>
@@ -113,7 +120,7 @@ HTML;
         );
     }
 
-    private function renderHeader(string $orientation = 'landscape', ?string $headerRightHtml = null): string
+    public function renderHeader(string $orientation = 'landscape', ?string $headerRightHtml = null): string
     {
         $logo = $this->getLogoDataUri();
         $hasRight = null !== $headerRightHtml && '' !== trim($headerRightHtml);
