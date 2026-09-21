@@ -21,6 +21,8 @@ import {
   EMPTY_RECEPTION_LIGNE,
   RECEPTION_STATUT_COLORS,
   RECEPTION_STATUT_LABELS,
+  applyTauxToLignes,
+  computePrixVenteFromAchat,
   emptyReceptionForm,
 } from './receptionConstants.js';
 import {
@@ -36,6 +38,7 @@ function toPayload(form) {
     fournisseurId: toSyncId(form.fournisseurId),
     dateReception: form.dateReception,
     referenceExterne: form.referenceExterne.trim() || null,
+    tauxMarge: String(form.tauxMarge ?? '').trim(),
     lignes: form.lignes.map((ligne) => ({
       medicamentId: toSyncId(ligne.medicamentId),
       numeroLot: String(ligne.numeroLot).trim().toUpperCase(),
@@ -114,6 +117,7 @@ export default function ReceptionFormPage() {
           fournisseurId: data.fournisseurId ? String(data.fournisseurId) : '',
           dateReception: data.dateReception ?? todayIso(),
           referenceExterne: data.referenceExterne ?? '',
+          tauxMarge: data.tauxMarge ?? '',
           lignes: (data.lignes ?? []).length
             ? data.lignes.map((ligne) => ({
               medicamentId: ligne.medicamentId ? String(ligne.medicamentId) : '',
@@ -144,18 +148,34 @@ export default function ReceptionFormPage() {
     }));
   };
 
+  const setTauxMarge = (value) => {
+    setForm((current) => ({
+      ...current,
+      tauxMarge: value,
+      lignes: applyTauxToLignes(current.lignes, value),
+    }));
+  };
+
+  const setPrixAchatLigne = (index, value) => {
+    setForm((current) => ({
+      ...current,
+      lignes: current.lignes.map((ligne, i) => {
+        if (i !== index) return ligne;
+        const computed = computePrixVenteFromAchat(value, current.tauxMarge);
+        return { ...ligne, prixAchatUnitaire: value, prixVente: computed === '' ? ligne.prixVente : computed };
+      }),
+    }));
+  };
+
   const selectMedicament = (index, medicament) => {
     setForm((current) => ({
       ...current,
-      lignes: current.lignes.map((ligne, i) => (
-        i === index
-          ? {
-            ...ligne,
-            medicamentId: medicament ? String(medicament.id) : '',
-            prixVente: medicament?.prixVente ?? '',
-          }
-          : ligne
-      )),
+      lignes: current.lignes.map((ligne, i) => {
+        if (i !== index) return ligne;
+        const next = { ...ligne, medicamentId: medicament ? String(medicament.id) : '' };
+        const computed = computePrixVenteFromAchat(next.prixAchatUnitaire, current.tauxMarge);
+        return computed === '' ? next : { ...next, prixVente: computed };
+      }),
     }));
   };
 
@@ -273,7 +293,7 @@ export default function ReceptionFormPage() {
                   {isNew ? 'Nouvelle réception' : reception?.numero ?? 'Réception'}
                 </Typography>
                 <Typography level="body-md" sx={{ color: 'neutral.500' }}>
-                  Prix d’achat sur le lot. Le prix de vente catalogue s’applique à tous les lots, y compris les anciens.
+                  Un taux de marge unique calcule le prix de vente de toutes les lignes. Chaque prix reste modifiable.
                 </Typography>
               </Box>
               {reception?.statut ? (
@@ -343,6 +363,18 @@ export default function ReceptionFormPage() {
                     placeholder="BL / facture fournisseur"
                   />
                 </FormControl>
+                <FormControl required sx={{ minWidth: 160 }}>
+                  <FormLabel>Taux de marge (%)</FormLabel>
+                  <Input
+                    value={form.tauxMarge}
+                    onChange={(e) => setTauxMarge(e.target.value)}
+                    disabled={readOnly || saving}
+                    placeholder="ex. 30"
+                  />
+                  <FormHelperText>
+                    Prix de vente = prix d’achat × (1 + taux/100), pour tous les produits.
+                  </FormHelperText>
+                </FormControl>
               </Stack>
             </Card>
 
@@ -407,7 +439,7 @@ export default function ReceptionFormPage() {
                           <FormLabel>Prix d’achat</FormLabel>
                           <Input
                             value={ligne.prixAchatUnitaire}
-                            onChange={(e) => setLigne(index, 'prixAchatUnitaire', e.target.value)}
+                            onChange={(e) => setPrixAchatLigne(index, e.target.value)}
                             disabled={readOnly || saving}
                             placeholder="0"
                           />
@@ -421,7 +453,7 @@ export default function ReceptionFormPage() {
                             placeholder="Catalogue"
                           />
                           <FormHelperText>
-                            Tous les lots de ce médicament seront vendus à ce tarif.
+                            Calculé avec le taux ; vous pouvez le corriger.
                           </FormHelperText>
                         </FormControl>
                       </Stack>

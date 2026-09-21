@@ -16,11 +16,15 @@ final class UpsertReceptionInput
         #[Assert\Length(max: 80)]
         public ?string $referenceExterne = null,
 
+        #[Assert\NotBlank(message: 'Le taux de marge est obligatoire.')]
+        public string $tauxMarge = '',
+
         /** @var list<ReceptionLigneInput> */
         #[Assert\Valid]
         #[Assert\Count(min: 1, minMessage: 'Ajoutez au moins une ligne.')]
         public array $lignes = [],
     ) {
+        $this->tauxMarge = trim((string) $this->tauxMarge);
         $normalized = UpsertVenteInput::toDateOnly($this->dateReception);
         $this->dateReception = $normalized ?? $this->dateReception;
         if (is_array($this->lignes)) {

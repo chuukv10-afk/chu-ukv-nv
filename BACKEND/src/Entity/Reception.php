@@ -39,6 +39,9 @@ class Reception implements BlameableInterface
     #[ORM\Column(length: 20)]
     private ?string $statut = self::STATUT_BROUILLON;
 
+    #[ORM\Column(type: Types::DECIMAL, precision: 8, scale: 2, nullable: true)]
+    private ?string $tauxMarge = null;
+
     /**
      * @var Collection<int, ReceptionLigne>
      */
@@ -119,6 +122,18 @@ class Reception implements BlameableInterface
     public function setStatut(string $statut): static
     {
         $this->statut = $statut;
+
+        return $this;
+    }
+
+    public function getTauxMarge(): ?string
+    {
+        return $this->tauxMarge;
+    }
+
+    public function setTauxMarge(?string $tauxMarge): static
+    {
+        $this->tauxMarge = $tauxMarge;
 
         return $this;
     }

@@ -116,6 +116,7 @@ final class ReceptionService
             'numero' => $reception->getNumero(),
             'dateReception' => $reception->getDateReception()?->format('Y-m-d'),
             'referenceExterne' => $reception->getReferenceExterne(),
+            'tauxMarge' => $reception->getTauxMarge(),
             'statut' => $reception->getStatut(),
             'lignesCount' => $reception->getLignes()->count(),
             'fournisseurId' => $fournisseur?->getId(),
@@ -174,7 +175,8 @@ final class ReceptionService
         $reception
             ->setFournisseur($fournisseur)
             ->setDateReception($dateReception)
-            ->setReferenceExterne($this->nullable($input->referenceExterne));
+            ->setReferenceExterne($this->nullable($input->referenceExterne))
+            ->setTauxMarge($this->normalizeTaux($input->tauxMarge));
 
         $reception->clearLignes();
         foreach ($this->normalizeLignes($input->lignes) as $ligneInput) {
@@ -184,7 +186,10 @@ final class ReceptionService
                 throw new ConflictException('La péremption doit être postérieure à la date de réception.');
             }
 
-            $this->applyPrixVenteCatalogue($medicament, $ligneInput->prixVente);
+            $this->applyPrixVenteCatalogue(
+                $medicament,
+                $ligneInput->prixVente ?: $this->computePrixVente($ligneInput->prixAchatUnitaire, $input->tauxMarge),
+            );
 
             $ligne = (new ReceptionLigne())
                 ->setMedicament($medicament)
@@ -229,6 +234,24 @@ final class ReceptionService
             MouvementStock::DOC_RECEPTION,
             (int) $reception->getId(),
         );
+    }
+
+    private function normalizeTaux(string $taux): string
+    {
+        $normalized = str_replace(',', '.', trim($taux));
+        if (!is_numeric($normalized) || (float) $normalized < 0) {
+            throw new ConflictException('Le taux de marge est invalide.');
+        }
+
+        return number_format((float) $normalized, 2, '.', '');
+    }
+
+    private function computePrixVente(string $prixAchat, string $tauxMarge): string
+    {
+        $achat = (float) str_replace(',', '.', trim($prixAchat));
+        $taux = (float) $this->normalizeTaux($tauxMarge);
+
+        return $this->stockService->normalizePrix((string) ($achat * (1 + ($taux / 100))));
     }
 
     private function applyPrixVenteCatalogue(Medicament $medicament, ?string $prixVente): void

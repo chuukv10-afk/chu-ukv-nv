@@ -212,6 +212,12 @@ export function assertReceptionPayload(payload = {}) {
     }
     assertPrix(ligne.prixAchatUnitaire, 'Le prix d\'achat est obligatoire.');
   }
+  const taux = text(payload.tauxMarge).replace(',', '.');
+  if (!taux) throw fail('Le taux de marge est obligatoire.');
+  const tauxNumber = Number(taux);
+  if (!Number.isFinite(tauxNumber) || tauxNumber < 0) {
+    throw fail('Le taux de marge est invalide.');
+  }
 }
 
 export function assertDemandePayload(payload = {}) {

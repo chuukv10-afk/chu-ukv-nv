@@ -25,11 +25,33 @@ export const EMPTY_RECEPTION_LIGNE = {
   prixVente: '',
 };
 
+export function computePrixVenteFromAchat(prixAchat, tauxMarge) {
+  const achat = Number(String(prixAchat ?? '').replace(',', '.').trim());
+  const taux = Number(String(tauxMarge ?? '').replace(',', '.').trim());
+  if (!Number.isFinite(achat) || achat < 0 || !Number.isFinite(taux) || taux < 0) {
+    return '';
+  }
+  const rounded = Math.round(achat * (1 + taux / 100) * 100) / 100;
+  if (!Number.isFinite(rounded)) {
+    return '';
+  }
+
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
+export function applyTauxToLignes(lignes, tauxMarge) {
+  return (lignes ?? []).map((ligne) => {
+    const computed = computePrixVenteFromAchat(ligne.prixAchatUnitaire, tauxMarge);
+    return computed === '' ? ligne : { ...ligne, prixVente: computed };
+  });
+}
+
 export function emptyReceptionForm(dateReception) {
   return {
     fournisseurId: '',
     dateReception,
     referenceExterne: '',
+    tauxMarge: '',
     lignes: [{ ...EMPTY_RECEPTION_LIGNE }],
   };
 }
