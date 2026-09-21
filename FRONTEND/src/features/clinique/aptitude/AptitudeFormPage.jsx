@@ -15,6 +15,8 @@ import PatientSearchAutocomplete from './components/PatientSearchAutocomplete.js
 import { aptitudeFieldSx } from './aptitudeUi.js';
 import {
   APTITUDE_MOTIFS,
+  APTITUDE_ETAT_CIVIL_OPTIONS,
+  DEFAULT_APTITUDE_SERVICE_CODE,
   APTITUDE_STATUT_COLORS,
   APTITUDE_STATUT_LABELS,
   emptyAptitudeForm,
@@ -179,9 +181,23 @@ export default function AptitudeFormPage() {
   }, [indices.imcClasse, imcLocked]);
 
   useEffect(() => {
-    fetchAptitudeServicesApi().then(setServices).catch(() => setServices([]));
+    fetchAptitudeServicesApi()
+      .then((list) => {
+        setServices(list);
+        if (!isNew) {
+          return;
+        }
+        setForm((prev) => {
+          if (prev.serviceId) {
+            return prev;
+          }
+          const medecineInterne = list.find((service) => String(service.code || '').toUpperCase() === DEFAULT_APTITUDE_SERVICE_CODE);
+          return medecineInterne ? { ...prev, serviceId: String(medecineInterne.id) } : prev;
+        });
+      })
+      .catch(() => setServices([]));
     fetchAptitudeFilieresApi().then(setFilieres).catch(() => setFilieres([]));
-  }, []);
+  }, [isNew]);
 
   useEffect(() => {
     if (isNew) return undefined;
@@ -409,13 +425,17 @@ export default function AptitudeFormPage() {
               <FormControl required>
                 <FormLabel>Service</FormLabel>
                 <Select
-                  value={form.serviceId}
+                  value={form.serviceId || null}
                   disabled={identiteLocked}
                   sx={aptitudeFieldSx}
                   slotProps={{ listbox: { sx: { zIndex: 1300 } } }}
                   onChange={(_, v) => setField('serviceId', v ?? '')}
                 >
-                  {services.map((s) => <Option key={s.id} value={String(s.id)}>{s.libelle}</Option>)}
+                  {services.map((s) => (
+                    <Option key={s.id} value={String(s.id)}>
+                      {s.code ? `${s.code} — ${s.libelle}` : s.libelle}
+                    </Option>
+                  ))}
                 </Select>
               </FormControl>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
@@ -447,7 +467,20 @@ export default function AptitudeFormPage() {
                 </FormControl>
                 <FormControl sx={{ flex: 1 }}>
                   <FormLabel>État civil</FormLabel>
-                  <Input value={form.etatCivil} disabled={identiteLocked} sx={aptitudeFieldSx} onChange={(e) => setField('etatCivil', e.target.value)} />
+                  <Select
+                    value={form.etatCivil || null}
+                    disabled={identiteLocked}
+                    sx={aptitudeFieldSx}
+                    slotProps={{ listbox: { sx: { zIndex: 1300 } } }}
+                    onChange={(_, v) => setField('etatCivil', v ?? APTITUDE_ETAT_CIVIL_OPTIONS[0].value)}
+                  >
+                    {APTITUDE_ETAT_CIVIL_OPTIONS.map((opt) => (
+                      <Option key={opt.value} value={opt.value}>{opt.label}</Option>
+                    ))}
+                    {form.etatCivil && !APTITUDE_ETAT_CIVIL_OPTIONS.some((opt) => opt.value === form.etatCivil) ? (
+                      <Option value={form.etatCivil}>{form.etatCivil}</Option>
+                    ) : null}
+                  </Select>
                 </FormControl>
               </Stack>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>

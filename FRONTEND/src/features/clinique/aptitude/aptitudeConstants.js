@@ -60,6 +60,33 @@ export const DICKSON_LABELS = {
   MAUVAIS: 'Mauvais (> 8)',
 };
 
+export const APTITUDE_ETAT_CIVIL_CELIBATAIRE = 'Célibataire';
+export const APTITUDE_ETAT_CIVIL_OPTIONS = [
+  { value: 'Célibataire', label: 'Célibataire' },
+  { value: 'Marié', label: 'Marié' },
+  { value: 'Veuf(ve)', label: 'Veuf(ve)' },
+];
+export const DEFAULT_APTITUDE_SERVICE_CODE = 'MI';
+
+export function normalizeEtatCivil(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return APTITUDE_ETAT_CIVIL_CELIBATAIRE;
+  }
+  const key = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (key.startsWith('celib')) {
+    return 'Célibataire';
+  }
+  if (key.startsWith('marie')) {
+    return 'Marié';
+  }
+  if (key.startsWith('veuf') || key.startsWith('veuve')) {
+    return 'Veuf(ve)';
+  }
+
+  return raw;
+}
+
 export function emptyAptitudeForm() {
   return {
     serviceId: '',
@@ -69,7 +96,7 @@ export function emptyAptitudeForm() {
     postNom: '',
     prenom: '',
     sexe: 'M',
-    etatCivil: '',
+    etatCivil: APTITUDE_ETAT_CIVIL_CELIBATAIRE,
     dateNaissance: '',
     lieuNaissance: '',
     adresse: '',
@@ -96,7 +123,7 @@ export function formFromDetail(detail) {
     postNom: detail.postNom ?? '',
     prenom: detail.prenom ?? '',
     sexe: detail.sexe ?? 'M',
-    etatCivil: detail.etatCivil ?? '',
+    etatCivil: normalizeEtatCivil(detail.etatCivil),
     dateNaissance: detail.dateNaissance ?? '',
     lieuNaissance: detail.lieuNaissance ?? '',
     adresse: detail.adresse ?? '',
