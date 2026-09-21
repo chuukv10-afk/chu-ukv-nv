@@ -244,7 +244,7 @@ final class AptitudeService
         }
         $this->assertValid($input);
         $certificat = $this->getById($id);
-        $this->assertBrouillon($certificat);
+        $this->assertEditable($certificat);
         $this->hydrate($certificat, $input, false);
         if (!$this->hasNumero($certificat)) {
             $this->entityManager->beginTransaction();
@@ -597,6 +597,22 @@ final class AptitudeService
         if (!$certificat->isBrouillon()) {
             throw new ConflictException('Seul un brouillon peut être modifié.');
         }
+    }
+
+    private function assertEditable(CertificatAptitude $certificat): void
+    {
+        if ($certificat->isBrouillon()) {
+            return;
+        }
+        if ($certificat->isSigne() && $this->security->isGranted(CliniquePermissions::APTITUDE_UPDATE_SIGNE)) {
+            return;
+        }
+
+        throw new ConflictException(
+            $certificat->isSigne()
+                ? 'Permission requise pour modifier une attestation déjà signée.'
+                : 'Une attestation annulée ne peut plus être modifiée.',
+        );
     }
 
     private function assertCanDelete(CertificatAptitude $certificat): void

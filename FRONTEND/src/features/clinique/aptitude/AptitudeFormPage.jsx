@@ -85,6 +85,7 @@ export default function AptitudeFormPage() {
   const canDelete = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_DELETE);
   const canDeleteDefinitif = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_DELETE_DEFINITIF);
   const canSign = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_SIGN);
+  const canAmendSigne = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_UPDATE_SIGNE);
   const canExport = hasPermission(PERMISSIONS.CLINIQUE.APTITUDE_EXPORT);
   const canReadPatients = hasPermission(PERMISSIONS.PATIENT.PATIENT_READ);
   const sectionCreate = isNew && canCreate;
@@ -123,7 +124,12 @@ export default function AptitudeFormPage() {
   const lastPropose = useRef(null);
   const lastImcPropose = useRef(null);
 
-  const locked = Boolean(detail && detail.statut !== 'BROUILLON');
+  const locked = Boolean(
+    detail && (
+      detail.statut === 'ANNULE'
+      || (detail.statut === 'SIGNE' && !canAmendSigne)
+    ),
+  );
   const identiteLocked = locked || !canEditIdentite;
   const imcLocked = locked || !canEditImc;
   const pignetLocked = locked || !canEditPignet;
@@ -347,6 +353,11 @@ export default function AptitudeFormPage() {
       </Box>
 
       {error ? <Alert color="danger" variant="soft">{error}</Alert> : null}
+      {detail?.statut === 'SIGNE' && canAmendSigne ? (
+        <Alert color="warning" variant="soft">
+          Attestation déjà signée : vous pouvez corriger les données. Le numéro officiel n’est pas modifié.
+        </Alert>
+      ) : null}
 
       <Tabs
         value={tab}
@@ -656,7 +667,11 @@ export default function AptitudeFormPage() {
           startDecorator={<Save size={16} />}
           loading={saving}
           disabled={!canSave}
-          title={!canSave ? 'Permission requise pour enregistrer' : undefined}
+          title={!canSave
+            ? (detail?.statut === 'SIGNE' && !canAmendSigne
+              ? 'Permission requise pour modifier une attestation déjà signée'
+              : 'Permission requise pour enregistrer')
+            : undefined}
           onClick={handleSave}
         >
           Enregistrer

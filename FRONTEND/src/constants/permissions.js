@@ -189,6 +189,7 @@ export const PERMISSIONS = {
     APTITUDE_DELETE: 'clinique.aptitude.delete',
     APTITUDE_DELETE_DEFINITIF: 'clinique.aptitude.delete_definitif',
     APTITUDE_SIGN: 'clinique.aptitude.sign',
+    APTITUDE_UPDATE_SIGNE: 'clinique.aptitude.update_signe',
     APTITUDE_EXPORT: 'clinique.aptitude.export',
     APTITUDE_IDENTITE_READ: 'clinique.aptitude.identite.read',
     APTITUDE_IDENTITE_UPDATE: 'clinique.aptitude.identite.update',

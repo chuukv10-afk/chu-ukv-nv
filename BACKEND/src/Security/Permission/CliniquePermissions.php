@@ -50,6 +50,7 @@ final class CliniquePermissions
     public const APTITUDE_DELETE = 'clinique.aptitude.delete';
     public const APTITUDE_DELETE_DEFINITIF = 'clinique.aptitude.delete_definitif';
     public const APTITUDE_SIGN = 'clinique.aptitude.sign';
+    public const APTITUDE_UPDATE_SIGNE = 'clinique.aptitude.update_signe';
     public const APTITUDE_EXPORT = 'clinique.aptitude.export';
     public const APTITUDE_IDENTITE_READ = 'clinique.aptitude.identite.read';
     public const APTITUDE_IDENTITE_UPDATE = 'clinique.aptitude.identite.update';
@@ -216,6 +217,11 @@ final class CliniquePermissions
                 [
                     'code' => self::APTITUDE_SIGN,
                     'libelle' => 'Signer un certificat d\'aptitude physique',
+                    'module' => Permission::MODULE_CLINIQUE,
+                ],
+                [
+                    'code' => self::APTITUDE_UPDATE_SIGNE,
+                    'libelle' => 'Modifier une attestation d\'aptitude déjà signée',
                     'module' => Permission::MODULE_CLINIQUE,
                 ],
                 [
