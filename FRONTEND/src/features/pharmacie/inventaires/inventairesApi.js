@@ -46,8 +46,8 @@ export async function corrigerProduitInventaireApi(inventaireId, medicamentId, p
   return unwrapData(response);
 }
 
-export async function exportInventaireApi(id, format) {
-  await exportResourceApi(`${pharmacie.inventaires}/${id}`, format);
+export async function exportInventaireApi(id, format, params = {}) {
+  await exportResourceApi(`${pharmacie.inventaires}/${id}`, format, params);
 }
 
 export async function cloturerInventaireApi(id) {

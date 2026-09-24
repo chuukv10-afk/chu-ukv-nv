@@ -29,6 +29,27 @@ export function defaultInventaireLibelle(now = new Date()) {
   return `Inventaire du ${day}/${month}/${year}`;
 }
 
+export const INVENTAIRE_EXPORT_COLUMNS = [
+  { key: 'medicament', label: 'Médicament', required: true },
+  { key: 'code', label: 'Code' },
+  { key: 'forme', label: 'Forme' },
+  { key: 'dosage', label: 'Dosage' },
+  { key: 'unite', label: 'Unité' },
+  { key: 'prixVente', label: 'Prix de vente' },
+  { key: 'lot', label: 'Lot' },
+  { key: 'peremption', label: 'Péremption' },
+  { key: 'ouverture', label: 'Ouverture' },
+  { key: 'actuel', label: 'Actuel' },
+  { key: 'compte', label: 'Compté' },
+  { key: 'ecart', label: 'Écart' },
+  { key: 'statut', label: 'Statut' },
+  { key: 'comptePar', label: 'Compté par' },
+];
+
+export const INVENTAIRE_PDF_DEFAULT_COLUMNS = [
+  'medicament', 'lot', 'peremption', 'ouverture', 'actuel', 'compte', 'ecart',
+];
+
 export function formatPersonnelName(personne) {
   if (!personne) return '—';
   const parts = [personne.prenom, personne.nom].filter(Boolean);

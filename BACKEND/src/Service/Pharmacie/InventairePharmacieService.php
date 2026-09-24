@@ -27,6 +27,30 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class InventairePharmacieService
 {
+    public const EXPORT_COLUMNS = [
+        'code' => 'Code',
+        'medicament' => 'Médicament',
+        'forme' => 'Forme',
+        'dosage' => 'Dosage',
+        'unite' => 'Unité',
+        'prixVente' => 'Prix de vente',
+        'lot' => 'Lot',
+        'peremption' => 'Péremption',
+        'ouverture' => 'Ouverture',
+        'actuel' => 'Actuel',
+        'compte' => 'Compté',
+        'ecart' => 'Écart',
+        'statut' => 'Statut',
+        'comptePar' => 'Compté par',
+    ];
+
+    public const PDF_DEFAULT_COLUMNS = ['medicament', 'lot', 'peremption', 'ouverture', 'actuel', 'compte', 'ecart'];
+
+    public const XLSX_DEFAULT_COLUMNS = [
+        'code', 'medicament', 'forme', 'dosage', 'unite', 'prixVente',
+        'lot', 'peremption', 'ouverture', 'actuel', 'compte', 'ecart', 'statut', 'comptePar',
+    ];
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly InventairePharmacieRepository $inventaireRepository,
@@ -172,22 +196,65 @@ final class InventairePharmacieService
     }
 
     /**
+     * @param list<string>|string|null $raw
      * @return list<string>
      */
-    public function exportHeaders(string $format = 'xlsx'): array
+    public function resolveExportColumns(string $format, mixed $raw = null): array
     {
-        if ('pdf' === $format) {
-            return ['N°', 'Médicament', 'Lot', 'Péremption', 'Ouverture', 'Actuel', 'Compté', 'Écart'];
+        $requested = [];
+        if (is_array($raw)) {
+            foreach ($raw as $value) {
+                foreach (explode(',', (string) $value) as $part) {
+                    $requested[] = trim($part);
+                }
+            }
+        } elseif (is_string($raw) && '' !== trim($raw)) {
+            foreach (explode(',', $raw) as $part) {
+                $requested[] = trim($part);
+            }
         }
 
-        return ['N°', 'Code', 'Médicament', 'Forme', 'Dosage', 'Unité', 'Prix de vente', 'N° lot', 'Péremption', 'Qté ouverture', 'Qté actuelle', 'Qté comptée', 'Écart', 'Statut', 'Compté par'];
+        $allowed = array_keys(self::EXPORT_COLUMNS);
+        $columns = [];
+        foreach ($requested as $key) {
+            if (in_array($key, $allowed, true) && !in_array($key, $columns, true)) {
+                $columns[] = $key;
+            }
+        }
+
+        if ([] === $columns) {
+            $columns = 'pdf' === $format ? self::PDF_DEFAULT_COLUMNS : self::XLSX_DEFAULT_COLUMNS;
+        }
+
+        if ('pdf' === $format && !in_array('medicament', $columns, true)) {
+            array_unshift($columns, 'medicament');
+        }
+
+        return $columns;
     }
 
     /**
+     * @param list<string>|null $columns
+     * @return list<string>
+     */
+    public function exportHeaders(string $format = 'xlsx', ?array $columns = null): array
+    {
+        $keys = $columns ?? $this->resolveExportColumns($format);
+        $headers = ['N°'];
+        foreach ($keys as $key) {
+            $headers[] = self::EXPORT_COLUMNS[$key] ?? $key;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * @param list<string>|null $columns
      * @return list<list<string|null>>
      */
-    public function buildExportRows(InventairePharmacie $inventaire, string $format = 'xlsx'): array
+    public function buildExportRows(InventairePharmacie $inventaire, string $format = 'xlsx', ?array $columns = null): array
     {
+        $keys = $columns ?? $this->resolveExportColumns($format);
         $detail = $this->serializeDetail($inventaire);
         $rows = [];
         foreach ($detail['produits'] as $produit) {
@@ -196,39 +263,45 @@ final class InventairePharmacieService
                 if (!is_array($ligne)) {
                     continue;
                 }
-                if ('pdf' === $format) {
-                    $rows[] = [
-                        (string) ($med['libelle'] ?? ''),
-                        (string) ($ligne['numeroLot'] ?? ''),
-                        $this->formatDateExport($ligne['datePeremption'] ?? null),
-                        (string) ($ligne['quantiteSysteme'] ?? ''),
-                        (string) ($ligne['quantiteActuelle'] ?? ''),
-                        null !== ($ligne['quantiteComptee'] ?? null) ? (string) $ligne['quantiteComptee'] : '',
-                        null !== ($ligne['ecart'] ?? null) ? (string) $ligne['ecart'] : '',
-                    ];
-                    continue;
-                }
-                $comptePar = is_array($ligne['comptePar'] ?? null) ? $ligne['comptePar'] : null;
-                $rows[] = [
-                    (string) ($med['code'] ?? ''),
-                    (string) ($med['libelle'] ?? ''),
-                    (string) ($med['forme'] ?? ''),
-                    (string) ($med['dosage'] ?? ''),
-                    $this->uniteExportLabel($med['unite'] ?? null),
-                    $this->formatPrixExport($med['prixVente'] ?? null),
-                    (string) ($ligne['numeroLot'] ?? ''),
-                    $this->formatDateExport($ligne['datePeremption'] ?? null),
-                    (string) ($ligne['quantiteSysteme'] ?? ''),
-                    (string) ($ligne['quantiteActuelle'] ?? ''),
-                    null !== ($ligne['quantiteComptee'] ?? null) ? (string) $ligne['quantiteComptee'] : '',
-                    null !== ($ligne['ecart'] ?? null) ? (string) $ligne['ecart'] : '',
-                    !empty($ligne['compte']) ? 'Compté' : 'À compter',
-                    $this->personnelExportLabel($comptePar),
-                ];
+                $rows[] = $this->exportRowValues($med, $ligne, $keys);
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $med
+     * @param array<string, mixed> $ligne
+     * @param list<string> $keys
+     * @return list<string|null>
+     */
+    private function exportRowValues(array $med, array $ligne, array $keys): array
+    {
+        $comptePar = is_array($ligne['comptePar'] ?? null) ? $ligne['comptePar'] : null;
+        $values = [
+            'code' => (string) ($med['code'] ?? ''),
+            'medicament' => (string) ($med['libelle'] ?? ''),
+            'forme' => (string) ($med['forme'] ?? ''),
+            'dosage' => (string) ($med['dosage'] ?? ''),
+            'unite' => $this->uniteExportLabel($med['unite'] ?? null),
+            'prixVente' => $this->formatPrixExport($med['prixVente'] ?? null),
+            'lot' => (string) ($ligne['numeroLot'] ?? ''),
+            'peremption' => $this->formatDateExport($ligne['datePeremption'] ?? null),
+            'ouverture' => (string) ($ligne['quantiteSysteme'] ?? ''),
+            'actuel' => (string) ($ligne['quantiteActuelle'] ?? ''),
+            'compte' => null !== ($ligne['quantiteComptee'] ?? null) ? (string) $ligne['quantiteComptee'] : '',
+            'ecart' => null !== ($ligne['ecart'] ?? null) ? (string) $ligne['ecart'] : '',
+            'statut' => !empty($ligne['compte']) ? 'Compté' : 'À compter',
+            'comptePar' => $this->personnelExportLabel($comptePar),
+        ];
+
+        $row = [];
+        foreach ($keys as $key) {
+            $row[] = $values[$key] ?? '';
+        }
+
+        return $row;
     }
 
     public function exportTitle(InventairePharmacie $inventaire): string

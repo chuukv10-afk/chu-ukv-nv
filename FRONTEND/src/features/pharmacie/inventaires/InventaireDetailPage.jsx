@@ -23,6 +23,7 @@ import {
   INVENTAIRE_STATUT_LABELS,
   formatPersonnelName,
 } from './inventaireConstants.js';
+import InventaireExportModal from './components/InventaireExportModal.jsx';
 import {
   cloturerInventaireApi,
   compterProduitInventaireApi,
@@ -80,6 +81,7 @@ export default function InventaireDetailPage() {
   const [lotDrafts, setLotDrafts] = useState({});
   const [savingKey, setSavingKey] = useState('');
   const [exportLoading, setExportLoading] = useState(null);
+  const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const [pendingProduit, setPendingProduit] = useState(null);
   const [pendingCloture, setPendingCloture] = useState(false);
   const [pendingEcarter, setPendingEcarter] = useState(false);
@@ -263,12 +265,21 @@ export default function InventaireDetailPage() {
     }
   };
 
-  const handleExport = async (format) => {
+  const handleExport = async (format, columns) => {
     if (!inventaire) return;
+    if (format === 'pdf' && !columns) {
+      setPdfExportOpen(true);
+      return;
+    }
     setExportLoading(format);
     try {
-      await exportInventaireApi(inventaire.id, format);
+      await exportInventaireApi(inventaire.id, format, {
+        columns: format === 'pdf' && Array.isArray(columns) && columns.length
+          ? columns.join(',')
+          : undefined,
+      });
       showSuccess(format === 'pdf' ? 'Fiche PDF ouverte dans le navigateur.' : 'Fiche Excel téléchargée.');
+      setPdfExportOpen(false);
     } catch (err) {
       showError(err.message || 'Export impossible.');
     } finally {
@@ -648,6 +659,12 @@ export default function InventaireDetailPage() {
         loading={confirmLoading && pendingCloture}
         onClose={() => setPendingCloture(false)}
         onConfirm={handleCloturer}
+      />
+      <InventaireExportModal
+        open={pdfExportOpen}
+        loading={exportLoading === 'pdf'}
+        onClose={() => { if (exportLoading !== 'pdf') setPdfExportOpen(false); }}
+        onConfirm={(columns) => handleExport('pdf', columns)}
       />
     </Box>
   );
