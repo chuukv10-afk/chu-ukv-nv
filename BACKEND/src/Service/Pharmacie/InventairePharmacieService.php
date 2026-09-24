@@ -34,6 +34,9 @@ final class InventairePharmacieService
         'dosage' => 'Dosage',
         'unite' => 'Unité',
         'prixVente' => 'Prix de vente',
+        'prixVenteTotal' => 'Prix de vente total',
+        'prixAchat' => 'Prix d\'achat',
+        'prixAchatTotal' => 'Prix d\'achat total',
         'lot' => 'Lot',
         'peremption' => 'Péremption',
         'ouverture' => 'Ouverture',
@@ -47,7 +50,8 @@ final class InventairePharmacieService
     public const PDF_DEFAULT_COLUMNS = ['medicament', 'lot', 'peremption', 'ouverture', 'actuel', 'compte', 'ecart'];
 
     public const XLSX_DEFAULT_COLUMNS = [
-        'code', 'medicament', 'forme', 'dosage', 'unite', 'prixVente',
+        'code', 'medicament', 'forme', 'dosage', 'unite', 'prixVente', 'prixVenteTotal',
+        'prixAchat', 'prixAchatTotal',
         'lot', 'peremption', 'ouverture', 'actuel', 'compte', 'ecart', 'statut', 'comptePar',
     ];
 
@@ -234,6 +238,14 @@ final class InventairePharmacieService
     }
 
     /**
+     * @param list<string> $columns
+     */
+    public function exportPdfOrientation(array $columns): string
+    {
+        return count($columns) <= 4 ? 'portrait' : 'landscape';
+    }
+
+    /**
      * @param list<string>|null $columns
      * @return list<string>
      */
@@ -250,33 +262,81 @@ final class InventairePharmacieService
 
     /**
      * @param list<string>|null $columns
-     * @return list<list<string|null>>
+     * @return array{rows: list<list<string|null>>, summaryRows: list<list<string|null>>}
      */
-    public function buildExportRows(InventairePharmacie $inventaire, string $format = 'xlsx', ?array $columns = null): array
+    public function buildExportData(InventairePharmacie $inventaire, string $format = 'xlsx', ?array $columns = null): array
     {
         $keys = $columns ?? $this->resolveExportColumns($format);
         $detail = $this->serializeDetail($inventaire);
         $rows = [];
+        $totalVente = 0.0;
+        $totalAchat = 0.0;
         foreach ($detail['produits'] as $produit) {
             $med = is_array($produit['medicament'] ?? null) ? $produit['medicament'] : [];
             foreach ($produit['lignes'] ?? [] as $ligne) {
                 if (!is_array($ligne)) {
                     continue;
                 }
-                $rows[] = $this->exportRowValues($med, $ligne, $keys);
+                $computed = $this->exportLineAmounts($med, $ligne);
+                $totalVente += $computed['venteTotal'];
+                $totalAchat += $computed['achatTotal'];
+                $rows[] = $this->exportRowValues($med, $ligne, $keys, $computed);
             }
         }
 
-        return $rows;
+        $summaryRows = [];
+        if (
+            [] !== $rows
+            && (in_array('prixVenteTotal', $keys, true) || in_array('prixAchatTotal', $keys, true))
+        ) {
+            $summaryRows[] = $this->buildExportSummaryRow($keys, $totalVente, $totalAchat);
+        }
+
+        return [
+            'rows' => $rows,
+            'summaryRows' => $summaryRows,
+        ];
+    }
+
+    /**
+     * @param list<string>|null $columns
+     * @return list<list<string|null>>
+     */
+    public function buildExportRows(InventairePharmacie $inventaire, string $format = 'xlsx', ?array $columns = null): array
+    {
+        return $this->buildExportData($inventaire, $format, $columns)['rows'];
+    }
+
+    /**
+     * @param array<string, mixed> $med
+     * @param array<string, mixed> $ligne
+     * @return array{qty: float, vente: float, achat: float, venteTotal: float, achatTotal: float}
+     */
+    private function exportLineAmounts(array $med, array $ligne): array
+    {
+        $qty = null !== ($ligne['quantiteComptee'] ?? null)
+            ? (float) $ligne['quantiteComptee']
+            : (float) ($ligne['quantiteActuelle'] ?? 0);
+        $vente = (float) ($med['prixVente'] ?? 0);
+        $achat = (float) ($ligne['prixAchat'] ?? 0);
+
+        return [
+            'qty' => $qty,
+            'vente' => $vente,
+            'achat' => $achat,
+            'venteTotal' => $vente * $qty,
+            'achatTotal' => $achat * $qty,
+        ];
     }
 
     /**
      * @param array<string, mixed> $med
      * @param array<string, mixed> $ligne
      * @param list<string> $keys
+     * @param array{qty: float, vente: float, achat: float, venteTotal: float, achatTotal: float} $amounts
      * @return list<string|null>
      */
-    private function exportRowValues(array $med, array $ligne, array $keys): array
+    private function exportRowValues(array $med, array $ligne, array $keys, array $amounts): array
     {
         $comptePar = is_array($ligne['comptePar'] ?? null) ? $ligne['comptePar'] : null;
         $values = [
@@ -286,6 +346,9 @@ final class InventairePharmacieService
             'dosage' => (string) ($med['dosage'] ?? ''),
             'unite' => $this->uniteExportLabel($med['unite'] ?? null),
             'prixVente' => $this->formatPrixExport($med['prixVente'] ?? null),
+            'prixVenteTotal' => $this->formatPrixExport($amounts['venteTotal']),
+            'prixAchat' => $this->formatPrixExport($ligne['prixAchat'] ?? null),
+            'prixAchatTotal' => $this->formatPrixExport($amounts['achatTotal']),
             'lot' => (string) ($ligne['numeroLot'] ?? ''),
             'peremption' => $this->formatDateExport($ligne['datePeremption'] ?? null),
             'ouverture' => (string) ($ligne['quantiteSysteme'] ?? ''),
@@ -299,6 +362,37 @@ final class InventairePharmacieService
         $row = [];
         foreach ($keys as $key) {
             $row[] = $values[$key] ?? '';
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @return list<string|null>
+     */
+    private function buildExportSummaryRow(array $keys, float $totalVente, float $totalAchat): array
+    {
+        $row = [];
+        $labeled = false;
+        foreach ($keys as $key) {
+            if ('prixVenteTotal' === $key) {
+                $row[] = $this->formatPrixExport($totalVente);
+                continue;
+            }
+            if ('prixAchatTotal' === $key) {
+                $row[] = $this->formatPrixExport($totalAchat);
+                continue;
+            }
+            if (!$labeled && 'medicament' === $key) {
+                $row[] = 'Total général';
+                $labeled = true;
+                continue;
+            }
+            $row[] = '';
+        }
+        if (!$labeled && [] !== $row) {
+            $row[0] = 'Total général';
         }
 
         return $row;
@@ -545,6 +639,7 @@ final class InventairePharmacieService
             'id' => $ligne->getId(),
             'lotId' => $lot?->getId(),
             'numeroLot' => $ligne->getNumeroLot(),
+            'prixAchat' => $lot?->getPrixAchatUnitaire(),
             'datePeremption' => $ligne->getDatePeremption()?->format('Y-m-d'),
             'statutLot' => $lot?->getStatut(),
             'quantiteSysteme' => $ligne->getQuantiteSysteme(),

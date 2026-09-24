@@ -72,16 +72,18 @@ final class InventairesPharmacieController extends AbstractController
             $format,
             $request->query->all()['columns'] ?? $request->query->get('columns'),
         );
+        $export = $inventaireService->buildExportData($inventaire, $format, $columns);
 
         return $this->createTableExportResponse(
             $request,
             $tableExportService,
             $inventaireService->exportHeaders($format, $columns),
-            $inventaireService->buildExportRows($inventaire, $format, $columns),
+            $export['rows'],
             $inventaireService->exportTitle($inventaire),
             $inventaireService->exportFilenamePrefix($inventaire),
             'Aucune ligne d\'inventaire.',
-            pdfOrientation: 'landscape',
+            pdfOrientation: $inventaireService->exportPdfOrientation($columns),
+            summaryRows: $export['summaryRows'],
         );
     }
 
