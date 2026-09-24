@@ -88,7 +88,7 @@ class ActeFinancierRepository extends ServiceEntityRepository
         $normalizedSearch = null !== $search ? trim($search) : '';
         if ('' !== $normalizedSearch) {
             $qb
-                ->andWhere('LOWER(a.code) LIKE :search OR LOWER(a.libelle) LIKE :search')
+                ->andWhere('LOWER(a.code) LIKE :search OR LOWER(a.libelle) LIKE :search OR LOWER(a.sousCategorie) LIKE :search')
                 ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
         }
 

@@ -47,29 +47,77 @@ final class ActeFinancierService
     }
 
     /**
+     * @return list<string>
+     */
+    public function exportHeaders(string $format = 'xlsx'): array
+    {
+        if ('pdf' === $format) {
+            return ['N°', 'Service', 'Acte', 'A0', 'A1', 'A', 'B', 'C'];
+        }
+
+        return ['N°', 'Code', 'Service', 'Sous-catégorie', 'Acte', 'A0', 'A1', 'A', 'B', 'C', 'Unité', 'Statut'];
+    }
+
+    /**
      * @return list<list<string|null>>
      */
-    public function buildExportRows(FacturationListQuery $query): array
+    public function buildExportRows(FacturationListQuery $query, string $format = 'xlsx'): array
     {
         $this->assertValid($query);
         $items = $this->acteFinancierRepository->findForExport($query->search, $query->serviceGrille);
 
         return array_map(
-            fn (ActeFinancier $acte): array => [
-                $acte->getCode(),
-                $acte->getServiceGrille(),
-                $acte->getSousCategorie(),
-                $acte->getLibelle(),
-                $acte->getTarifA0(),
-                $acte->getTarifA1(),
-                $acte->getTarif(),
-                $acte->getTarifB(),
-                $acte->getTarifC(),
-                $acte->getUnite(),
-                $acte->getStatut(),
-            ],
+            fn (ActeFinancier $acte): array => $this->buildExportRow($acte, $format),
             $items,
         );
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    private function buildExportRow(ActeFinancier $acte, string $format): array
+    {
+        $libelle = (string) $acte->getLibelle();
+        $sousCategorie = trim((string) $acte->getSousCategorie());
+        if ('pdf' === $format && '' !== $sousCategorie) {
+            $libelle = $sousCategorie . ' — ' . $libelle;
+        }
+
+        if ('pdf' === $format) {
+            return [
+                $acte->getServiceGrille(),
+                $libelle,
+                $this->formatTarifExport($acte->getTarifA0()),
+                $this->formatTarifExport($acte->getTarifA1()),
+                $this->formatTarifExport($acte->getTarif()),
+                $this->formatTarifExport($acte->getTarifB()),
+                $this->formatTarifExport($acte->getTarifC()),
+            ];
+        }
+
+        return [
+            $acte->getCode(),
+            $acte->getServiceGrille(),
+            '' !== $sousCategorie ? $sousCategorie : null,
+            $acte->getLibelle(),
+            $this->formatTarifExport($acte->getTarifA0()),
+            $this->formatTarifExport($acte->getTarifA1()),
+            $this->formatTarifExport($acte->getTarif()),
+            $this->formatTarifExport($acte->getTarifB()),
+            $this->formatTarifExport($acte->getTarifC()),
+            $acte->getUnite(),
+            $acte->getStatut(),
+        ];
+    }
+
+    private function formatTarifExport(?string $value): string
+    {
+        $normalized = str_replace([' ', ','], ['', '.'], trim((string) $value));
+        if ('' === $normalized || !is_numeric($normalized)) {
+            return '0';
+        }
+
+        return number_format((float) $normalized, 2, ',', ' ');
     }
 
     public function getById(int $id): ActeFinancier

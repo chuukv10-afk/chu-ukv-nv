@@ -72,14 +72,17 @@ final class ActesFinanciersController extends AbstractController
         TableExportService $tableExportService,
         #[MapQueryString] FacturationListQuery $query = new FacturationListQuery(),
     ): Response {
+        $format = strtolower(trim((string) $request->query->get('format', 'xlsx')));
+
         return $this->createTableExportResponse(
             $request,
             $tableExportService,
-            ['Code', 'Service', 'Sous-catégorie', 'Acte', 'A0', 'A1', 'A', 'B', 'C', 'Unité', 'Statut'],
-            $acteFinancierService->buildExportRows($query),
-            'Grille tarifaire CHHU',
+            $acteFinancierService->exportHeaders($format),
+            $acteFinancierService->buildExportRows($query, $format),
+            'Grille tarifaire CHU-UKV',
             'grille-tarifaire',
             'Aucun acte trouvé pour les filtres sélectionnés.',
+            pdfOrientation: 'landscape',
         );
     }
 
