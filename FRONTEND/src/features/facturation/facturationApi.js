@@ -88,3 +88,42 @@ export async function updateActeFinancierApi(id, payload) {
 export async function deleteActeFinancierApi(id) {
   return callApiDelete(`${facturation.actes}/${id}`);
 }
+
+export async function fetchFactureActesApi(params = {}) {
+  const response = await callApiGet(`${facturation.factures}/actes${buildQueryString(params)}`);
+  return paginatedResult(unwrapData(response), params);
+}
+
+export async function fetchFacturesApi(params = {}) {
+  const response = await callApiGet(`${facturation.factures}${buildQueryString(params)}`);
+  return paginatedResult(unwrapData(response), params);
+}
+
+export async function fetchFactureApi(id) {
+  const response = await callApiGet(`${facturation.factures}/${id}`);
+  return unwrapData(response);
+}
+
+export async function createFactureApi(payload) {
+  const response = await callApiPost(facturation.factures, payload);
+  return unwrapData(response);
+}
+
+export async function updateFactureApi(id, payload) {
+  const response = await callApiPut(`${facturation.factures}/${id}`, payload);
+  return unwrapData(response);
+}
+
+export async function validerFactureApi(id) {
+  const response = await callApiPost(`${facturation.factures}/${id}/valider`);
+  return unwrapData(response);
+}
+
+export async function annulerFactureApi(id) {
+  const response = await callApiPost(`${facturation.factures}/${id}/annuler`);
+  return unwrapData(response);
+}
+
+export async function deleteFactureApi(id) {
+  return callApiDelete(`${facturation.factures}/${id}`);
+}

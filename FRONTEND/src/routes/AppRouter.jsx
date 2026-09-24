@@ -23,6 +23,8 @@ import PatientsPage from '../features/patient/patients/PatientsPage.jsx';
 import PatientDpiPage from '../features/patient/patients/PatientDpiPage.jsx';
 import StructuresPage from '../features/facturation/StructuresPage.jsx';
 import ActesFinanciersPage from '../features/facturation/ActesFinanciersPage.jsx';
+import FacturesPage from '../features/facturation/FacturesPage.jsx';
+import FactureFormPage from '../features/facturation/FactureFormPage.jsx';
 import RolesPage from '../features/admin/roles/RolesPage.jsx';
 import PermissionsPage from '../features/admin/permissions/PermissionsPage.jsx';
 import RolePermissionsPage from '../features/admin/role-permissions/RolePermissionsPage.jsx';
@@ -285,6 +287,30 @@ export default function AppRouter() {
               element={(
                 <PermissionGuard permission={PERMISSIONS.PATIENT.PATIENT_READ}>
                   <PatientsPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.FACTURATION.FACTURE_NEW}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.FACTURATION.FACTURE_CREATE}>
+                  <FactureFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.FACTURATION.FACTURE_DETAIL}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.FACTURATION.FACTURE_READ}>
+                  <FactureFormPage />
+                </PermissionGuard>
+              )}
+            />
+            <Route
+              path={ROUTES.FACTURATION.FACTURES}
+              element={(
+                <PermissionGuard permission={PERMISSIONS.FACTURATION.FACTURE_READ}>
+                  <FacturesPage />
                 </PermissionGuard>
               )}
             />

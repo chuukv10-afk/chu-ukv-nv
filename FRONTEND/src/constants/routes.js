@@ -86,6 +86,9 @@ export const ROUTES = {
   },
 
   FACTURATION: {
+    FACTURES: '/facturation/factures',
+    FACTURE_NEW: '/facturation/factures/nouveau',
+    FACTURE_DETAIL: '/facturation/factures/:id',
     STRUCTURES: '/facturation/structures',
     ACTES: '/facturation/grille',
   },

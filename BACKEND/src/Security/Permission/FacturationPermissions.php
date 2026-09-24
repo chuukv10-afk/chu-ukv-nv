@@ -21,6 +21,14 @@ final class FacturationPermissions
     public const ACTE_IMPORT = 'facturation.acte.import';
     public const ACTE_EXPORT = 'facturation.acte.export';
 
+    public const FACTURE_READ = 'facturation.facture.read';
+    public const FACTURE_CREATE = 'facturation.facture.create';
+    public const FACTURE_UPDATE = 'facturation.facture.update';
+    public const FACTURE_DELETE = 'facturation.facture.delete';
+    public const FACTURE_VALIDER = 'facturation.facture.valider';
+    public const FACTURE_EXPORT = 'facturation.facture.export';
+    public const FACTURE_REMISE = 'facturation.facture.remise';
+
     /**
      * @return list<array{code: string, libelle: string, module: string}>
      */
@@ -75,6 +83,41 @@ final class FacturationPermissions
             [
                 'code' => self::ACTE_EXPORT,
                 'libelle' => 'Exporter la grille tarifaire (PDF / Excel)',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::FACTURE_READ,
+                'libelle' => 'Lire les factures',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::FACTURE_CREATE,
+                'libelle' => 'Créer une facture',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::FACTURE_UPDATE,
+                'libelle' => 'Modifier une facture',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::FACTURE_DELETE,
+                'libelle' => 'Supprimer une facture brouillon',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::FACTURE_VALIDER,
+                'libelle' => 'Valider une facture',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::FACTURE_EXPORT,
+                'libelle' => 'Exporter une facture',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::FACTURE_REMISE,
+                'libelle' => 'Appliquer une remise (globale ou par acte)',
                 'module' => Permission::MODULE_FACTURATION,
             ],
         ];

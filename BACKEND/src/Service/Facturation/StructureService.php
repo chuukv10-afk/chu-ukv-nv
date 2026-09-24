@@ -6,6 +6,7 @@ use App\DTO\Common\PaginatedResult;
 use App\DTO\Facturation\CreateStructureInput;
 use App\DTO\Facturation\FacturationListQuery;
 use App\DTO\Facturation\UpdateStructureInput;
+use App\Entity\Facture;
 use App\Entity\Patient;
 use App\Entity\Structure;
 use App\Entity\Visite;
@@ -94,6 +95,10 @@ final class StructureService
         $visiteCount = (int) $this->entityManager->getRepository(Visite::class)->count(['structure' => $structure]);
         if ($visiteCount > 0) {
             throw new ConflictException('Cette structure est liée à des visites.');
+        }
+        $factureCount = (int) $this->entityManager->getRepository(Facture::class)->count(['structure' => $structure]);
+        if ($factureCount > 0) {
+            throw new ConflictException('Cette structure est liée à des factures.');
         }
 
         $this->entityManager->remove($structure);

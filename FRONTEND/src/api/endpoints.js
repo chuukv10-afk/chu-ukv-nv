@@ -73,6 +73,7 @@ export const patient = {
 export const facturation = {
   structures: '/api/v1/facturation/structures',
   actes: '/api/v1/facturation/actes-financiers',
+  factures: '/api/v1/facturation/factures',
 };
 
 export const dashboard = {

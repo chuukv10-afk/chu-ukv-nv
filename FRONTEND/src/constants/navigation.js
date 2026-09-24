@@ -327,6 +327,12 @@ export const NAV_SECTIONS = [
     module: 'FACTURATION',
     items: [
       {
+        label: 'Factures',
+        to: ROUTES.FACTURATION.FACTURES,
+        permission: PERMISSIONS.FACTURATION.FACTURE_READ,
+        icon: 'receipt',
+      },
+      {
         label: 'Structures',
         to: ROUTES.FACTURATION.STRUCTURES,
         permission: PERMISSIONS.FACTURATION.STRUCTURE_READ,

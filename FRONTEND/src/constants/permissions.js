@@ -221,6 +221,13 @@ export const PERMISSIONS = {
     ACTE_DELETE: 'facturation.acte.delete',
     ACTE_IMPORT: 'facturation.acte.import',
     ACTE_EXPORT: 'facturation.acte.export',
+    FACTURE_READ: 'facturation.facture.read',
+    FACTURE_CREATE: 'facturation.facture.create',
+    FACTURE_UPDATE: 'facturation.facture.update',
+    FACTURE_DELETE: 'facturation.facture.delete',
+    FACTURE_VALIDER: 'facturation.facture.valider',
+    FACTURE_EXPORT: 'facturation.facture.export',
+    FACTURE_REMISE: 'facturation.facture.remise',
   },
   PATIENT: {
     PATIENT_READ: 'patient.read',
