@@ -79,4 +79,16 @@ class ServiceRepository extends ServiceEntityRepository
 
         return $qb->getQuery()->getResult();
     }
+
+    /**
+     * @return list<Service>
+     */
+    public function findAllOrdered(): array
+    {
+        return $this->createQueryBuilder('s')
+            ->leftJoin('s.departement', 'd')->addSelect('d')
+            ->orderBy('s.libelle', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

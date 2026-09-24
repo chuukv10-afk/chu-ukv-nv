@@ -62,9 +62,37 @@ export const DEFAULT_CATEGORIE_TARIFAIRE = 'A';
 
 export const FACTURE_STATUTS = [
   { value: 'BROUILLON', label: 'Brouillon', color: 'neutral' },
-  { value: 'VALIDEE', label: 'Validée', color: 'success' },
+  { value: 'VALIDEE', label: 'Approuvée', color: 'success' },
   { value: 'ANNULEE', label: 'Annulée', color: 'danger' },
 ];
+
+export const FACTURE_PAIEMENT_STATUTS = [
+  { value: 'NON_PAYEE', label: 'Non payée', color: 'warning' },
+  { value: 'PARTIELLE', label: 'Partielle', color: 'primary' },
+  { value: 'PAYEE', label: 'Payée', color: 'success' },
+];
+
+export const FACTURE_PAIEMENT_LABELS = FACTURE_PAIEMENT_STATUTS.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
+
+export const FACTURE_PAIEMENT_COLORS = FACTURE_PAIEMENT_STATUTS.reduce((acc, item) => {
+  acc[item.value] = item.color;
+  return acc;
+}, {});
+
+export const REGLEMENT_MODES = [
+  { value: 'ESPECES', label: 'Espèces' },
+  { value: 'MOBILE', label: 'Mobile money' },
+  { value: 'BANQUE', label: 'Banque' },
+  { value: 'CHEQUE', label: 'Chèque' },
+];
+
+export const REGLEMENT_MODE_LABELS = REGLEMENT_MODES.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
 
 export const FACTURE_STATUT_LABELS = FACTURE_STATUTS.reduce((acc, item) => {
   acc[item.value] = item.label;

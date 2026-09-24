@@ -2,6 +2,7 @@
 
 namespace App\DTO\Clinique;
 
+use App\Util\CalendarDate;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final class AptitudeListQuery
@@ -41,6 +42,12 @@ final class AptitudeListQuery
 
         #[Assert\Length(max: 20)]
         public ?string $numero = null,
+
+        #[Assert\Regex(pattern: '/^\d{4}-\d{2}-\d{2}$/', message: 'Date de début invalide (AAAA-MM-JJ).')]
+        public ?string $dateFrom = null,
+
+        #[Assert\Regex(pattern: '/^\d{4}-\d{2}-\d{2}$/', message: 'Date de fin invalide (AAAA-MM-JJ).')]
+        public ?string $dateTo = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;
@@ -60,5 +67,7 @@ final class AptitudeListQuery
         if ('' === $this->imprime) {
             $this->imprime = null;
         }
+        $this->dateFrom = CalendarDate::toDateOnly($this->dateFrom);
+        $this->dateTo = CalendarDate::toDateOnly($this->dateTo);
     }
 }

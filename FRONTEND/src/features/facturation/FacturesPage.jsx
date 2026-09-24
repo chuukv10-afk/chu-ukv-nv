@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Button, Card, Chip, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
-import { Eye, Plus, Receipt, Search, Trash2 } from 'lucide-react';
+import { Eye, Plus, Printer, Receipt, Search, Trash2 } from 'lucide-react';
 import AppPagination from '../../components/ui/AppPagination.jsx';
 import ConfirmModal from '../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../constants/permissions.js';
@@ -17,13 +17,15 @@ import {
   CATEGORIE_TARIFAIRE_LABELS,
   DEFAULT_FACTURE_PAGE_SIZE,
   FACTURE_PAGE_SIZE_OPTIONS,
+  FACTURE_PAIEMENT_COLORS,
+  FACTURE_PAIEMENT_LABELS,
   FACTURE_STATUT_COLORS,
   FACTURE_STATUT_LABELS,
   FACTURE_STATUTS,
   formatFc,
   patientLabel,
 } from './facturationConstants.js';
-import { deleteFactureApi, fetchFacturesApi } from './facturationApi.js';
+import { deleteFactureApi, fetchFacturesApi, openFacturePdfApi } from './facturationApi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_FACTURE_PAGE_SIZE, total: 0, totalPages: 0 };
 
@@ -33,6 +35,7 @@ export default function FacturesPage() {
   const { showSuccess, showError } = useToast();
   const canCreate = hasPermission(PERMISSIONS.FACTURATION.FACTURE_CREATE);
   const canDelete = hasPermission(PERMISSIONS.FACTURATION.FACTURE_DELETE);
+  const canExport = hasPermission(PERMISSIONS.FACTURATION.FACTURE_EXPORT);
 
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState(EMPTY_PAGINATION);
@@ -152,7 +155,7 @@ export default function FacturesPage() {
         ) : null}
 
         <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto' }}>
-          <Table stickyHeader hoverRow sx={{ minWidth: 960 }}>
+          <Table stickyHeader hoverRow sx={{ minWidth: 1100 }}>
             <thead>
               <tr>
                 <th>Numéro</th>
@@ -161,16 +164,17 @@ export default function FacturesPage() {
                 <th>Catégorie</th>
                 <th>Structure</th>
                 <th>Montant</th>
+                <th>Paiement</th>
                 <th>Statut</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
+                <tr><td colSpan={9}><Typography level="body-sm" sx={{ p: 2 }}>Chargement…</Typography></td></tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <Typography level="body-sm" sx={{ p: 2, color: LOTRU_NEUTRAL[600] }}>Aucune facture.</Typography>
                   </td>
                 </tr>
@@ -194,6 +198,18 @@ export default function FacturesPage() {
                     ) : formatFc(item.montantTotal)}
                   </td>
                   <td>
+                    <Stack spacing={0.25}>
+                      <Chip size="sm" variant="soft" color={FACTURE_PAIEMENT_COLORS[item.statutPaiement] ?? 'neutral'}>
+                        {FACTURE_PAIEMENT_LABELS[item.statutPaiement] ?? item.statutPaiement ?? 'Non payée'}
+                      </Chip>
+                      {Number(item.montantPaye) > 0 ? (
+                        <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                          {formatFc(item.montantPaye)} / reste {formatFc(item.montantReste)}
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                  </td>
+                  <td>
                     <Chip size="sm" variant="soft" color={FACTURE_STATUT_COLORS[item.statut] ?? 'neutral'}>
                       {FACTURE_STATUT_LABELS[item.statut] ?? item.statut}
                     </Chip>
@@ -207,6 +223,15 @@ export default function FacturesPage() {
                       >
                         <Eye size={16} />
                       </IconButton>
+                      {canExport ? (
+                        <IconButton
+                          size="sm"
+                          variant="plain"
+                          onClick={() => openFacturePdfApi(item.id).catch((error) => showError(error.message || 'Impression impossible.'))}
+                        >
+                          <Printer size={16} />
+                        </IconButton>
+                      ) : null}
                       {canDelete && item.statut === 'BROUILLON' ? (
                         <IconButton size="sm" variant="plain" color="danger" onClick={() => setPendingDelete(item)}>
                           <Trash2 size={16} />

@@ -228,6 +228,7 @@ export const PERMISSIONS = {
     FACTURE_VALIDER: 'facturation.facture.valider',
     FACTURE_EXPORT: 'facturation.facture.export',
     FACTURE_REMISE: 'facturation.facture.remise',
+    FACTURE_REGLER: 'facturation.facture.regler',
   },
   PATIENT: {
     PATIENT_READ: 'patient.read',

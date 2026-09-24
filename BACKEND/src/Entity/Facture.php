@@ -40,6 +40,16 @@ class Facture implements BlameableInterface
         self::REMISE_MONTANT,
     ];
 
+    public const PAIEMENT_NON_PAYEE = 'NON_PAYEE';
+    public const PAIEMENT_PARTIELLE = 'PARTIELLE';
+    public const PAIEMENT_PAYEE = 'PAYEE';
+
+    public const STATUTS_PAIEMENT = [
+        self::PAIEMENT_NON_PAYEE,
+        self::PAIEMENT_PARTIELLE,
+        self::PAIEMENT_PAYEE,
+    ];
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -83,6 +93,12 @@ class Facture implements BlameableInterface
     #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2)]
     private string $montantTotal = '0.00';
 
+    #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2)]
+    private string $montantPaye = '0.00';
+
+    #[ORM\Column(length: 16)]
+    private string $statutPaiement = self::PAIEMENT_NON_PAYEE;
+
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $notes = null;
 
@@ -91,9 +107,15 @@ class Facture implements BlameableInterface
     #[ORM\OrderBy(['id' => 'ASC'])]
     private Collection $lignes;
 
+    /** @var Collection<int, FactureReglement> */
+    #[ORM\OneToMany(targetEntity: FactureReglement::class, mappedBy: 'facture', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['id' => 'ASC'])]
+    private Collection $reglements;
+
     public function __construct()
     {
         $this->lignes = new ArrayCollection();
+        $this->reglements = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -245,6 +267,48 @@ class Facture implements BlameableInterface
         return $this;
     }
 
+    public function getMontantPaye(): string
+    {
+        return $this->montantPaye;
+    }
+
+    public function setMontantPaye(string $montantPaye): static
+    {
+        $this->montantPaye = $montantPaye;
+
+        return $this;
+    }
+
+    public function getStatutPaiement(): string
+    {
+        return $this->statutPaiement;
+    }
+
+    public function setStatutPaiement(string $statutPaiement): static
+    {
+        $this->statutPaiement = $statutPaiement;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, FactureReglement>
+     */
+    public function getReglements(): Collection
+    {
+        return $this->reglements;
+    }
+
+    public function addReglement(FactureReglement $reglement): static
+    {
+        if (!$this->reglements->contains($reglement)) {
+            $this->reglements->add($reglement);
+            $reglement->setFacture($this);
+        }
+
+        return $this;
+    }
+
     public function getNotes(): ?string
     {
         return $this->notes;
@@ -292,6 +356,11 @@ class Facture implements BlameableInterface
     public function isValidee(): bool
     {
         return self::STATUT_VALIDEE === $this->statut;
+    }
+
+    public function resteAPayer(): string
+    {
+        return number_format(max(0, (float) $this->montantTotal - (float) $this->montantPaye), 2, '.', '');
     }
 
     public function getPatientId(): ?Uuid

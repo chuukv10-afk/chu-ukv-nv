@@ -33,8 +33,10 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         bool $sansFiliere = false,
         ?string $imprime = null,
         ?string $numero = null,
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
     ): array {
-        $qb = $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime, $numero);
+        $qb = $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime, $numero, $dateFrom, $dateTo);
 
         $total = (int) (clone $qb)
             ->select('COUNT(c.id)')
@@ -65,8 +67,10 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         bool $sansFiliere = false,
         ?string $imprime = null,
         ?string $numero = null,
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
     ): array {
-        return $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime, $numero)
+        return $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime, $numero, $dateFrom, $dateTo)
             ->getQuery()
             ->getResult();
     }
@@ -148,6 +152,8 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         bool $sansFiliere = false,
         ?string $imprime = null,
         ?string $numero = null,
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
     ): \Doctrine\ORM\QueryBuilder {
         $qb = $this->createQueryBuilder('c')
             ->leftJoin('c.service', 's')->addSelect('s')
@@ -200,6 +206,20 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
             $qb->andWhere('c.imprime = TRUE');
         } elseif ('non' === $imprime) {
             $qb->andWhere('c.imprime = FALSE');
+        }
+
+        $timezone = new \DateTimeZone('Africa/Kinshasa');
+        $normalizedFrom = null !== $dateFrom ? trim($dateFrom) : '';
+        if ('' !== $normalizedFrom) {
+            $qb
+                ->andWhere('COALESCE(c.signeAt, c.createdAt) >= :dateFrom')
+                ->setParameter('dateFrom', new \DateTimeImmutable($normalizedFrom . ' 00:00:00', $timezone));
+        }
+        $normalizedTo = null !== $dateTo ? trim($dateTo) : '';
+        if ('' !== $normalizedTo) {
+            $qb
+                ->andWhere('COALESCE(c.signeAt, c.createdAt) <= :dateTo')
+                ->setParameter('dateTo', new \DateTimeImmutable($normalizedTo . ' 23:59:59', $timezone));
         }
 
         return $qb;

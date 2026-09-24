@@ -4,6 +4,7 @@ import {
   callApiGet,
   callApiPost,
   callApiPut,
+  openFileInBrowser,
 } from '../../api/apiClient.js';
 
 function unwrapData(response) {
@@ -94,6 +95,12 @@ export async function fetchFactureActesApi(params = {}) {
   return paginatedResult(unwrapData(response), params);
 }
 
+export async function fetchFactureServicesApi() {
+  const response = await callApiGet(`${facturation.factures}/services`);
+  const data = unwrapData(response);
+  return Array.isArray(data) ? data : [];
+}
+
 export async function fetchFacturesApi(params = {}) {
   const response = await callApiGet(`${facturation.factures}${buildQueryString(params)}`);
   return paginatedResult(unwrapData(response), params);
@@ -126,4 +133,13 @@ export async function annulerFactureApi(id) {
 
 export async function deleteFactureApi(id) {
   return callApiDelete(`${facturation.factures}/${id}`);
+}
+
+export async function openFacturePdfApi(id) {
+  await openFileInBrowser(`${facturation.factures}/${id}/pdf`);
+}
+
+export async function reglerFactureApi(id, payload) {
+  const response = await callApiPost(`${facturation.factures}/${id}/regler`, payload);
+  return unwrapData(response);
 }

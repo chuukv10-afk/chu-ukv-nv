@@ -58,6 +58,8 @@ final class AptitudeService
             $query->sansFiliere,
             $query->imprime,
             $query->numero,
+            $query->dateFrom,
+            $query->dateTo,
         );
 
         return new PaginatedResult(
@@ -85,6 +87,8 @@ final class AptitudeService
             $query->sansFiliere,
             $query->imprime,
             $query->numero,
+            $query->dateFrom,
+            $query->dateTo,
         );
 
         $rows = [];

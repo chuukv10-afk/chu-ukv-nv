@@ -28,6 +28,7 @@ final class FacturationPermissions
     public const FACTURE_VALIDER = 'facturation.facture.valider';
     public const FACTURE_EXPORT = 'facturation.facture.export';
     public const FACTURE_REMISE = 'facturation.facture.remise';
+    public const FACTURE_REGLER = 'facturation.facture.regler';
 
     /**
      * @return list<array{code: string, libelle: string, module: string}>
@@ -107,17 +108,22 @@ final class FacturationPermissions
             ],
             [
                 'code' => self::FACTURE_VALIDER,
-                'libelle' => 'Valider une facture',
+                'libelle' => 'Approuver une facture',
                 'module' => Permission::MODULE_FACTURATION,
             ],
             [
                 'code' => self::FACTURE_EXPORT,
-                'libelle' => 'Exporter une facture',
+                'libelle' => 'Imprimer / exporter une facture',
                 'module' => Permission::MODULE_FACTURATION,
             ],
             [
                 'code' => self::FACTURE_REMISE,
                 'libelle' => 'Appliquer une remise (globale ou par acte)',
+                'module' => Permission::MODULE_FACTURATION,
+            ],
+            [
+                'code' => self::FACTURE_REGLER,
+                'libelle' => 'Régler une facture (paiement total ou partiel)',
                 'module' => Permission::MODULE_FACTURATION,
             ],
         ];

@@ -10,6 +10,9 @@ final class FactureLigneInput
         #[Assert\Positive(message: 'L\'acte est obligatoire.')]
         public int $acteId = 0,
 
+        #[Assert\Positive(message: 'Le service facturant est obligatoire.')]
+        public int $serviceId = 0,
+
         #[Assert\Positive(message: 'La quantité doit être supérieure à 0.')]
         public int $quantite = 1,
 

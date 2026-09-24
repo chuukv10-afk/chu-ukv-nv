@@ -31,6 +31,13 @@ class FactureLigne
     #[ORM\Column(length: 80, nullable: true)]
     private ?string $serviceGrille = null;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Service $service = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $serviceLibelle = null;
+
     #[ORM\Column]
     private int $quantite = 1;
 
@@ -113,6 +120,30 @@ class FactureLigne
     public function setServiceGrille(?string $serviceGrille): static
     {
         $this->serviceGrille = $serviceGrille;
+
+        return $this;
+    }
+
+    public function getService(): ?Service
+    {
+        return $this->service;
+    }
+
+    public function setService(?Service $service): static
+    {
+        $this->service = $service;
+
+        return $this;
+    }
+
+    public function getServiceLibelle(): ?string
+    {
+        return $this->serviceLibelle;
+    }
+
+    public function setServiceLibelle(?string $serviceLibelle): static
+    {
+        $this->serviceLibelle = $serviceLibelle;
 
         return $this;
     }

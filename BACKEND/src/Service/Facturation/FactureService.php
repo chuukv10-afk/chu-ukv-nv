@@ -5,18 +5,22 @@ namespace App\Service\Facturation;
 use App\DTO\Common\PaginatedResult;
 use App\DTO\Facturation\FactureLigneInput;
 use App\DTO\Facturation\FactureListQuery;
+use App\DTO\Facturation\ReglerFactureInput;
 use App\DTO\Facturation\UpsertFactureInput;
 use App\Entity\ActeFinancier;
 use App\Entity\CategorieTarifaire;
 use App\Entity\Facture;
 use App\Entity\FactureLigne;
+use App\Entity\FactureReglement;
 use App\Entity\Patient;
+use App\Entity\Service;
 use App\Entity\Structure;
 use App\Exception\ConflictException;
 use App\Exception\NotFoundException;
 use App\Repository\ActeFinancierRepository;
 use App\Repository\FactureRepository;
 use App\Repository\PatientRepository;
+use App\Repository\ServiceRepository;
 use App\Repository\StructureRepository;
 use App\Security\Permission\FacturationPermissions;
 use App\Util\CalendarDate;
@@ -34,9 +38,22 @@ final class FactureService
         private readonly PatientRepository $patientRepository,
         private readonly StructureRepository $structureRepository,
         private readonly ActeFinancierRepository $acteFinancierRepository,
+        private readonly ServiceRepository $serviceRepository,
         private readonly ValidatorInterface $validator,
         private readonly Security $security,
     ) {
+    }
+
+    /**
+     * @return list<array{id: int, code: string, libelle: string}>
+     */
+    public function listServices(): array
+    {
+        return array_map(static fn (Service $service): array => [
+            'id' => (int) $service->getId(),
+            'code' => (string) $service->getCode(),
+            'libelle' => (string) $service->getLibelle(),
+        ], $this->serviceRepository->findAllOrdered());
     }
 
     public function paginate(FactureListQuery $query): PaginatedResult
@@ -98,7 +115,12 @@ final class FactureService
     {
         $facture = $this->requireBrouillon($id);
         if ($facture->getLignes()->isEmpty()) {
-            throw new ConflictException('Ajoutez au moins un acte avant de valider.');
+            throw new ConflictException('Ajoutez au moins un acte avant d\'approuver.');
+        }
+        foreach ($facture->getLignes() as $ligne) {
+            if (null === $ligne->getService() && null === $ligne->getServiceLibelle()) {
+                throw new ConflictException('Chaque acte doit indiquer le service qui a facturé.');
+            }
         }
 
         $facture->setStatut(Facture::STATUT_VALIDEE);
@@ -130,6 +152,62 @@ final class FactureService
         $this->entityManager->flush();
     }
 
+    public function regler(int $id, ReglerFactureInput $input): Facture
+    {
+        $this->assertValid($input);
+        $facture = $this->getById($id);
+        if (!$facture->isValidee()) {
+            throw new ConflictException('Seule une facture approuvée peut être réglée.');
+        }
+
+        $montant = RemiseCalculator::money($input->montant);
+        if ((float) $montant <= 0) {
+            throw new ConflictException('Le montant du règlement doit être supérieur à 0.');
+        }
+
+        $reste = $facture->resteAPayer();
+        if ((float) $montant > (float) $reste + 0.0001) {
+            throw new ConflictException(sprintf('Le règlement dépasse le reste à payer (%s FC).', $reste));
+        }
+
+        $date = $input->dateReglement !== ''
+            ? \DateTime::createFromFormat('Y-m-d', $input->dateReglement)
+            : new \DateTime('now', new \DateTimeZone(CalendarDate::TIMEZONE));
+        if (false === $date) {
+            throw new ConflictException('Date de règlement invalide.');
+        }
+
+        $reglement = (new FactureReglement())
+            ->setMontant($montant)
+            ->setMode($input->mode)
+            ->setDateReglement($date)
+            ->setNotes($this->nullable($input->notes))
+            ->setCreatedAt(new \DateTimeImmutable());
+        $facture->addReglement($reglement);
+        $this->entityManager->persist($reglement);
+        $this->refreshPaiement($facture);
+        $this->entityManager->flush();
+
+        return $facture;
+    }
+
+    private function refreshPaiement(Facture $facture): void
+    {
+        $paye = '0.00';
+        foreach ($facture->getReglements() as $reglement) {
+            $paye = RemiseCalculator::money((string) ((float) $paye + (float) $reglement->getMontant()));
+        }
+        $total = (float) $facture->getMontantTotal();
+        $facture->setMontantPaye($paye);
+        if ((float) $paye <= 0) {
+            $facture->setStatutPaiement(Facture::PAIEMENT_NON_PAYEE);
+        } elseif ((float) $paye + 0.0001 >= $total) {
+            $facture->setStatutPaiement(Facture::PAIEMENT_PAYEE);
+        } else {
+            $facture->setStatutPaiement(Facture::PAIEMENT_PARTIELLE);
+        }
+    }
+
     /** @return array<string, mixed> */
     public function serializeSummary(Facture $facture): array
     {
@@ -148,6 +226,9 @@ final class FactureService
             'remiseValeur' => $facture->getRemiseValeur(),
             'remiseMontant' => $facture->getRemiseMontant(),
             'montantTotal' => $facture->getMontantTotal(),
+            'montantPaye' => $facture->getMontantPaye(),
+            'montantReste' => $facture->resteAPayer(),
+            'statutPaiement' => $facture->getStatutPaiement(),
             'lignesCount' => $facture->getLignes()->count(),
             'notes' => $facture->getNotes(),
             'patientId' => $patient?->getId()?->__toString(),
@@ -179,6 +260,10 @@ final class FactureService
                 fn (FactureLigne $ligne): array => $this->serializeLigne($ligne),
                 $facture->getLignes()->toArray(),
             ),
+            'reglements' => array_map(
+                fn (FactureReglement $reglement): array => $this->serializeReglement($reglement),
+                $facture->getReglements()->toArray(),
+            ),
         ];
     }
 
@@ -205,8 +290,9 @@ final class FactureService
             ];
             foreach ($facture->getLignes() as $existingLigne) {
                 $acteId = $existingLigne->getActe()?->getId();
-                if (null !== $acteId) {
-                    $preservedLignes[$acteId] = [
+                $serviceId = $existingLigne->getService()?->getId();
+                if (null !== $acteId && null !== $serviceId) {
+                    $preservedLignes[$this->ligneKey($acteId, $serviceId)] = [
                         'type' => $existingLigne->getRemiseType(),
                         'valeur' => $existingLigne->getRemiseValeur(),
                     ];
@@ -250,11 +336,13 @@ final class FactureService
                 throw new ConflictException(sprintf('L\'acte « %s » est inactif.', $acte->getLibelle()));
             }
 
+            $service = $this->requireService($ligneInput->serviceId);
             $quantite = max(1, $ligneInput->quantite);
             $unitaire = RemiseCalculator::money($acte->tarifPour($categorie));
             $tarifBrut = RemiseCalculator::money((string) ((float) $unitaire * $quantite));
-            $remiseSource = (!$canRemise && isset($preservedLignes[$ligneInput->acteId]))
-                ? $preservedLignes[$ligneInput->acteId]
+            $ligneKey = $this->ligneKey($ligneInput->acteId, $ligneInput->serviceId);
+            $remiseSource = (!$canRemise && isset($preservedLignes[$ligneKey]))
+                ? $preservedLignes[$ligneKey]
                 : ['type' => $ligneInput->remiseType, 'valeur' => $ligneInput->remiseValeur];
             $remise = RemiseCalculator::compute($tarifBrut, $remiseSource['type'], $remiseSource['valeur']);
             $ligneTotal = RemiseCalculator::money((string) ((float) $tarifBrut - (float) $remise['montant']));
@@ -264,6 +352,8 @@ final class FactureService
                 ->setCodeActe((string) $acte->getCode())
                 ->setLibelle((string) $acte->getLibelle())
                 ->setServiceGrille($acte->getServiceGrille())
+                ->setService($service)
+                ->setServiceLibelle(trim(sprintf('%s — %s', (string) $service->getCode(), (string) $service->getLibelle())))
                 ->setQuantite($quantite)
                 ->setTarifUnitaire($unitaire)
                 ->setTarifBrut($tarifBrut)
@@ -305,6 +395,7 @@ final class FactureService
 
             $normalized[] = new FactureLigneInput(
                 (int) ($ligne['acteId'] ?? 0),
+                (int) ($ligne['serviceId'] ?? 0),
                 (int) ($ligne['quantite'] ?? 0),
                 (string) ($ligne['remiseType'] ?? Facture::REMISE_NONE),
                 (string) ($ligne['remiseValeur'] ?? '0'),
@@ -339,6 +430,21 @@ final class FactureService
         }
 
         return $facture;
+    }
+
+    private function ligneKey(int $acteId, int $serviceId): string
+    {
+        return $acteId . ':' . $serviceId;
+    }
+
+    private function requireService(int $id): Service
+    {
+        $service = $this->serviceRepository->find($id);
+        if (!$service instanceof Service) {
+            throw new NotFoundException('Service facturant non trouvé.');
+        }
+
+        return $service;
     }
 
     private function requirePatient(string $id): Patient
@@ -406,6 +512,13 @@ final class FactureService
             'codeActe' => $ligne->getCodeActe(),
             'libelle' => $ligne->getLibelle(),
             'serviceGrille' => $ligne->getServiceGrille(),
+            'serviceId' => $ligne->getService()?->getId(),
+            'serviceLibelle' => $ligne->getServiceLibelle() ?: $ligne->getService()?->getLibelle(),
+            'service' => $ligne->getService() instanceof Service ? [
+                'id' => $ligne->getService()->getId(),
+                'code' => $ligne->getService()->getCode(),
+                'libelle' => $ligne->getService()->getLibelle(),
+            ] : null,
             'quantite' => $ligne->getQuantite(),
             'tarifUnitaire' => $ligne->getTarifUnitaire(),
             'tarifBrut' => $ligne->getTarifBrut(),
@@ -424,6 +537,19 @@ final class FactureService
                 'tarifB' => $acte->getTarifB(),
                 'tarifC' => $acte->getTarifC(),
             ] : null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function serializeReglement(FactureReglement $reglement): array
+    {
+        return [
+            'id' => $reglement->getId(),
+            'montant' => $reglement->getMontant(),
+            'mode' => $reglement->getMode(),
+            'dateReglement' => $reglement->getDateReglement()?->format('Y-m-d'),
+            'notes' => $reglement->getNotes(),
+            'createdAt' => $reglement->getCreatedAt()?->format(\DateTimeInterface::ATOM),
         ];
     }
 

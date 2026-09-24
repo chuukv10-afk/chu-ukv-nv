@@ -5,10 +5,12 @@ namespace App\Controller\Api\Facturation;
 use App\Controller\Api\Trait\JsonResponseTrait;
 use App\DTO\Facturation\FacturationListQuery;
 use App\DTO\Facturation\FactureListQuery;
+use App\DTO\Facturation\ReglerFactureInput;
 use App\DTO\Facturation\UpsertFactureInput;
 use App\Entity\ActeFinancier;
 use App\Security\Permission\FacturationPermissions;
 use App\Service\Facturation\ActeFinancierService;
+use App\Service\Facturation\FacturePdfService;
 use App\Service\Facturation\FactureService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -67,6 +69,23 @@ final class FacturesController extends AbstractController
         );
     }
 
+    #[Route('/services', name: 'api_facturation_factures_services', methods: ['GET'])]
+    public function services(FactureService $factureService): JsonResponse
+    {
+        if (
+            !$this->isGranted(FacturationPermissions::FACTURE_READ)
+            && !$this->isGranted(FacturationPermissions::FACTURE_CREATE)
+            && !$this->isGranted(FacturationPermissions::FACTURE_UPDATE)
+        ) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return $this->apiSuccess(
+            $factureService->listServices(),
+            'Services facturants récupérés avec succès.',
+        );
+    }
+
     #[Route('', name: 'api_facturation_factures_create', methods: ['POST'])]
     #[IsGranted(FacturationPermissions::FACTURE_CREATE)]
     public function create(
@@ -109,7 +128,27 @@ final class FacturesController extends AbstractController
     {
         return $this->apiSuccess(
             $factureService->serializeDetail($factureService->valider($id)),
-            'Facture validée.',
+            'Facture approuvée.',
+        );
+    }
+
+    #[Route('/{id}/pdf', name: 'api_facturation_factures_pdf', methods: ['GET'], requirements: ['id' => '\d+'])]
+    #[IsGranted(FacturationPermissions::FACTURE_EXPORT)]
+    public function pdf(FactureService $factureService, FacturePdfService $facturePdfService, int $id): Response
+    {
+        return $facturePdfService->createResponse($factureService->getById($id));
+    }
+
+    #[Route('/{id}/regler', name: 'api_facturation_factures_regler', methods: ['POST'], requirements: ['id' => '\d+'])]
+    #[IsGranted(FacturationPermissions::FACTURE_REGLER)]
+    public function regler(
+        FactureService $factureService,
+        int $id,
+        #[MapRequestPayload] ReglerFactureInput $input,
+    ): JsonResponse {
+        return $this->apiSuccess(
+            $factureService->serializeDetail($factureService->regler($id, $input)),
+            'Règlement enregistré.',
         );
     }
 

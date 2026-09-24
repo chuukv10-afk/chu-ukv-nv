@@ -78,6 +78,8 @@ export default function AptitudesPage() {
   const [serviceId, setServiceId] = useState('');
   const [filiereId, setFiliereId] = useState('');
   const [imprime, setImprime] = useState('tous');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedStatutById, setSelectedStatutById] = useState({});
   const [batchPdfLoading, setBatchPdfLoading] = useState(false);
@@ -124,7 +126,7 @@ export default function AptitudesPage() {
     setPage(1);
     setSelectedIds([]);
     setSelectedStatutById({});
-  }, [debouncedSearch, debouncedNumero, annee, statut, verdict, motif, serviceId, filiereId, imprime, limit]);
+  }, [debouncedSearch, debouncedNumero, annee, statut, verdict, motif, serviceId, filiereId, imprime, dateFrom, dateTo, limit]);
 
   const numeroYear = annee || String(yearOptions[0] ?? new Date().getFullYear());
 
@@ -139,7 +141,9 @@ export default function AptitudesPage() {
     filiereId: filiereId && filiereId !== 'none' ? filiereId : undefined,
     sansFiliere: filiereId === 'none' ? true : undefined,
     imprime: imprime === 'oui' || imprime === 'non' ? imprime : undefined,
-  }), [debouncedSearch, debouncedNumero, annee, numeroYear, statut, verdict, motif, serviceId, filiereId, imprime, canViewVerdict]);
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  }), [debouncedSearch, debouncedNumero, annee, numeroYear, statut, verdict, motif, serviceId, filiereId, imprime, dateFrom, dateTo, canViewVerdict]);
 
   const load = useCallback(async (targetPage = page) => {
     setLoading(true);
@@ -473,6 +477,14 @@ export default function AptitudesPage() {
             <Option value="none">Non renseignée</Option>
             {filieres.map((f) => <Option key={f.id} value={String(f.id)}>{f.code} — {f.libelle}</Option>)}
           </Select>
+          <FormControl sx={aptitudeFilterSx}>
+            <FormLabel>Du</FormLabel>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </FormControl>
+          <FormControl sx={aptitudeFilterSx}>
+            <FormLabel>Au</FormLabel>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </FormControl>
           <FormControl sx={aptitudeFilterSx}>
             <FormLabel>Impression</FormLabel>
             <Select value={imprime} onChange={(_, v) => setImprime(v || 'tous')}>
