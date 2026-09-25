@@ -127,10 +127,7 @@ HTML;
             'Protocolé le' => $protocolDate?->format('d/m/Y') ?? '—',
             'Médecin demandeur' => $this->doctorLabel($etude->getDemandePar()) ?: '—',
         ], $patient);
-        $resultat = $this->plainParagraphs([
-            $etude->getConstatations(),
-            $etude->getConclusion(),
-        ]);
+        $resultat = $this->resultatHtml($etude);
 
         return <<<HTML
 {$this->documentStyles()}
@@ -179,6 +176,19 @@ HTML;
         );
     }
 
+    private function resultatHtml(EtudeImagerie $etude): string
+    {
+        $text = trim((string) $etude->getConstatations());
+        if ('' === $text) {
+            $text = trim(implode("\n\n", array_filter([
+                trim((string) $etude->getTechnique()),
+                trim((string) $etude->getConclusion()),
+            ], static fn (string $part): bool => '' !== $part)));
+        }
+
+        return $this->formatResultat($text);
+    }
+
     /**
      * @param list<?string> $blocks
      */
@@ -190,8 +200,41 @@ HTML;
             if ('' === $text) {
                 continue;
             }
-            $html .= '<p class="cr-result">' . nl2br($this->e($text)) . '</p>';
+            $html .= $this->formatResultat($text);
         }
+
+        return '' !== $html ? $html : '<p class="cr-result">—</p>';
+    }
+
+    private function formatResultat(string $text): string
+    {
+        if ('' === $text) {
+            return '<p class="cr-result">—</p>';
+        }
+
+        $html = '';
+        $listItems = [];
+        $flushList = static function () use (&$html, &$listItems): void {
+            if ([] === $listItems) {
+                return;
+            }
+            $html .= '<ul class="cr-list"><li>' . implode('</li><li>', $listItems) . '</li></ul>';
+            $listItems = [];
+        };
+
+        foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+            $trimmed = trim($line);
+            if (preg_match('/^[-–—•]\s+(.*)$/u', $trimmed, $matches)) {
+                $listItems[] = $this->e($matches[1]);
+                continue;
+            }
+            $flushList();
+            if ('' === $trimmed) {
+                continue;
+            }
+            $html .= '<p class="cr-result">' . $this->e($trimmed) . '</p>';
+        }
+        $flushList();
 
         return '' !== $html ? $html : '<p class="cr-result">—</p>';
     }
@@ -209,7 +252,9 @@ p { margin: 0 0 8px; line-height: 1.55; font-size: 12px; color: #111; }
 .cr-rule { border: none; border-top: 1px solid #222; margin: 12px 0 18px; }
 .cr-title { text-align: center; font-size: 14px; font-weight: bold; letter-spacing: 1px; margin: 0 0 18px; color: #111; }
 .cr-result { font-size: 12px; line-height: 1.6; text-align: justify; margin: 0 0 10px; }
-.cr-thanks { margin-top: 28px; font-size: 12px; }
+.cr-thanks { margin-top: 28px; font-size: 12px; text-align: center; }
+.cr-list { margin: 4px 0 12px 18px; padding: 0; }
+.cr-list li { margin: 0 0 4px; line-height: 1.55; }
 .cr-sign-table { width: 100%; margin-top: 20px; }
 .cr-sign-table td { text-align: right; font-size: 12px; }
 .cap-signature-img { display: block; max-height: 52px; max-width: 160px; margin: 0 0 4px auto; }

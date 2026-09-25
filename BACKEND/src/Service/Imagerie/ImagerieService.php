@@ -170,10 +170,15 @@ final class ImagerieService
             throw new ConflictException('Chargez au moins une image ou un PDF avant d\'interpréter.');
         }
 
+        $texte = $input->texte();
+        if ('' === $texte) {
+            throw new BadRequestHttpException('Saisissez le compte-rendu.');
+        }
+
         $etude
-            ->setTechnique('' === trim((string) $input->technique) ? null : trim((string) $input->technique))
-            ->setConstatations(trim($input->constatations))
-            ->setConclusion(trim($input->conclusion))
+            ->setTechnique(null)
+            ->setConstatations($texte)
+            ->setConclusion(null)
             ->setStatut(EtudeImagerie::STATUT_INTERPRETE)
             ->setInterpretePar($this->currentPersonnel())
             ->setInterpreteAt(new \DateTimeImmutable('now', new \DateTimeZone(self::TIMEZONE)));
@@ -382,6 +387,7 @@ final class ImagerieService
         $data['technique'] = $canSeeInterpretation ? $etude->getTechnique() : null;
         $data['constatations'] = $canSeeInterpretation ? $etude->getConstatations() : null;
         $data['conclusion'] = $canSeeInterpretation ? $etude->getConclusion() : null;
+        $data['resultat'] = $canSeeInterpretation ? $this->composeResultat($etude) : null;
         $data['interpretePar'] = $canSeeInterpretation ? $this->serializePersonnel($etude->getInterpretePar()) : null;
         $data['validePar'] = $canSeeInterpretation ? $this->serializePersonnel($etude->getValidePar()) : null;
         $data['valideAt'] = $canSeeInterpretation ? $etude->getValideAt()?->format(\DateTimeInterface::ATOM) : null;
@@ -496,6 +502,19 @@ final class ImagerieService
         }
 
         return $personnel;
+    }
+
+    private function composeResultat(EtudeImagerie $etude): string
+    {
+        $principal = trim((string) $etude->getConstatations());
+        if ('' !== $principal) {
+            return $principal;
+        }
+
+        return trim(implode("\n\n", array_filter([
+            trim((string) $etude->getTechnique()),
+            trim((string) $etude->getConclusion()),
+        ], static fn (string $part): bool => '' !== $part)));
     }
 
     private function nullable(?string $value): ?string

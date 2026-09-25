@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Box, Button, Card, Chip, FormControl, FormLabel, IconButton, Stack, Tab, TabList, TabPanel, Tabs, Textarea, Typography,
 } from '@mui/joy';
-import { ArrowLeft, Check, FileText, Printer, Stethoscope, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FileText, List, Printer, Stethoscope, Trash2, Upload } from 'lucide-react';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
@@ -105,7 +105,8 @@ export default function ImagerieDetailPage() {
   const [etude, setEtude] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [report, setReport] = useState({ technique: '', constatations: '', conclusion: '' });
+  const [report, setReport] = useState('');
+  const reportRef = useRef(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const canSeeInterpretation = canSeeInterpretationPerm && etude?.canSeeInterpretation !== false;
   const requestedTab = searchParams.get('tab') === 'interpretation' ? 'interpretation' : 'images';
@@ -126,11 +127,7 @@ export default function ImagerieDetailPage() {
     try {
       const data = await fetchEtudeImagerieApi(id);
       setEtude(data);
-      setReport({
-        technique: data.technique || '',
-        constatations: data.constatations || '',
-        conclusion: data.conclusion || '',
-      });
+      setReport(data.resultat || [data.technique, data.constatations, data.conclusion].filter(Boolean).join('\n\n'));
     } catch (err) {
       showError(err.message || 'Étude introuvable.');
       navigate(ROUTES.CLINIQUE.IMAGERIE);
@@ -192,15 +189,59 @@ export default function ImagerieDetailPage() {
     }
   };
 
+  const insertDash = () => {
+    const el = reportRef.current;
+    const value = report;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? value.length;
+    const before = value.slice(0, start);
+    const prefix = before.length === 0 || before.endsWith('\n') ? '- ' : '\n- ';
+    const next = before + prefix + value.slice(end);
+    setReport(next);
+    window.requestAnimationFrame(() => {
+      if (!el) return;
+      const pos = before.length + prefix.length;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const handleReportKeyDown = (event) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    const el = event.target;
+    const start = el.selectionStart ?? 0;
+    const lineStart = report.lastIndexOf('\n', start - 1) + 1;
+    const line = report.slice(lineStart, start);
+    if (/^\s*[-–—•]\s*$/.test(line)) {
+      event.preventDefault();
+      const next = `${report.slice(0, lineStart)}\n${report.slice(el.selectionEnd ?? start)}`;
+      setReport(next);
+      window.requestAnimationFrame(() => {
+        el.setSelectionRange(lineStart + 1, lineStart + 1);
+      });
+      return;
+    }
+    if (/^\s*[-–—•]\s+/.test(line)) {
+      event.preventDefault();
+      const before = report.slice(0, start);
+      const next = `${before}\n- ${report.slice(el.selectionEnd ?? start)}`;
+      setReport(next);
+      window.requestAnimationFrame(() => {
+        el.setSelectionRange(start + 3, start + 3);
+      });
+    }
+  };
+
   const handleInterpret = async () => {
-    if (!report.constatations.trim() || !report.conclusion.trim()) {
-      showError('Constatations et conclusion sont obligatoires.');
+    if (!report.trim()) {
+      showError('Saisissez le compte-rendu.');
       return;
     }
     setSaving(true);
     try {
-      const updated = await interpretEtudeImagerieApi(id, report);
+      const updated = await interpretEtudeImagerieApi(id, { resultat: report.trim() });
       setEtude(updated);
+      setReport(updated.resultat || report.trim());
       showSuccess('Interprétation enregistrée.');
     } catch (err) {
       showError(err.message || 'Enregistrement impossible.');
@@ -369,19 +410,30 @@ export default function ImagerieDetailPage() {
               <Typography level="body-sm" sx={{ color: LOTRU_NEUTRAL[600], mt: 0.5 }}>
                 Réservé aux médecins autorisés. Le manipulateur radio ne voit pas ce compte-rendu.
               </Typography>
-              <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+              <Stack spacing={1} sx={{ mt: 1.5 }}>
                 <FormControl>
-                  <FormLabel>Technique</FormLabel>
-                  <Textarea minRows={2} value={report.technique} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, technique: e.target.value }))} />
+                  <FormLabel>Compte-rendu</FormLabel>
+                  <Textarea
+                    minRows={10}
+                    value={report}
+                    disabled={!canInterpret || locked}
+                    placeholder="Rédigez ici le résultat de l'examen…"
+                    onChange={(e) => setReport(e.target.value)}
+                    onKeyDown={handleReportKeyDown}
+                    slotProps={{ textarea: { ref: reportRef } }}
+                  />
                 </FormControl>
-                <FormControl>
-                  <FormLabel>Constatations</FormLabel>
-                  <Textarea minRows={4} value={report.constatations} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, constatations: e.target.value }))} />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Conclusion</FormLabel>
-                  <Textarea minRows={3} value={report.conclusion} disabled={!canInterpret || locked} onChange={(e) => setReport((current) => ({ ...current, conclusion: e.target.value }))} />
-                </FormControl>
+                {canInterpret && !locked ? (
+                  <Button
+                    size="sm"
+                    variant="outlined"
+                    startDecorator={<List size={14} />}
+                    onClick={insertDash}
+                    sx={{ alignSelf: 'flex-start' }}
+                  >
+                    Ajouter un tiret
+                  </Button>
+                ) : null}
               </Stack>
               {etude.interpretePar?.nom ? (
                 <Typography level="body-xs" sx={{ mt: 1.5, color: LOTRU_NEUTRAL[500] }}>
