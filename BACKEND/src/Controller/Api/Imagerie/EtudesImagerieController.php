@@ -55,6 +55,20 @@ final class EtudesImagerieController extends AbstractController
         );
     }
 
+    #[Route('/medecins', name: 'api_imagerie_etudes_medecins', methods: ['GET'])]
+    public function medecins(): JsonResponse
+    {
+        if (
+            !$this->isGranted(CliniquePermissions::IMAGERIE_READ)
+            && !$this->isGranted(CliniquePermissions::IMAGERIE_CREATE)
+            && !$this->isGranted(CliniquePermissions::IMAGERIE_UPDATE)
+        ) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return $this->apiSuccess($this->imagerieService->listMedecins(), 'Médecins récupérés.');
+    }
+
     #[Route('/{id}', name: 'api_imagerie_etudes_show', methods: ['GET'], requirements: ['id' => '\d+'])]
     #[IsGranted(CliniquePermissions::IMAGERIE_READ)]
     public function show(int $id): JsonResponse
@@ -108,6 +122,13 @@ final class EtudesImagerieController extends AbstractController
         return $this->imageriePdfService->createResponse($this->imagerieService->getById($id));
     }
 
+    #[Route('/{id}/bon-pdf', name: 'api_imagerie_etudes_bon_pdf', methods: ['GET'], requirements: ['id' => '\d+'])]
+    #[IsGranted(CliniquePermissions::IMAGERIE_EXPORT)]
+    public function bonPdf(int $id): Response
+    {
+        return $this->imageriePdfService->createBonDemandeResponse($this->imagerieService->getById($id));
+    }
+
     #[Route('/{id}/images/prepare', name: 'api_imagerie_images_prepare', methods: ['POST'], requirements: ['id' => '\d+'])]
     #[IsGranted(CliniquePermissions::IMAGERIE_UPLOAD)]
     public function prepareImage(int $id, #[MapRequestPayload] PrepareStoredFileInput $input): JsonResponse
@@ -138,15 +159,17 @@ final class EtudesImagerieController extends AbstractController
             throw new BadRequestHttpException('Fichier illisible.');
         }
 
+        $originalName = $file->getClientOriginalName() ?: 'image';
+
         return $this->apiSuccess(
             $this->imagerieService->serializeDetail($this->imagerieService->uploadLocal(
                 $id,
                 (string) ($file->getMimeType() ?? ''),
                 (int) $file->getSize(),
-                $file->getClientOriginalName() ?: 'image',
+                $originalName,
                 $contents,
             )),
-            'Image enregistrée.',
+            str_ends_with(strtolower($originalName), '.pdf') ? 'PDF enregistré.' : 'Image enregistrée.',
         );
     }
 

@@ -18,6 +18,8 @@ import {
   IMAGERIE_MAX_SIZE_BYTES,
   IMAGERIE_STATUT_COLORS,
   IMAGERIE_STATUT_LABELS,
+  isImageriePdf,
+  medecinLabel,
 } from './imagerieConstants.js';
 import {
   annulerEtudeImagerieApi,
@@ -25,6 +27,7 @@ import {
   deleteEtudeImagerieApi,
   fetchEtudeImagerieApi,
   interpretEtudeImagerieApi,
+  openEtudeImagerieBonPdfApi,
   openEtudeImageriePdfApi,
   uploadEtudeImageApi,
   validerEtudeImagerieApi,
@@ -49,8 +52,15 @@ function MedicalImage({ src, viewUrl, alt, mimeType }) {
   }, [src, viewUrl, failedDirect]);
 
   if (!url) return <Typography level="body-sm">Chargement…</Typography>;
-  if (String(mimeType || '').includes('pdf') || String(alt || '').toLowerCase().endsWith('.pdf')) {
-    return <a href={url} target="_blank" rel="noreferrer">Ouvrir le PDF</a>;
+  if (isImageriePdf({ mimeType, originalName: alt })) {
+    return (
+      <Stack spacing={0.75} alignItems="flex-start">
+        <Typography startDecorator={<FileText size={16} />} level="body-sm">Document PDF</Typography>
+        <Button size="sm" variant="soft" component="a" href={url} target="_blank" rel="noreferrer">
+          Ouvrir le PDF
+        </Button>
+      </Stack>
+    );
   }
   return (
     <img
@@ -157,6 +167,22 @@ export default function ImagerieDetailPage() {
     }
   };
 
+  const handlePrintBon = async () => {
+    try {
+      await openEtudeImagerieBonPdfApi(id);
+    } catch (err) {
+      showError(err.message || 'Impossible de générer le bon de demande.');
+    }
+  };
+
+  const handlePrintCompteRendu = async () => {
+    try {
+      await openEtudeImageriePdfApi(id);
+    } catch (err) {
+      showError(err.message || 'Impossible de générer le compte-rendu.');
+    }
+  };
+
   const handleInterpret = async () => {
     if (!report.constatations.trim() || !report.conclusion.trim()) {
       showError('Constatations et conclusion sont obligatoires.');
@@ -217,7 +243,26 @@ export default function ImagerieDetailPage() {
         <Typography level="body-sm" sx={{ color: LOTRU_NEUTRAL[600] }}>
           {etude.patient?.fullName || formatPatientName(etude.patient)} — {etude.examen?.libelle} — {formatDateTime(etude.createdAt)}
         </Typography>
-        {etude.indication ? <Typography sx={{ mt: 1 }}><strong>Indication :</strong> {etude.indication}</Typography> : null}
+        {etude.but ? <Typography sx={{ mt: 1 }}><strong>But :</strong> {etude.but}</Typography> : null}
+        {etude.indication ? <Typography sx={{ mt: 1 }}><strong>Renseignements cliniques :</strong> {etude.indication}</Typography> : null}
+        <Typography sx={{ mt: 1 }}><strong>Médecin demandeur :</strong> {medecinLabel(etude.demandePar)}</Typography>
+        {etude.validePar?.nom ? (
+          <Typography sx={{ mt: 0.5 }}><strong>Validé par :</strong> {medecinLabel(etude.validePar)}{etude.valideAt ? ` — ${formatDateTime(etude.valideAt)}` : ''}</Typography>
+        ) : null}
+        {canExport ? (
+          <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1.5 }}>
+            {etude.statut !== 'ANNULEE' ? (
+              <Button variant="outlined" startDecorator={<FileText size={16} />} onClick={handlePrintBon}>
+                Générer le bon de demande
+              </Button>
+            ) : null}
+            {etude.statut === 'INTERPRETE' || etude.statut === 'VALIDE' ? (
+              <Button variant="outlined" startDecorator={<Printer size={16} />} onClick={handlePrintCompteRendu}>
+                Générer le compte-rendu
+              </Button>
+            ) : null}
+          </Stack>
+        ) : null}
       </Card>
 
       <Tabs value={activeTab} onChange={handleTabChange}>
@@ -234,21 +279,17 @@ export default function ImagerieDetailPage() {
               <Typography level="title-lg">Images médicales</Typography>
               {canUpload && !locked ? (
                 <Button component="label" size="sm" loading={saving} sx={{ bgcolor: LOTRU_PRIMARY[500] }}>
-                  Ajouter
+                  Ajouter image ou PDF
                   <input hidden type="file" accept={IMAGERIE_ACCEPT} multiple onChange={handleUpload} />
                 </Button>
               ) : null}
             </Stack>
             <Stack direction="row" flexWrap="wrap" gap={1.5} sx={{ mt: 1.5 }}>
               {(etude.images || []).length === 0 ? (
-                <Typography level="body-sm">Aucune image. JPG, PNG, WebP ou PDF — 50 Mo max, envoi sécurisé vers S3.</Typography>
+                <Typography level="body-sm">Aucun fichier. JPG, PNG, WebP ou PDF — 50 Mo max.</Typography>
               ) : etude.images.map((image) => (
                 <Box key={image.id} sx={{ width: 240, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 'sm' }}>
-                  {String(image.mimeType || '').startsWith('image/') ? (
-                    <MedicalImage src={image.url} viewUrl={image.viewUrl} alt={image.originalName} mimeType={image.mimeType} />
-                  ) : (
-                    <Typography startDecorator={<FileText size={14} />}>{image.originalName}</Typography>
-                  )}
+                  <MedicalImage src={image.url} viewUrl={image.viewUrl} alt={image.originalName} mimeType={image.mimeType} />
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.5 }}>
                     <Typography level="body-xs">{image.originalName}</Typography>
                     {canUpload && !locked ? (
@@ -312,7 +353,9 @@ export default function ImagerieDetailPage() {
                   <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('valider')}>Valider</Button>
                 ) : null}
                 {canExport && (etude.statut === 'INTERPRETE' || etude.statut === 'VALIDE') ? (
-                  <Button variant="outlined" startDecorator={<Printer size={16} />} onClick={() => openEtudeImageriePdfApi(id)}>Imprimer</Button>
+                  <Button variant="outlined" startDecorator={<Printer size={16} />} onClick={handlePrintCompteRendu}>
+                    Générer le compte-rendu
+                  </Button>
                 ) : null}
               </Stack>
             </Card>

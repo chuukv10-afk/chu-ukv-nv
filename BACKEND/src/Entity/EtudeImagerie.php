@@ -31,6 +31,9 @@ class EtudeImagerie
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $indication = null;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $but = null;
+
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $technique = null;
 
@@ -55,6 +58,10 @@ class EtudeImagerie
     #[ORM\OneToOne]
     #[ORM\JoinColumn(nullable: true, unique: true, onDelete: 'SET NULL')]
     private ?DemandeExamen $demandeExamen = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Personnel $demandePar = null;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -125,6 +132,18 @@ class EtudeImagerie
     public function setIndication(?string $indication): static
     {
         $this->indication = $indication;
+
+        return $this;
+    }
+
+    public function getBut(): ?string
+    {
+        return $this->but;
+    }
+
+    public function setBut(?string $but): static
+    {
+        $this->but = $but;
 
         return $this;
     }
@@ -209,6 +228,18 @@ class EtudeImagerie
     public function setDemandeExamen(?DemandeExamen $demandeExamen): static
     {
         $this->demandeExamen = $demandeExamen;
+
+        return $this;
+    }
+
+    public function getDemandePar(): ?Personnel
+    {
+        return $this->demandePar;
+    }
+
+    public function setDemandePar(?Personnel $demandePar): static
+    {
+        $this->demandePar = $demandePar;
 
         return $this;
     }

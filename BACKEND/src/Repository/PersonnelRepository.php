@@ -82,6 +82,19 @@ class PersonnelRepository extends ServiceEntityRepository
     /**
      * @return list<Personnel>
      */
+    public function findActifsForLookup(int $limit = 300): array
+    {
+        return $this->createQueryBuilder('p')
+            ->andWhere('p.status = :actif')
+            ->setParameter('actif', Personnel::STATUS_ACTIF)
+            ->orderBy('p.nom', 'ASC')
+            ->addOrderBy('p.postNom', 'ASC')
+            ->addOrderBy('p.prenom', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
     public function findAllForPaie(): array
     {
         return $this->createQueryBuilder('p')

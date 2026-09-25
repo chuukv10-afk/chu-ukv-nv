@@ -21,8 +21,9 @@ import {
   IMAGERIE_STATUT_LABELS,
   IMAGERIE_STATUTS,
   imagerieDetailPath,
+  medecinLabel,
 } from './imagerieConstants.js';
-import { createEtudeImagerieApi, fetchEtudesImagerieApi } from './imagerieApi.js';
+import { createEtudeImagerieApi, fetchEtudesImagerieApi, fetchMedecinsImagerieApi } from './imagerieApi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_IMAGERIE_PAGE_SIZE, total: 0, totalPages: 0 };
 
@@ -53,7 +54,8 @@ export default function ImageriePage() {
   const [patientQuery, setPatientQuery] = useState('');
   const [patients, setPatients] = useState([]);
   const [examens, setExamens] = useState([]);
-  const [form, setForm] = useState({ patientId: '', examenId: '', indication: '' });
+  const [medecins, setMedecins] = useState([]);
+  const [form, setForm] = useState({ patientId: '', examenId: '', indication: '', but: '', demandeParId: '' });
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -96,6 +98,9 @@ export default function ImageriePage() {
     fetchExamensApi({ page: 1, limit: 100, imagerie: true })
       .then((result) => setExamens(result.items || []))
       .catch(() => setExamens([]));
+    fetchMedecinsImagerieApi()
+      .then(setMedecins)
+      .catch(() => setMedecins([]));
   }, [createOpen]);
 
   useEffect(() => {
@@ -115,12 +120,18 @@ export default function ImageriePage() {
       showError('Sélectionnez le patient et l\'examen d\'imagerie.');
       return;
     }
+    if (!form.demandeParId) {
+      showError('Indiquez le médecin ayant demandé l\'examen.');
+      return;
+    }
     setSaving(true);
     try {
       const created = await createEtudeImagerieApi({
         patientId: form.patientId,
         examenId: Number(form.examenId),
         indication: form.indication || null,
+        but: form.but || null,
+        demandeParId: form.demandeParId,
       });
       showSuccess('Étude créée. Vous pouvez maintenant charger les images.');
       setCreateOpen(false);
@@ -190,15 +201,16 @@ export default function ImageriePage() {
                     <th>Date</th>
                     <th>Patient</th>
                     <th>Examen</th>
+                    <th>Demandeur</th>
                     <th>Images</th>
                     <th>Statut</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={6}>Chargement…</td></tr>
+                    <tr><td colSpan={7}>Chargement…</td></tr>
                   ) : items.length === 0 ? (
-                    <tr><td colSpan={6}>{mainTab === 'interpretation' ? 'Aucune étude à interpréter.' : 'Aucune étude d\'imagerie.'}</td></tr>
+                    <tr><td colSpan={7}>{mainTab === 'interpretation' ? 'Aucune étude à interpréter.' : 'Aucune étude d\'imagerie.'}</td></tr>
                   ) : items.map((item) => (
                     <tr
                       key={item.id}
@@ -209,6 +221,7 @@ export default function ImageriePage() {
                       <td>{formatDateTime(item.createdAt)}</td>
                       <td>{item.patient?.fullName || formatPatientName(item.patient)}</td>
                       <td>{item.examen?.libelle || '—'}</td>
+                      <td>{medecinLabel(item.demandePar)}</td>
                       <td>{item.imagesCount ?? 0}</td>
                       <td>
                         <Chip size="sm" color={IMAGERIE_STATUT_COLORS[item.statut] || 'neutral'} variant="soft">
@@ -234,7 +247,7 @@ export default function ImageriePage() {
       </Tabs>
 
       <Modal open={createOpen} onClose={() => setCreateOpen(false)}>
-        <ModalDialog sx={{ width: 520, maxWidth: '95vw' }}>
+        <ModalDialog sx={{ width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
           <Typography level="h4">Nouvelle étude d'imagerie</Typography>
           <Stack spacing={1.5} sx={{ mt: 1 }}>
             <FormControl>
@@ -263,7 +276,27 @@ export default function ImageriePage() {
               </Select>
             </FormControl>
             <FormControl>
-              <FormLabel>Indication clinique</FormLabel>
+              <FormLabel>Médecin demandeur</FormLabel>
+              <Select
+                value={form.demandeParId}
+                onChange={(_, value) => setForm((current) => ({ ...current, demandeParId: value || '' }))}
+                placeholder="Médecin ayant demandé l'examen"
+              >
+                {medecins.map((medecin) => (
+                  <Option key={medecin.id} value={medecin.id}>{medecinLabel(medecin)}</Option>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl>
+              <FormLabel>But</FormLabel>
+              <Input
+                value={form.but}
+                onChange={(e) => setForm((current) => ({ ...current, but: e.target.value }))}
+                placeholder="But de l'examen"
+              />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Renseignements cliniques</FormLabel>
               <Textarea minRows={3} value={form.indication} onChange={(e) => setForm((current) => ({ ...current, indication: e.target.value }))} />
             </FormControl>
             <Stack direction="row" justifyContent="flex-end" spacing={1}>

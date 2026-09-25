@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Button, Chip, FormControl, FormLabel, Modal, ModalDialog, Option, Select, Sheet, Stack, Table, Textarea, Typography,
+  Button, Chip, FormControl, FormLabel, Input, Modal, ModalDialog, Option, Select, Sheet, Stack, Table, Textarea, Typography,
 } from '@mui/joy';
 import { Plus, ScanLine } from 'lucide-react';
 import { PERMISSIONS } from '../../../constants/permissions.js';
@@ -14,8 +14,9 @@ import {
   IMAGERIE_STATUT_COLORS,
   IMAGERIE_STATUT_LABELS,
   imagerieDetailPath,
+  medecinLabel,
 } from './imagerieConstants.js';
-import { createEtudeImagerieApi, fetchEtudesImagerieApi } from './imagerieApi.js';
+import { createEtudeImagerieApi, fetchEtudesImagerieApi, fetchMedecinsImagerieApi } from './imagerieApi.js';
 
 export default function PatientImagerieTab({ patientId, patientName = '' }) {
   const navigate = useNavigate();
@@ -30,7 +31,8 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [examens, setExamens] = useState([]);
-  const [form, setForm] = useState({ examenId: '', indication: '' });
+  const [medecins, setMedecins] = useState([]);
+  const [form, setForm] = useState({ examenId: '', indication: '', but: '', demandeParId: '' });
 
   const load = useCallback(async () => {
     if (!canRead || !patientId) return;
@@ -54,6 +56,9 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
     fetchExamensApi({ page: 1, limit: 100, imagerie: true })
       .then((result) => setExamens(result.items || []))
       .catch(() => setExamens([]));
+    fetchMedecinsImagerieApi()
+      .then(setMedecins)
+      .catch(() => setMedecins([]));
   }, [createOpen]);
 
   const openDetail = (id) => {
@@ -67,12 +72,18 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
       showError('Sélectionnez l\'examen d\'imagerie.');
       return;
     }
+    if (!form.demandeParId) {
+      showError('Indiquez le médecin ayant demandé l\'examen.');
+      return;
+    }
     setSaving(true);
     try {
       const created = await createEtudeImagerieApi({
         patientId,
         examenId: Number(form.examenId),
         indication: form.indication || null,
+        but: form.but || null,
+        demandeParId: form.demandeParId,
       });
       showSuccess('Étude créée. Vous pouvez maintenant charger les images.');
       setCreateOpen(false);
@@ -112,20 +123,22 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
               <th>N°</th>
               <th>Date</th>
               <th>Examen</th>
+              <th>Demandeur</th>
               <th>Images</th>
               <th>Statut</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5}>Chargement…</td></tr>
+              <tr><td colSpan={6}>Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={5}>Aucune étude d&apos;imagerie pour ce patient.</td></tr>
+              <tr><td colSpan={6}>Aucune étude d&apos;imagerie pour ce patient.</td></tr>
             ) : items.map((item) => (
               <tr key={item.id} onClick={() => openDetail(item.id)} style={{ cursor: 'pointer' }}>
                 <td>{item.numero}</td>
                 <td>{formatDateTime(item.createdAt)}</td>
                 <td>{item.examen?.libelle || '—'}</td>
+                <td>{medecinLabel(item.demandePar)}</td>
                 <td>{item.imagesCount ?? 0}</td>
                 <td>
                   <Chip size="sm" color={IMAGERIE_STATUT_COLORS[item.statut] || 'neutral'} variant="soft">
@@ -139,7 +152,7 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
       </Sheet>
 
       <Modal open={createOpen} onClose={() => setCreateOpen(false)}>
-        <ModalDialog sx={{ width: 520, maxWidth: '95vw' }}>
+        <ModalDialog sx={{ width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
           <Typography level="h4">Nouvelle étude d&apos;imagerie</Typography>
           <Typography level="body-sm" sx={{ color: LOTRU_NEUTRAL[600] }}>
             Patient : <strong>{patientName || 'dossier courant'}</strong>
@@ -158,7 +171,27 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
               </Select>
             </FormControl>
             <FormControl>
-              <FormLabel>Indication clinique</FormLabel>
+              <FormLabel>Médecin demandeur</FormLabel>
+              <Select
+                value={form.demandeParId}
+                onChange={(_, value) => setForm((current) => ({ ...current, demandeParId: value || '' }))}
+                placeholder="Médecin ayant demandé l'examen"
+              >
+                {medecins.map((medecin) => (
+                  <Option key={medecin.id} value={medecin.id}>{medecinLabel(medecin)}</Option>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl>
+              <FormLabel>But</FormLabel>
+              <Input
+                value={form.but}
+                onChange={(e) => setForm((current) => ({ ...current, but: e.target.value }))}
+                placeholder="But de l'examen"
+              />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Renseignements cliniques</FormLabel>
               <Textarea minRows={3} value={form.indication} onChange={(e) => setForm((current) => ({ ...current, indication: e.target.value }))} />
             </FormControl>
             <Stack direction="row" justifyContent="flex-end" spacing={1}>

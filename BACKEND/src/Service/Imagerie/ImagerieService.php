@@ -19,6 +19,7 @@ use App\Repository\DemandeExamenRepository;
 use App\Repository\EtudeImagerieRepository;
 use App\Repository\ExamenRepository;
 use App\Repository\PatientRepository;
+use App\Repository\PersonnelRepository;
 use App\Security\Permission\CliniquePermissions;
 use App\Service\Storage\ObjectStorage;
 use App\Service\Storage\StoredFile;
@@ -47,6 +48,7 @@ final class ImagerieService
         private readonly PatientRepository $patientRepository,
         private readonly ExamenRepository $examenRepository,
         private readonly DemandeExamenRepository $demandeExamenRepository,
+        private readonly PersonnelRepository $personnelRepository,
         private readonly ObjectStorage $objectStorage,
         private readonly Security $security,
         private readonly ValidatorInterface $validator,
@@ -76,6 +78,17 @@ final class ImagerieService
         return $etude;
     }
 
+    /**
+     * @return list<array{id: string, nom: string}>
+     */
+    public function listMedecins(): array
+    {
+        return array_values(array_filter(array_map(
+            fn (Personnel $personnel): ?array => $this->serializePersonnel($personnel),
+            $this->personnelRepository->findActifsForLookup(),
+        )));
+    }
+
     public function create(CreateEtudeImagerieInput $input): EtudeImagerie
     {
         $this->assertValid($input);
@@ -101,6 +114,8 @@ final class ImagerieService
             }
             $consultation = $demande->getConsultation();
             $indication = $input->indication ?: $demande->getNoteMedecin();
+            $but = $input->but ?: $demande->getBut();
+            $demandePar = $this->resolveDemandePar($input->demandeParId) ?? $demande->getPrescripteur();
         } else {
             $patientId = trim((string) $input->patientId);
             if ('' === $patientId || null === $input->examenId) {
@@ -120,6 +135,11 @@ final class ImagerieService
             }
             $consultation = null;
             $indication = $input->indication;
+            $but = $input->but;
+            $demandePar = $this->resolveDemandePar($input->demandeParId);
+            if (!$demandePar instanceof Personnel) {
+                throw new BadRequestHttpException('Indiquez le médecin ayant demandé l\'examen.');
+            }
         }
 
         $now = new \DateTimeImmutable('now', new \DateTimeZone(self::TIMEZONE));
@@ -131,6 +151,8 @@ final class ImagerieService
             ->setConsultation($consultation)
             ->setDemandeExamen($demande)
             ->setIndication($indication)
+            ->setBut($this->nullable($but ?? null))
+            ->setDemandePar($demandePar)
             ->setCreatedAt($now)
             ->setCreatedBy($this->currentPersonnel());
 
@@ -145,7 +167,7 @@ final class ImagerieService
         $this->assertValid($input);
         $etude = $this->requireEditable($id);
         if ($etude->getImages()->isEmpty()) {
-            throw new ConflictException('Chargez au moins une image avant d\'interpréter.');
+            throw new ConflictException('Chargez au moins une image ou un PDF avant d\'interpréter.');
         }
 
         $etude
@@ -226,16 +248,17 @@ final class ImagerieService
         if ($etude->getImages()->count() >= self::MAX_IMAGES) {
             throw new ConflictException('Maximum ' . self::MAX_IMAGES . ' images par étude.');
         }
-        $extension = $this->assertMimeAndSize($input->mimeType, $input->size);
+        $mimeType = $this->normalizeMimeType($input->mimeType);
+        $extension = $this->assertMimeAndSize($mimeType, $input->size);
         $filename = sprintf('%d-%s.%s', (int) $etude->getId(), Uuid::v7()->toRfc4122(), $extension);
         $payload = [
             'mode' => 'local',
             'filename' => $filename,
-            'mimeType' => $input->mimeType,
+            'mimeType' => $mimeType,
         ];
         if ($this->objectStorage->isS3()) {
             $payload['mode'] = 's3';
-            $payload['uploadUrl'] = $this->objectStorage->presignPut($this->storageKey($filename), $input->mimeType);
+            $payload['uploadUrl'] = $this->objectStorage->presignPut($this->storageKey($filename), $mimeType);
         }
 
         return $payload;
@@ -246,7 +269,8 @@ final class ImagerieService
         $this->assertValid($input);
         $etude = $this->requireEditable($id);
         $this->assertOwnedFilename($etude, $input->filename);
-        $this->assertMimeAndSize($input->mimeType, $input->size);
+        $mimeType = $this->normalizeMimeType($input->mimeType, $input->originalName);
+        $this->assertMimeAndSize($mimeType, $input->size, $input->originalName);
         $key = $this->storageKey($input->filename);
         if (!$this->objectStorage->exists($key)) {
             throw new BadRequestHttpException('Le fichier n\'a pas été reçu dans le stockage.');
@@ -255,7 +279,7 @@ final class ImagerieService
         $image = (new ImageImagerie())
             ->setStorageKey($key)
             ->setOriginalName($input->originalName)
-            ->setMimeType($input->mimeType)
+            ->setMimeType($mimeType)
             ->setSizeBytes($input->size)
             ->setUploadedAt(new \DateTimeImmutable())
             ->setUploadedBy($this->currentPersonnel());
@@ -272,7 +296,8 @@ final class ImagerieService
     public function uploadLocal(int $id, string $mimeType, int $size, string $originalName, string $contents): EtudeImagerie
     {
         $etude = $this->requireEditable($id);
-        $extension = $this->assertMimeAndSize($mimeType, $size);
+        $mimeType = $this->normalizeMimeType($mimeType, $originalName);
+        $extension = $this->assertMimeAndSize($mimeType, $size, $originalName);
         if ('' === $contents) {
             throw new BadRequestHttpException('Fichier vide.');
         }
@@ -320,6 +345,8 @@ final class ImagerieService
             'numero' => $etude->getNumero(),
             'statut' => $etude->getStatut(),
             'indication' => $etude->getIndication(),
+            'but' => $etude->getBut(),
+            'demandePar' => $this->serializePersonnel($etude->getDemandePar()),
             'imagesCount' => $etude->getImages()->count(),
             'createdAt' => $etude->getCreatedAt()?->format(\DateTimeInterface::ATOM),
             'interpreteAt' => $etude->getInterpreteAt()?->format(\DateTimeInterface::ATOM),
@@ -428,8 +455,9 @@ final class ImagerieService
         }
     }
 
-    private function assertMimeAndSize(string $mimeType, int $size): string
+    private function assertMimeAndSize(string $mimeType, int $size, ?string $filename = null): string
     {
+        $mimeType = $this->normalizeMimeType($mimeType, $filename);
         $extension = self::ALLOWED_MIME_TYPES[$mimeType] ?? null;
         if (null === $extension) {
             throw new BadRequestHttpException('Format non supporté. Utilisez JPG, PNG, WebP ou PDF.');
@@ -439,6 +467,42 @@ final class ImagerieService
         }
 
         return $extension;
+    }
+
+    private function normalizeMimeType(string $mimeType, ?string $filename = null): string
+    {
+        $mime = strtolower(trim($mimeType));
+        $name = strtolower((string) $filename);
+        if (str_contains($mime, 'pdf') || str_ends_with($name, '.pdf')) {
+            return 'application/pdf';
+        }
+
+        return $mime;
+    }
+
+    private function resolveDemandePar(?string $id): ?Personnel
+    {
+        $raw = trim((string) $id);
+        if ('' === $raw) {
+            return null;
+        }
+        try {
+            $personnel = $this->personnelRepository->find(Uuid::fromString($raw));
+        } catch (\InvalidArgumentException) {
+            throw new ConflictException('Médecin demandeur invalide.');
+        }
+        if (!$personnel instanceof Personnel) {
+            throw new NotFoundException('Médecin demandeur non trouvé.');
+        }
+
+        return $personnel;
+    }
+
+    private function nullable(?string $value): ?string
+    {
+        $trimmed = trim((string) $value);
+
+        return '' === $trimmed ? null : $trimmed;
     }
 
     /** @return array{id: string, nom: string}|null */

@@ -21,7 +21,19 @@ export const IMAGERIE_STATUT_COLORS = IMAGERIE_STATUTS.reduce((acc, item) => {
 export const DEFAULT_IMAGERIE_PAGE_SIZE = 10;
 export const IMAGERIE_PAGE_SIZE_OPTIONS = [10, 25, 50];
 export const IMAGERIE_MAX_SIZE_BYTES = 50 * 1024 * 1024;
-export const IMAGERIE_ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf';
+export const IMAGERIE_ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf,.pdf';
+
+export function medecinLabel(personnel) {
+  if (!personnel) return '—';
+  const nom = String(personnel.nom || personnel.fullName || '').trim();
+  if (!nom) return '—';
+  return nom.toLowerCase().startsWith('dr') ? nom : `Dr. ${nom}`;
+}
+
+export function isImageriePdf(image) {
+  return String(image?.mimeType || '').toLowerCase().includes('pdf')
+    || String(image?.originalName || '').toLowerCase().endsWith('.pdf');
+}
 export const IMAGERIE_INTERPRET_STATUTS = 'IMAGES,INTERPRETE,VALIDE';
 
 export function imagerieDetailPath(id, tab = 'images') {

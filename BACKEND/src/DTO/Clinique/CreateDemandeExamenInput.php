@@ -13,6 +13,15 @@ final class CreateDemandeExamenInput
 
         #[Assert\Length(max: 255)]
         public ?string $noteMedecin = null,
+
+        #[Assert\Length(max: 255)]
+        public ?string $but = null,
     ) {
+        if ('' === $this->noteMedecin) {
+            $this->noteMedecin = null;
+        }
+        if ('' === $this->but) {
+            $this->but = null;
+        }
     }
 }

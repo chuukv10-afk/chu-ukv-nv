@@ -16,12 +16,23 @@ final class CreateEtudeImagerieInput
 
         #[Assert\Length(max: 4000)]
         public ?string $indication = null,
+
+        #[Assert\Length(max: 255)]
+        public ?string $but = null,
+
+        public ?string $demandeParId = null,
     ) {
         if ('' === $this->patientId) {
             $this->patientId = null;
         }
         if ('' === $this->indication) {
             $this->indication = null;
+        }
+        if ('' === $this->but) {
+            $this->but = null;
+        }
+        if ('' === $this->demandeParId) {
+            $this->demandeParId = null;
         }
     }
 }

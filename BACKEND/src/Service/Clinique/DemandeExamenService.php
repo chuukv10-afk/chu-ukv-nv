@@ -97,6 +97,7 @@ final class DemandeExamenService
             ->setExamen($examen)
             ->setPrescripteur($this->resolveCurrentPersonnel())
             ->setNoteMedecin($this->normalizeOptionalText($input->noteMedecin, 255))
+            ->setBut($this->normalizeOptionalText($input->but, 255))
             ->setStatut(DemandeExamen::STATUT_DEMANDE)
             ->setDemandeAt(new \DateTimeImmutable());
 
@@ -275,6 +276,7 @@ final class DemandeExamenService
             'statut' => $demande->getStatut(),
             'demandeAt' => $demande->getDemandeAt()?->format(\DateTimeInterface::ATOM),
             'noteMedecin' => $demande->getNoteMedecin(),
+            'but' => $demande->getBut(),
             'resultat' => $demande->getResultat(),
             'fichier' => $demande->getFichier(),
             'allowedTransitions' => DemandeExamen::getAllowedTransitions((string) $demande->getStatut()),

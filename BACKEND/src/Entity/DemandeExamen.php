@@ -39,6 +39,9 @@ class DemandeExamen
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $noteMedecin = null;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $but = null;
+
     #[ORM\ManyToOne(inversedBy: 'demandeExamens')]
     #[ORM\JoinColumn(nullable: false)]
     private ?Examen $examen = null;
@@ -126,6 +129,18 @@ class DemandeExamen
     public function setNoteMedecin(?string $noteMedecin): static
     {
         $this->noteMedecin = $noteMedecin;
+
+        return $this;
+    }
+
+    public function getBut(): ?string
+    {
+        return $this->but;
+    }
+
+    public function setBut(?string $but): static
+    {
+        $this->but = $but;
 
         return $this;
     }

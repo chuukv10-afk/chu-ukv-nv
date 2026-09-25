@@ -87,6 +87,7 @@ export default function DemandesExamenTab({
 
   const [openCreate, setOpenCreate] = useState(false);
   const [noteMedecin, setNoteMedecin] = useState('');
+  const [but, setBut] = useState('');
   const [examenQuery, setExamenQuery] = useState('');
   const [examenResults, setExamenResults] = useState([]);
   const [examenLoading, setExamenLoading] = useState(false);
@@ -144,6 +145,7 @@ export default function DemandesExamenTab({
 
   const resetCreate = () => {
     setNoteMedecin('');
+    setBut('');
     setExamenQuery('');
     setExamenResults([]);
     setSelectedExamen(null);
@@ -159,6 +161,7 @@ export default function DemandesExamenTab({
       await createConsultationDemandeExamenApi(consultationId, {
         examenId: Number(selectedExamen.id),
         noteMedecin: noteMedecin.trim() || null,
+        but: but.trim() || null,
       });
       setOpenCreate(false);
       resetCreate();
@@ -316,6 +319,7 @@ export default function DemandesExamenTab({
                   <th>Type</th>
                   <th>Statut</th>
                   <th>Diagnostic lié</th>
+                  <th>But</th>
                   <th>Note</th>
                   <th>Résultat</th>
                   <th>Date</th>
@@ -349,6 +353,7 @@ export default function DemandesExamenTab({
                     <td>
                       <LinkedDiagnosticsCell diagnostics={record.diagnostics} />
                     </td>
+                    <td>{record.but ?? '—'}</td>
                     <td>{record.noteMedecin ?? '—'}</td>
                     <td>
                       <Typography level="body-xs" sx={{ maxWidth: 220, whiteSpace: 'pre-wrap' }}>
@@ -485,7 +490,15 @@ export default function DemandesExamenTab({
                 ) : null}
               </FormControl>
               <FormControl>
-                <FormLabel>Note du médecin (optionnel)</FormLabel>
+                <FormLabel>But</FormLabel>
+                <Input
+                  value={but}
+                  onChange={(event) => setBut(event.target.value)}
+                  placeholder="But de l'examen"
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel>Renseignements cliniques</FormLabel>
                 <Textarea minRows={2} value={noteMedecin} onChange={(event) => setNoteMedecin(event.target.value)} placeholder="Indications cliniques…" />
               </FormControl>
             </Stack>

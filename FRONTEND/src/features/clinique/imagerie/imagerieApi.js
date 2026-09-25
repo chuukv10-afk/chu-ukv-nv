@@ -60,8 +60,18 @@ export async function deleteEtudeImagerieApi(id) {
   return callApiDelete(`${clinique.imagerie}/${id}`);
 }
 
+export async function fetchMedecinsImagerieApi() {
+  const response = await callApiGet(`${clinique.imagerie}/medecins`);
+  const data = unwrapData(response);
+  return Array.isArray(data) ? data : [];
+}
+
 export async function openEtudeImageriePdfApi(id) {
   await openFileInBrowser(`${clinique.imagerie}/${id}/pdf`);
+}
+
+export async function openEtudeImagerieBonPdfApi(id) {
+  await openFileInBrowser(`${clinique.imagerie}/${id}/bon-pdf`);
 }
 
 function resolveImageMime(file) {
