@@ -33,6 +33,17 @@ import {
   validerEtudeImagerieApi,
 } from './imagerieApi.js';
 
+async function openImagerieFile(image) {
+  const url = await fetchAuthenticatedAvatarUrl(image.url) || image.viewUrl;
+  if (!url) {
+    throw new Error('Impossible d\'ouvrir le fichier.');
+  }
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) {
+    throw new Error('Autorisez les pop-ups pour ouvrir le fichier.');
+  }
+}
+
 function MedicalImage({ src, viewUrl, alt, mimeType }) {
   const [url, setUrl] = useState(viewUrl || null);
   const [failedDirect, setFailedDirect] = useState(false);
@@ -54,11 +65,9 @@ function MedicalImage({ src, viewUrl, alt, mimeType }) {
   if (!url) return <Typography level="body-sm">Chargement…</Typography>;
   if (isImageriePdf({ mimeType, originalName: alt })) {
     return (
-      <Stack spacing={0.75} alignItems="flex-start">
-        <Typography startDecorator={<FileText size={16} />} level="body-sm">Document PDF</Typography>
-        <Button size="sm" variant="soft" component="a" href={url} target="_blank" rel="noreferrer">
-          Ouvrir le PDF
-        </Button>
+      <Stack spacing={0.5} alignItems="center" sx={{ py: 3 }}>
+        <FileText size={36} />
+        <Typography level="body-sm">Document PDF</Typography>
       </Stack>
     );
   }
@@ -69,7 +78,7 @@ function MedicalImage({ src, viewUrl, alt, mimeType }) {
       onError={() => {
         if (viewUrl && !failedDirect) setFailedDirect(true);
       }}
-      style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 8, objectFit: 'contain' }}
+      style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 8, objectFit: 'contain', display: 'block' }}
     />
   );
 }
@@ -288,18 +297,52 @@ export default function ImagerieDetailPage() {
               {(etude.images || []).length === 0 ? (
                 <Typography level="body-sm">Aucun fichier. JPG, PNG, WebP ou PDF — 50 Mo max.</Typography>
               ) : etude.images.map((image) => (
-                <Box key={image.id} sx={{ width: 240, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 'sm' }}>
+                <Box
+                  key={image.id}
+                  sx={{
+                    width: 240,
+                    p: 1,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 'sm',
+                    cursor: 'pointer',
+                    '&:hover': { borderColor: 'primary.outlinedBorder', bgcolor: 'background.level1' },
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  title="Cliquer pour ouvrir"
+                  onClick={async () => {
+                    try {
+                      await openImagerieFile(image);
+                    } catch (err) {
+                      showError(err.message || 'Ouverture impossible.');
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      event.currentTarget.click();
+                    }
+                  }}
+                >
                   <MedicalImage src={image.url} viewUrl={image.viewUrl} alt={image.originalName} mimeType={image.mimeType} />
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 0.5 }}>
-                    <Typography level="body-xs">{image.originalName}</Typography>
+                    <Typography level="body-xs" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {image.originalName}
+                    </Typography>
                     {canUpload && !locked ? (
-                      <IconButton size="sm" color="danger" variant="plain" onClick={async () => {
-                        try {
-                          setEtude(await deleteEtudeImageApi(id, image.id));
-                        } catch (err) {
-                          showError(err.message || 'Suppression impossible.');
-                        }
-                      }}
+                      <IconButton
+                        size="sm"
+                        color="danger"
+                        variant="plain"
+                        onClick={async (event) => {
+                          event.stopPropagation();
+                          try {
+                            setEtude(await deleteEtudeImageApi(id, image.id));
+                          } catch (err) {
+                            showError(err.message || 'Suppression impossible.');
+                          }
+                        }}
                       >
                         <Trash2 size={14} />
                       </IconButton>
