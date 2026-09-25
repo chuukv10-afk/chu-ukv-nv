@@ -66,6 +66,9 @@ final class ImageriePdfService
             'portrait',
             null,
             null,
+            null,
+            true,
+            false,
         );
 
         return $this->pdfExportService->createDownloadResponse(
@@ -79,8 +82,8 @@ final class ImageriePdfService
     private function renderBonBody(EtudeImagerie $etude, string $demandeur): string
     {
         $patient = $etude->getPatient();
-        $lines = $this->identityLines([
-            'Nom du patient' => $patient?->getFullName() ?? '—',
+        $identity = $this->identityTable([
+            'Nom du patient' => $this->upper($patient?->getFullName()),
             'Examen demandé' => $etude->getExamen()?->getLibelle() ?? '—',
             'Indication' => $etude->getIndication() ?: '—',
             'But' => $etude->getBut() ?: '—',
@@ -89,19 +92,21 @@ final class ImageriePdfService
         ], $patient);
 
         return <<<HTML
-{$lines}
-<div class="cr-sep"></div>
-<div class="cr-title">Bon de demande d'examen</div>
-<p><strong>Indication :</strong></p>
-<div class="cr-result">{$this->richText($etude->getIndication())}</div>
-<p><strong>But :</strong></p>
-<div class="cr-result">{$this->richText($etude->getBut())}</div>
-<div class="cr-sign">
-    <p class="cr-date">{$this->e($this->layoutProvider->formatOfficialDateLine($etude->getCreatedAt()))}</p>
-    <p class="cr-role">Le Médecin demandeur</p>
-    <p class="cr-doctor"><strong>{$this->e($this->doctorLabel($etude->getDemandePar()) ?: $demandeur)}</strong></p>
-</div>
 {$this->documentStyles()}
+{$identity}
+<hr class="cr-rule" />
+<p class="cr-title">BON DE DEMANDE D'EXAMEN</p>
+<p><strong>Indication :</strong></p>
+{$this->plainParagraphs([$etude->getIndication()])}
+<p><strong>But :</strong></p>
+{$this->plainParagraphs([$etude->getBut()])}
+<table class="cr-sign-table">
+    <tr>
+        <td>
+            <div>{$this->e($this->doctorLabel($etude->getDemandePar()) ?: $demandeur)}</div>
+        </td>
+    </tr>
+</table>
 HTML;
     }
 
@@ -112,129 +117,111 @@ HTML;
         ?\DateTimeInterface $date,
     ): string {
         $patient = $etude->getPatient();
-        $banner = $validated ? '' : '<div class="cr-banner">PROJET — EN ATTENTE DE VALIDATION MÉDICALE</div>';
         $doctor = $this->e($this->doctorLabel($validated ? $etude->getValidePar() : $etude->getInterpretePar()) ?: $signerName);
-        $dateLine = $date instanceof \DateTimeInterface
-            ? sprintf('Fait à Boma, le %s', $date->format('d / m / Y'))
-            : 'Fait à Boma, le —';
-        $role = $validated ? 'Le Médecin' : 'Le Médecin (en attente de validation)';
         $signature = $validated ? $this->signatureImage($etude->getValidePar()) : '';
         $protocolDate = $etude->getInterpreteAt() ?? $etude->getCreatedAt();
-        $lines = $this->identityLines([
-            'Nom du patient' => $patient?->getFullName() ?? '—',
+        $identity = $this->identityTable([
+            'Nom du patient' => $this->upper($patient?->getFullName()),
             'Examen réalisé' => $etude->getExamen()?->getLibelle() ?? '—',
             'Indication' => $etude->getIndication() ?: '—',
             'Protocolé le' => $protocolDate?->format('d/m/Y') ?? '—',
             'Médecin demandeur' => $this->doctorLabel($etude->getDemandePar()) ?: '—',
         ], $patient);
-        $resultat = $this->resultatHtml($etude);
+        $resultat = $this->plainParagraphs([
+            $etude->getConstatations(),
+            $etude->getConclusion(),
+        ]);
 
         return <<<HTML
-{$banner}
-{$lines}
-<div class="cr-sep"></div>
-<div class="cr-title">Compte rendu de l'examen</div>
-<p><strong>Résultat :</strong></p>
-<div class="cr-result">{$resultat}</div>
-<p class="cr-thanks">Merci de nous avoir confié votre patient.</p>
-<div class="cr-sign">
-    <p class="cr-date">{$this->e($dateLine)}</p>
-    {$signature}
-    <p class="cr-role">{$this->e($role)}</p>
-    <p class="cr-doctor"><strong>{$doctor}</strong></p>
-</div>
 {$this->documentStyles()}
+{$identity}
+<hr class="cr-rule" />
+<p class="cr-title">COMPTE RENDU DE L'EXAMEN</p>
+<p><strong>Résultat :</strong></p>
+{$resultat}
+<p class="cr-thanks">Merci de nous avoir confié votre patient.</p>
+<table class="cr-sign-table">
+    <tr>
+        <td>
+            {$signature}
+            <div>{$doctor}</div>
+        </td>
+    </tr>
+</table>
 HTML;
     }
 
     /**
      * @param array<string, string> $fields
      */
-    private function identityLines(array $fields, ?Patient $patient): string
+    private function identityTable(array $fields, ?Patient $patient): string
     {
-        $rows = '';
+        $left = '';
         foreach ($fields as $label => $value) {
-            $rows .= sprintf(
-                '<div class="cr-line"><span class="cr-k">%s :</span> %s</div>',
+            $left .= sprintf(
+                '<div class="cr-line"><strong>%s :</strong> %s</div>',
                 $this->e($label),
                 $this->e($value),
             );
         }
 
         return sprintf(
-            '<div class="cr-id">
-                <div class="cr-id-left">%s</div>
-                <div class="cr-id-right">
-                    <div class="cr-line"><span class="cr-k">Sexe :</span> %s</div>
-                    <div class="cr-line"><span class="cr-k">Age :</span> %s</div>
-                </div>
-            </div>',
-            $rows,
+            '<table class="cr-id-table"><tr>
+                <td class="cr-id-left">%s</td>
+                <td class="cr-id-right">
+                    <div class="cr-line"><strong>Sexe :</strong> %s</div>
+                    <div class="cr-line"><strong>Age :</strong> %s</div>
+                </td>
+            </tr></table>',
+            $left,
             $this->e($this->sexeCode($patient?->getSexe())),
             $this->e($this->ageLabel($patient?->getDateNaissance())),
         );
     }
 
-    private function resultatHtml(EtudeImagerie $etude): string
+    /**
+     * @param list<?string> $blocks
+     */
+    private function plainParagraphs(array $blocks): string
     {
-        $parts = [];
-        if ('' !== trim((string) $etude->getTechnique())) {
-            $parts[] = '<p><em>Technique :</em> ' . $this->richText($etude->getTechnique()) . '</p>';
-        }
-        $parts[] = '<p>' . $this->richText($etude->getConstatations()) . '</p>';
-        if ('' !== trim((string) $etude->getConclusion())) {
-            $parts[] = '<p>' . $this->richText($etude->getConclusion()) . '</p>';
+        $html = '';
+        foreach ($blocks as $block) {
+            $text = trim((string) $block);
+            if ('' === $text) {
+                continue;
+            }
+            $html .= '<p class="cr-result">' . nl2br($this->e($text)) . '</p>';
         }
 
-        return implode('', $parts);
+        return '' !== $html ? $html : '<p class="cr-result">—</p>';
     }
 
     private function documentStyles(): string
     {
         return <<<'CSS'
 <style>
-h1.report-title { display: none; }
-p { margin: 4px 0; line-height: 1.45; font-size: 11px; }
-.cr-banner {
-    text-align: center;
-    margin: 0 0 10px;
-    padding: 5px 8px;
-    border: 1.5px solid #c0392b;
-    color: #c0392b;
-    font-weight: bold;
-    letter-spacing: 1px;
-    font-size: 10px;
-}
-.cr-id { display: table; width: 100%; font-size: 11px; line-height: 1.55; }
-.cr-id-left { display: table-cell; vertical-align: top; }
-.cr-id-right { display: table-cell; width: 150px; text-align: right; vertical-align: top; white-space: nowrap; }
-.cr-line { margin: 0 0 1px; }
-.cr-k { font-weight: bold; }
-.cr-sep { border-top: 1px solid #222; margin: 10px 0 16px; }
-.cr-title {
-    text-align: center;
-    font-size: 13px;
-    font-weight: bold;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    margin: 0 0 16px;
-}
-.cr-result { font-size: 11px; line-height: 1.5; min-height: 40px; }
-.cr-thanks { margin-top: 28px; font-size: 10px; }
-.cr-sign { margin-top: 22px; text-align: right; page-break-inside: avoid; }
-.cr-date { margin: 0 0 8px; font-size: 10px; }
-.cr-role { margin: 2px 0 0; font-size: 9px; color: #444; }
-.cr-doctor { margin: 2px 0 0; font-size: 11px; }
+.chu-content { font-size: 12px; color: #111; }
+p { margin: 0 0 8px; line-height: 1.55; font-size: 12px; color: #111; }
+.cr-id-table { width: 100%; border-collapse: collapse; margin: 6px 0 0; }
+.cr-id-left { vertical-align: top; font-size: 12px; line-height: 1.7; }
+.cr-id-right { width: 150px; text-align: right; vertical-align: top; font-size: 12px; line-height: 1.7; white-space: nowrap; }
+.cr-line { margin: 0; }
+.cr-rule { border: none; border-top: 1px solid #222; margin: 12px 0 18px; }
+.cr-title { text-align: center; font-size: 14px; font-weight: bold; letter-spacing: 1px; margin: 0 0 18px; color: #111; }
+.cr-result { font-size: 12px; line-height: 1.6; text-align: justify; margin: 0 0 10px; }
+.cr-thanks { margin-top: 28px; font-size: 12px; }
+.cr-sign-table { width: 100%; margin-top: 20px; }
+.cr-sign-table td { text-align: right; font-size: 12px; }
 .cap-signature-img { display: block; max-height: 52px; max-width: 160px; margin: 0 0 4px auto; }
 </style>
 CSS;
     }
 
-    private function richText(?string $value): string
+    private function upper(?string $value): string
     {
         $text = trim((string) $value);
 
-        return '' === $text ? '—' : nl2br($this->e($text));
+        return '' === $text ? '—' : mb_strtoupper($text, 'UTF-8');
     }
 
     private function sexeCode(?string $sexe): string
