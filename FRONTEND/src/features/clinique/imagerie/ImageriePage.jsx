@@ -10,20 +10,29 @@ import { PERMISSIONS } from '../../../constants/permissions.js';
 import { usePermissions } from '../../../hooks/usePermissions.js';
 import { useToast } from '../../../hooks/useToast.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
+import PatientSearchAutocomplete from '../aptitude/components/PatientSearchAutocomplete.jsx';
 import { fetchExamensApi } from '../examens/examensApi.js';
-import { fetchPatientsApi } from '../../patient/patients/patientsApi.js';
 import { formatDateTime, formatPatientName } from '../../pharmacie/shared/format.js';
+import MedecinSearchAutocomplete from './MedecinSearchAutocomplete.jsx';
 import {
   DEFAULT_IMAGERIE_PAGE_SIZE,
   IMAGERIE_INTERPRET_STATUTS,
   IMAGERIE_PAGE_SIZE_OPTIONS,
+  IMAGERIE_PERIODES,
+  IMAGERIE_SOURCE_LABELS,
+  IMAGERIE_SOURCES,
   IMAGERIE_STATUT_COLORS,
   IMAGERIE_STATUT_LABELS,
   IMAGERIE_STATUTS,
+  demandeurLabel,
   imagerieDetailPath,
-  medecinLabel,
 } from './imagerieConstants.js';
-import { createEtudeImagerieApi, fetchEtudesImagerieApi, fetchMedecinsImagerieApi } from './imagerieApi.js';
+import { createEtudeImagerieApi, fetchEtudesImagerieApi } from './imagerieApi.js';
+
+const EMPTY_FORM = {
+  patientId: '', examenId: '', indication: '', but: '',
+  source: 'INTERNE', etablissement: '', demandeParId: '', demandeParNom: '',
+};
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_IMAGERIE_PAGE_SIZE, total: 0, totalPages: 0 };
 
@@ -47,22 +56,24 @@ export default function ImageriePage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statut, setStatut] = useState('');
+  const [source, setSource] = useState('');
+  const [periode, setPeriode] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_IMAGERIE_PAGE_SIZE);
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [patientQuery, setPatientQuery] = useState('');
-  const [patients, setPatients] = useState([]);
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const [examens, setExamens] = useState([]);
-  const [medecins, setMedecins] = useState([]);
-  const [form, setForm] = useState({ patientId: '', examenId: '', indication: '', but: '', demandeParId: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, statut, limit, mainTab]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, statut, source, periode, dateFrom, dateTo, limit, mainTab]);
 
   useEffect(() => {
     if (canCreate && String(location.pathname).includes('/nouveau')) {
@@ -80,6 +91,10 @@ export default function ImageriePage() {
         search: debouncedSearch || undefined,
         statut: statut || undefined,
         statuts: !statut && mainTab === 'interpretation' ? IMAGERIE_INTERPRET_STATUTS : undefined,
+        source: source || undefined,
+        periode: periode || undefined,
+        dateFrom: periode === 'PERSONNALISE' && dateFrom ? dateFrom : undefined,
+        dateTo: periode === 'PERSONNALISE' && dateTo ? dateTo : undefined,
       });
       setItems(result.items);
       setPagination(result.pagination);
@@ -89,7 +104,7 @@ export default function ImageriePage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, limit, page, statut, mainTab]);
+  }, [debouncedSearch, limit, page, statut, source, periode, dateFrom, dateTo, mainTab]);
 
   useEffect(() => { load(page); }, [load, page]);
 
@@ -98,30 +113,20 @@ export default function ImageriePage() {
     fetchExamensApi({ page: 1, limit: 100, imagerie: true })
       .then((result) => setExamens(result.items || []))
       .catch(() => setExamens([]));
-    fetchMedecinsImagerieApi()
-      .then(setMedecins)
-      .catch(() => setMedecins([]));
   }, [createOpen]);
-
-  useEffect(() => {
-    if (!createOpen || patientQuery.trim().length < 2) {
-      return undefined;
-    }
-    const timer = window.setTimeout(() => {
-      fetchPatientsApi({ page: 1, limit: 8, search: patientQuery.trim() })
-        .then((result) => setPatients(result.items || []))
-        .catch(() => setPatients([]));
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [createOpen, patientQuery]);
 
   const handleCreate = async () => {
     if (!form.patientId || !form.examenId) {
       showError('Sélectionnez le patient et l\'examen d\'imagerie.');
       return;
     }
-    if (!form.demandeParId) {
-      showError('Indiquez le médecin ayant demandé l\'examen.');
+    if (form.source === 'EXTERNE') {
+      if (!form.etablissement.trim() || !form.demandeParNom.trim()) {
+        showError('Pour une demande externe, indiquez l\'établissement et le nom du médecin.');
+        return;
+      }
+    } else if (!form.demandeParId && !form.demandeParNom.trim()) {
+      showError('Sélectionnez un médecin interne ou saisissez son nom.');
       return;
     }
     setSaving(true);
@@ -131,9 +136,12 @@ export default function ImageriePage() {
         examenId: Number(form.examenId),
         indication: form.indication || null,
         but: form.but || null,
-        demandeParId: form.demandeParId,
+        source: form.source,
+        etablissement: form.source === 'EXTERNE' ? form.etablissement.trim() : null,
+        demandeParId: form.source === 'INTERNE' ? form.demandeParId || null : null,
+        demandeParNom: form.demandeParNom.trim() || null,
       });
-      showSuccess('Étude créée. Vous pouvez maintenant charger les images.');
+      showSuccess('Bon enregistré. Vous pouvez maintenant charger les images.');
       setCreateOpen(false);
       navigate(imagerieDetailPath(created.id));
     } catch (err) {
@@ -153,8 +161,12 @@ export default function ImageriePage() {
           </Typography>
         </Box>
         {canCreate && mainTab === 'images' ? (
-          <Button startDecorator={<Plus size={16} />} onClick={() => setCreateOpen(true)} sx={{ bgcolor: LOTRU_PRIMARY[500] }}>
-            Nouvelle étude
+          <Button startDecorator={<Plus size={16} />} onClick={() => {
+            setForm(EMPTY_FORM);
+            setSelectedPatient(null);
+            setCreateOpen(true);
+          }} sx={{ bgcolor: LOTRU_PRIMARY[500] }}>
+            Nouveau bon
           </Button>
         ) : null}
       </Stack>
@@ -174,15 +186,15 @@ export default function ImageriePage() {
         </TabList>
         <TabPanel value={mainTab} sx={{ p: 0, pt: 2 }}>
           <Card variant="outlined">
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 1.5 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 1.5 }} flexWrap="wrap">
               <Input
                 placeholder="Rechercher n°, patient, examen…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 startDecorator={<Search size={16} />}
-                sx={{ flex: 1 }}
+                sx={{ flex: 1, minWidth: 200 }}
               />
-              <Select value={statut} onChange={(_, value) => setStatut(value || '')} placeholder="Statut" sx={{ minWidth: 180 }}>
+              <Select value={statut} onChange={(_, value) => setStatut(value || '')} placeholder="Statut" sx={{ minWidth: 170 }}>
                 <Option value="">{mainTab === 'interpretation' ? 'À interpréter / interprétés' : 'Tous les statuts'}</Option>
                 {(mainTab === 'interpretation'
                   ? IMAGERIE_STATUTS.filter((item) => ['IMAGES', 'INTERPRETE', 'VALIDE'].includes(item.value))
@@ -191,7 +203,30 @@ export default function ImageriePage() {
                   <Option key={item.value} value={item.value}>{item.label}</Option>
                 ))}
               </Select>
+              <Select value={source} onChange={(_, value) => setSource(value || '')} placeholder="Source" sx={{ minWidth: 140 }}>
+                <Option value="">Toutes les sources</Option>
+                {IMAGERIE_SOURCES.map((item) => (
+                  <Option key={item.value} value={item.value}>{item.label}</Option>
+                ))}
+              </Select>
+              <Select value={periode} onChange={(_, value) => setPeriode(value || '')} placeholder="Période" sx={{ minWidth: 180 }}>
+                {IMAGERIE_PERIODES.map((item) => (
+                  <Option key={item.value || 'all'} value={item.value}>{item.label}</Option>
+                ))}
+              </Select>
             </Stack>
+            {periode === 'PERSONNALISE' ? (
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 1.5 }}>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>Du</FormLabel>
+                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                </FormControl>
+                <FormControl sx={{ flex: 1 }}>
+                  <FormLabel>Au</FormLabel>
+                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                </FormControl>
+              </Stack>
+            ) : null}
             {listError ? <Typography color="danger">{listError}</Typography> : null}
             <Sheet variant="outlined" sx={{ overflow: 'auto', borderRadius: 'sm' }}>
               <Table stickyHeader>
@@ -201,6 +236,7 @@ export default function ImageriePage() {
                     <th>Date</th>
                     <th>Patient</th>
                     <th>Examen</th>
+                    <th>Source</th>
                     <th>Demandeur</th>
                     <th>Images</th>
                     <th>Statut</th>
@@ -208,9 +244,9 @@ export default function ImageriePage() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={7}>Chargement…</td></tr>
+                    <tr><td colSpan={8}>Chargement…</td></tr>
                   ) : items.length === 0 ? (
-                    <tr><td colSpan={7}>{mainTab === 'interpretation' ? 'Aucune étude à interpréter.' : 'Aucune étude d\'imagerie.'}</td></tr>
+                    <tr><td colSpan={8}>{mainTab === 'interpretation' ? 'Aucune étude à interpréter.' : 'Aucune étude d\'imagerie.'}</td></tr>
                   ) : items.map((item) => (
                     <tr
                       key={item.id}
@@ -221,7 +257,8 @@ export default function ImageriePage() {
                       <td>{formatDateTime(item.createdAt)}</td>
                       <td>{item.patient?.fullName || formatPatientName(item.patient)}</td>
                       <td>{item.examen?.libelle || '—'}</td>
-                      <td>{medecinLabel(item.demandePar)}</td>
+                      <td>{IMAGERIE_SOURCE_LABELS[item.source] || item.source || 'Interne'}</td>
+                      <td>{demandeurLabel(item)}</td>
                       <td>{item.imagesCount ?? 0}</td>
                       <td>
                         <Chip size="sm" color={IMAGERIE_STATUT_COLORS[item.statut] || 'neutral'} variant="soft">
@@ -248,20 +285,18 @@ export default function ImageriePage() {
 
       <Modal open={createOpen} onClose={() => setCreateOpen(false)}>
         <ModalDialog sx={{ width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
-          <Typography level="h4">Nouvelle étude d'imagerie</Typography>
+          <Typography level="h4">Nouveau bon d'imagerie</Typography>
           <Stack spacing={1.5} sx={{ mt: 1 }}>
             <FormControl>
-              <FormLabel>Patient (déjà enregistré)</FormLabel>
-              <Input placeholder="Rechercher dans Gestion des Patients…" value={patientQuery} onChange={(e) => setPatientQuery(e.target.value)} />
-              <Select
-                value={form.patientId}
-                onChange={(_, value) => setForm((current) => ({ ...current, patientId: value || '' }))}
-                placeholder="Tapez au moins 2 lettres, puis sélectionnez"
-              >
-                {patients.map((patient) => (
-                  <Option key={patient.id} value={patient.id}>{formatPatientName(patient)}</Option>
-                ))}
-              </Select>
+              <FormLabel>Patient</FormLabel>
+              <PatientSearchAutocomplete
+                value={selectedPatient}
+                placeholder="Nom, postnom, code UKV, n° de dossier…"
+                onSelect={(patient) => {
+                  setSelectedPatient(patient);
+                  setForm((current) => ({ ...current, patientId: patient?.id || '' }));
+                }}
+              />
             </FormControl>
             <FormControl>
               <FormLabel>Examen</FormLabel>
@@ -276,17 +311,54 @@ export default function ImageriePage() {
               </Select>
             </FormControl>
             <FormControl>
-              <FormLabel>Médecin demandeur</FormLabel>
+              <FormLabel>Source</FormLabel>
               <Select
-                value={form.demandeParId}
-                onChange={(_, value) => setForm((current) => ({ ...current, demandeParId: value || '' }))}
-                placeholder="Médecin ayant demandé l'examen"
+                value={form.source}
+                onChange={(_, value) => setForm((current) => ({
+                  ...current,
+                  source: value || 'INTERNE',
+                  etablissement: value === 'EXTERNE' ? current.etablissement : '',
+                  demandeParId: value === 'EXTERNE' ? '' : current.demandeParId,
+                }))}
               >
-                {medecins.map((medecin) => (
-                  <Option key={medecin.id} value={medecin.id}>{medecinLabel(medecin)}</Option>
+                {IMAGERIE_SOURCES.map((item) => (
+                  <Option key={item.value} value={item.value}>{item.label}</Option>
                 ))}
               </Select>
             </FormControl>
+            {form.source === 'EXTERNE' ? (
+              <>
+                <FormControl>
+                  <FormLabel>Établissement</FormLabel>
+                  <Input
+                    value={form.etablissement}
+                    onChange={(e) => setForm((current) => ({ ...current, etablissement: e.target.value }))}
+                    placeholder="Hôpital ou structure d'origine"
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Nom du médecin demandeur</FormLabel>
+                  <Input
+                    value={form.demandeParNom}
+                    onChange={(e) => setForm((current) => ({ ...current, demandeParNom: e.target.value }))}
+                    placeholder="Dr. Nom du médecin"
+                  />
+                </FormControl>
+              </>
+            ) : (
+              <FormControl>
+                <FormLabel>Médecin interne</FormLabel>
+                <MedecinSearchAutocomplete
+                  value={form.demandeParId || form.demandeParNom ? { id: form.demandeParId, nom: form.demandeParNom } : null}
+                  placeholder="Tapez le nom — sélectionnez ou conservez la saisie"
+                  onSelect={(medecin) => setForm((current) => ({
+                    ...current,
+                    demandeParId: medecin?.id || '',
+                    demandeParNom: medecin?.nom || '',
+                  }))}
+                />
+              </FormControl>
+            )}
             <FormControl>
               <FormLabel>But</FormLabel>
               <Input

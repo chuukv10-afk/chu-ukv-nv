@@ -2,6 +2,7 @@
 
 namespace App\DTO\Imagerie;
 
+use App\Entity\EtudeImagerie;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final class ImagerieListQuery
@@ -23,6 +24,16 @@ final class ImagerieListQuery
 
         #[Assert\Length(max: 80)]
         public ?string $statuts = null,
+
+        #[Assert\Choice(choices: [EtudeImagerie::SOURCE_INTERNE, EtudeImagerie::SOURCE_EXTERNE])]
+        public ?string $source = null,
+
+        #[Assert\Choice(choices: ['AUJOURDHUI', 'SEMAINE', 'MOIS', 'ANNEE', 'PERSONNALISE'])]
+        public ?string $periode = null,
+
+        public ?string $dateFrom = null,
+
+        public ?string $dateTo = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;
@@ -35,6 +46,18 @@ final class ImagerieListQuery
         }
         if ('' === $this->statuts) {
             $this->statuts = null;
+        }
+        if ('' === $this->source) {
+            $this->source = null;
+        }
+        if ('' === $this->periode) {
+            $this->periode = null;
+        }
+        if ('' === $this->dateFrom) {
+            $this->dateFrom = null;
+        }
+        if ('' === $this->dateTo) {
+            $this->dateTo = null;
         }
     }
 }

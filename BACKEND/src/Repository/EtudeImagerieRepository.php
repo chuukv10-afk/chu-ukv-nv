@@ -15,6 +15,8 @@ class EtudeImagerieRepository extends ServiceEntityRepository
 {
     use NumeroPrefixRepositoryTrait;
 
+    private const TIMEZONE = 'Africa/Kinshasa';
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, EtudeImagerie::class);
@@ -23,8 +25,18 @@ class EtudeImagerieRepository extends ServiceEntityRepository
     /**
      * @return array{items: list<EtudeImagerie>, total: int}
      */
-    public function paginate(int $page, int $limit, ?string $search, ?string $statut, ?string $patientId = null, ?string $statuts = null): array
-    {
+    public function paginate(
+        int $page,
+        int $limit,
+        ?string $search,
+        ?string $statut,
+        ?string $patientId = null,
+        ?string $statuts = null,
+        ?string $source = null,
+        ?string $periode = null,
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+    ): array {
         $qb = $this->createQueryBuilder('e')
             ->leftJoin('e.patient', 'p')->addSelect('p')
             ->leftJoin('e.examen', 'x')->addSelect('x')
@@ -55,6 +67,18 @@ class EtudeImagerieRepository extends ServiceEntityRepository
                 $qb->andWhere('1 = 0');
             }
         }
+        if (null !== $source && '' !== trim($source)) {
+            $qb->andWhere('e.source = :source')->setParameter('source', strtoupper(trim($source)));
+        }
+
+        [$from, $to] = $this->resolvePeriodBounds($periode, $dateFrom, $dateTo);
+        $timezone = new \DateTimeZone(self::TIMEZONE);
+        if (null !== $from) {
+            $qb->andWhere('e.createdAt >= :dateFrom')->setParameter('dateFrom', new \DateTimeImmutable($from . ' 00:00:00', $timezone));
+        }
+        if (null !== $to) {
+            $qb->andWhere('e.createdAt <= :dateTo')->setParameter('dateTo', new \DateTimeImmutable($to . ' 23:59:59', $timezone));
+        }
 
         $countQb = clone $qb;
         $total = (int) $countQb->select('COUNT(e.id)')->resetDQLPart('orderBy')->getQuery()->getSingleScalarResult();
@@ -66,5 +90,29 @@ class EtudeImagerieRepository extends ServiceEntityRepository
             ->getResult();
 
         return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function resolvePeriodBounds(?string $periode, ?string $dateFrom, ?string $dateTo): array
+    {
+        $timezone = new \DateTimeZone(self::TIMEZONE);
+        $today = new \DateTimeImmutable('now', $timezone);
+        $key = strtoupper(trim((string) $periode));
+
+        return match ($key) {
+            'AUJOURDHUI' => [$today->format('Y-m-d'), $today->format('Y-m-d')],
+            'SEMAINE' => [
+                $today->modify('monday this week')->format('Y-m-d'),
+                $today->modify('sunday this week')->format('Y-m-d'),
+            ],
+            'MOIS' => [$today->format('Y-m-01'), $today->format('Y-m-t')],
+            'ANNEE' => [$today->format('Y-01-01'), $today->format('Y-12-31')],
+            default => [
+                '' !== trim((string) $dateFrom) ? trim((string) $dateFrom) : null,
+                '' !== trim((string) $dateTo) ? trim((string) $dateTo) : null,
+            ],
+        };
     }
 }

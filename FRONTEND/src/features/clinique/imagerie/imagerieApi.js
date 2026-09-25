@@ -60,8 +60,8 @@ export async function deleteEtudeImagerieApi(id) {
   return callApiDelete(`${clinique.imagerie}/${id}`);
 }
 
-export async function fetchMedecinsImagerieApi() {
-  const response = await callApiGet(`${clinique.imagerie}/medecins`);
+export async function fetchMedecinsImagerieApi(search = '') {
+  const response = await callApiGet(`${clinique.imagerie}/medecins${buildQueryString({ search })}`);
   const data = unwrapData(response);
   return Array.isArray(data) ? data : [];
 }

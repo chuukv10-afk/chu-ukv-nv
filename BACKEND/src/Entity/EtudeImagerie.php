@@ -17,6 +17,9 @@ class EtudeImagerie
     public const STATUT_VALIDE = 'VALIDE';
     public const STATUT_ANNULEE = 'ANNULEE';
 
+    public const SOURCE_INTERNE = 'INTERNE';
+    public const SOURCE_EXTERNE = 'EXTERNE';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -58,6 +61,15 @@ class EtudeImagerie
     #[ORM\OneToOne]
     #[ORM\JoinColumn(nullable: true, unique: true, onDelete: 'SET NULL')]
     private ?DemandeExamen $demandeExamen = null;
+
+    #[ORM\Column(length: 20)]
+    private ?string $source = self::SOURCE_INTERNE;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $etablissement = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $demandeParNom = null;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -228,6 +240,42 @@ class EtudeImagerie
     public function setDemandeExamen(?DemandeExamen $demandeExamen): static
     {
         $this->demandeExamen = $demandeExamen;
+
+        return $this;
+    }
+
+    public function getSource(): ?string
+    {
+        return $this->source;
+    }
+
+    public function setSource(string $source): static
+    {
+        $this->source = $source;
+
+        return $this;
+    }
+
+    public function getEtablissement(): ?string
+    {
+        return $this->etablissement;
+    }
+
+    public function setEtablissement(?string $etablissement): static
+    {
+        $this->etablissement = $etablissement;
+
+        return $this;
+    }
+
+    public function getDemandeParNom(): ?string
+    {
+        return $this->demandeParNom;
+    }
+
+    public function setDemandeParNom(?string $demandeParNom): static
+    {
+        $this->demandeParNom = $demandeParNom;
 
         return $this;
     }

@@ -2,6 +2,7 @@
 
 namespace App\DTO\Imagerie;
 
+use App\Entity\EtudeImagerie;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final class CreateEtudeImagerieInput
@@ -20,7 +21,16 @@ final class CreateEtudeImagerieInput
         #[Assert\Length(max: 255)]
         public ?string $but = null,
 
+        #[Assert\Choice(choices: [EtudeImagerie::SOURCE_INTERNE, EtudeImagerie::SOURCE_EXTERNE])]
+        public string $source = EtudeImagerie::SOURCE_INTERNE,
+
+        #[Assert\Length(max: 255)]
+        public ?string $etablissement = null,
+
         public ?string $demandeParId = null,
+
+        #[Assert\Length(max: 255)]
+        public ?string $demandeParNom = null,
     ) {
         if ('' === $this->patientId) {
             $this->patientId = null;
@@ -31,8 +41,15 @@ final class CreateEtudeImagerieInput
         if ('' === $this->but) {
             $this->but = null;
         }
+        if ('' === $this->etablissement) {
+            $this->etablissement = null;
+        }
         if ('' === $this->demandeParId) {
             $this->demandeParId = null;
         }
+        if ('' === $this->demandeParNom) {
+            $this->demandeParNom = null;
+        }
+        $this->source = strtoupper(trim($this->source));
     }
 }

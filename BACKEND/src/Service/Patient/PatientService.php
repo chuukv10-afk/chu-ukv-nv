@@ -528,9 +528,13 @@ final class PatientService
         return sprintf('DPI-%d-%05d', $year, $sequence);
     }
 
-    private function parseDateNaissance(string $value): \DateTime
+    private function parseDateNaissance(?string $value): ?\DateTime
     {
-        $date = \DateTimeImmutable::createFromFormat('Y-m-d', trim($value));
+        $raw = trim((string) $value);
+        if ('' === $raw) {
+            return null;
+        }
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $raw);
         if (false === $date) {
             throw new ConflictException('Date de naissance invalide.');
         }

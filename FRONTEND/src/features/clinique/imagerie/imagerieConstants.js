@@ -23,11 +23,34 @@ export const IMAGERIE_PAGE_SIZE_OPTIONS = [10, 25, 50];
 export const IMAGERIE_MAX_SIZE_BYTES = 50 * 1024 * 1024;
 export const IMAGERIE_ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf,.pdf';
 
+export const IMAGERIE_SOURCES = [
+  { value: 'INTERNE', label: 'Interne' },
+  { value: 'EXTERNE', label: 'Externe' },
+];
+
+export const IMAGERIE_SOURCE_LABELS = IMAGERIE_SOURCES.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
+
+export const IMAGERIE_PERIODES = [
+  { value: '', label: 'Toutes les périodes' },
+  { value: 'AUJOURDHUI', label: "Aujourd'hui" },
+  { value: 'SEMAINE', label: 'Cette semaine' },
+  { value: 'MOIS', label: 'Ce mois' },
+  { value: 'ANNEE', label: 'Cette année' },
+  { value: 'PERSONNALISE', label: 'Personnalisée' },
+];
+
 export function medecinLabel(personnel) {
   if (!personnel) return '—';
-  const nom = String(personnel.nom || personnel.fullName || '').trim();
+  const nom = String(typeof personnel === 'string' ? personnel : (personnel.nom || personnel.fullName || '')).trim();
   if (!nom) return '—';
   return nom.toLowerCase().startsWith('dr') ? nom : `Dr. ${nom}`;
+}
+
+export function demandeurLabel(etude) {
+  return medecinLabel(etude?.demandeParNom || etude?.demandePar);
 }
 
 export function isImageriePdf(image) {

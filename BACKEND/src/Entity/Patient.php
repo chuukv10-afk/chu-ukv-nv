@@ -42,7 +42,7 @@ class Patient implements BlameableInterface
     #[ORM\Column(length: 30, nullable: true)]
     private ?string $lieuNaissance = null;
 
-    #[ORM\Column(type: Types::DATE_MUTABLE)]
+    #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTime $dateNaissance = null;
 
     #[ORM\Column(length: 1)]
@@ -164,7 +164,7 @@ class Patient implements BlameableInterface
         return $this->dateNaissance;
     }
 
-    public function setDateNaissance(\DateTime $dateNaissance): static
+    public function setDateNaissance(?\DateTime $dateNaissance): static
     {
         $this->dateNaissance = $dateNaissance;
 

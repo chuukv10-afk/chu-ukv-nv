@@ -18,7 +18,9 @@ import {
   IMAGERIE_MAX_SIZE_BYTES,
   IMAGERIE_STATUT_COLORS,
   IMAGERIE_STATUT_LABELS,
+  IMAGERIE_SOURCE_LABELS,
   isImageriePdf,
+  demandeurLabel,
   medecinLabel,
 } from './imagerieConstants.js';
 import {
@@ -295,7 +297,11 @@ export default function ImagerieDetailPage() {
         </Typography>
         {etude.but ? <Typography sx={{ mt: 1 }}><strong>But :</strong> {etude.but}</Typography> : null}
         {etude.indication ? <Typography sx={{ mt: 1 }}><strong>Renseignements cliniques :</strong> {etude.indication}</Typography> : null}
-        <Typography sx={{ mt: 1 }}><strong>Médecin demandeur :</strong> {medecinLabel(etude.demandePar)}</Typography>
+        <Typography sx={{ mt: 1 }}><strong>Source :</strong> {IMAGERIE_SOURCE_LABELS[etude.source] || etude.source || 'Interne'}</Typography>
+        {etude.source === 'EXTERNE' && etude.etablissement ? (
+          <Typography sx={{ mt: 0.5 }}><strong>Établissement :</strong> {etude.etablissement}</Typography>
+        ) : null}
+        <Typography sx={{ mt: 0.5 }}><strong>Médecin demandeur :</strong> {demandeurLabel(etude)}</Typography>
         {etude.validePar?.nom ? (
           <Typography sx={{ mt: 0.5 }}><strong>Validé par :</strong> {medecinLabel(etude.validePar)}{etude.valideAt ? ` — ${formatDateTime(etude.valideAt)}` : ''}</Typography>
         ) : null}

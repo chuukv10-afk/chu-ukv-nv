@@ -11,12 +11,15 @@ import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../../theme/lotruPalette.js';
 import { fetchExamensApi } from '../examens/examensApi.js';
 import { formatDateTime } from '../../pharmacie/shared/format.js';
 import {
+  IMAGERIE_SOURCE_LABELS,
+  IMAGERIE_SOURCES,
   IMAGERIE_STATUT_COLORS,
   IMAGERIE_STATUT_LABELS,
+  demandeurLabel,
   imagerieDetailPath,
-  medecinLabel,
 } from './imagerieConstants.js';
-import { createEtudeImagerieApi, fetchEtudesImagerieApi, fetchMedecinsImagerieApi } from './imagerieApi.js';
+import { createEtudeImagerieApi, fetchEtudesImagerieApi } from './imagerieApi.js';
+import MedecinSearchAutocomplete from './MedecinSearchAutocomplete.jsx';
 
 export default function PatientImagerieTab({ patientId, patientName = '' }) {
   const navigate = useNavigate();
@@ -31,8 +34,10 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [examens, setExamens] = useState([]);
-  const [medecins, setMedecins] = useState([]);
-  const [form, setForm] = useState({ examenId: '', indication: '', but: '', demandeParId: '' });
+  const [form, setForm] = useState({
+    examenId: '', indication: '', but: '',
+    source: 'INTERNE', etablissement: '', demandeParId: '', demandeParNom: '',
+  });
 
   const load = useCallback(async () => {
     if (!canRead || !patientId) return;
@@ -56,9 +61,6 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
     fetchExamensApi({ page: 1, limit: 100, imagerie: true })
       .then((result) => setExamens(result.items || []))
       .catch(() => setExamens([]));
-    fetchMedecinsImagerieApi()
-      .then(setMedecins)
-      .catch(() => setMedecins([]));
   }, [createOpen]);
 
   const openDetail = (id) => {
@@ -72,8 +74,13 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
       showError('Sélectionnez l\'examen d\'imagerie.');
       return;
     }
-    if (!form.demandeParId) {
-      showError('Indiquez le médecin ayant demandé l\'examen.');
+    if (form.source === 'EXTERNE') {
+      if (!form.etablissement.trim() || !form.demandeParNom.trim()) {
+        showError('Pour une demande externe, indiquez l\'établissement et le nom du médecin.');
+        return;
+      }
+    } else if (!form.demandeParId && !form.demandeParNom.trim()) {
+      showError('Sélectionnez un médecin interne ou saisissez son nom.');
       return;
     }
     setSaving(true);
@@ -83,9 +90,12 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
         examenId: Number(form.examenId),
         indication: form.indication || null,
         but: form.but || null,
-        demandeParId: form.demandeParId,
+        source: form.source,
+        etablissement: form.source === 'EXTERNE' ? form.etablissement.trim() : null,
+        demandeParId: form.source === 'INTERNE' ? form.demandeParId || null : null,
+        demandeParNom: form.demandeParNom.trim() || null,
       });
-      showSuccess('Étude créée. Vous pouvez maintenant charger les images.');
+      showSuccess('Bon enregistré. Vous pouvez maintenant charger les images.');
       setCreateOpen(false);
       openDetail(created.id);
     } catch (err) {
@@ -111,7 +121,7 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
         </Typography>
         {canCreate ? (
           <Button size="sm" startDecorator={<Plus size={16} />} onClick={() => setCreateOpen(true)} sx={{ bgcolor: LOTRU_PRIMARY[500] }}>
-            Nouvelle étude
+            Nouveau bon
           </Button>
         ) : null}
       </Stack>
@@ -123,6 +133,7 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
               <th>N°</th>
               <th>Date</th>
               <th>Examen</th>
+              <th>Source</th>
               <th>Demandeur</th>
               <th>Images</th>
               <th>Statut</th>
@@ -130,15 +141,16 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6}>Chargement…</td></tr>
+              <tr><td colSpan={7}>Chargement…</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6}>Aucune étude d&apos;imagerie pour ce patient.</td></tr>
+              <tr><td colSpan={7}>Aucune étude d&apos;imagerie pour ce patient.</td></tr>
             ) : items.map((item) => (
               <tr key={item.id} onClick={() => openDetail(item.id)} style={{ cursor: 'pointer' }}>
                 <td>{item.numero}</td>
                 <td>{formatDateTime(item.createdAt)}</td>
                 <td>{item.examen?.libelle || '—'}</td>
-                <td>{medecinLabel(item.demandePar)}</td>
+                <td>{IMAGERIE_SOURCE_LABELS[item.source] || item.source || 'Interne'}</td>
+                <td>{demandeurLabel(item)}</td>
                 <td>{item.imagesCount ?? 0}</td>
                 <td>
                   <Chip size="sm" color={IMAGERIE_STATUT_COLORS[item.statut] || 'neutral'} variant="soft">
@@ -153,7 +165,7 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
 
       <Modal open={createOpen} onClose={() => setCreateOpen(false)}>
         <ModalDialog sx={{ width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
-          <Typography level="h4">Nouvelle étude d&apos;imagerie</Typography>
+          <Typography level="h4">Nouveau bon d&apos;imagerie</Typography>
           <Typography level="body-sm" sx={{ color: LOTRU_NEUTRAL[600] }}>
             Patient : <strong>{patientName || 'dossier courant'}</strong>
           </Typography>
@@ -171,17 +183,54 @@ export default function PatientImagerieTab({ patientId, patientName = '' }) {
               </Select>
             </FormControl>
             <FormControl>
-              <FormLabel>Médecin demandeur</FormLabel>
+              <FormLabel>Source</FormLabel>
               <Select
-                value={form.demandeParId}
-                onChange={(_, value) => setForm((current) => ({ ...current, demandeParId: value || '' }))}
-                placeholder="Médecin ayant demandé l'examen"
+                value={form.source}
+                onChange={(_, value) => setForm((current) => ({
+                  ...current,
+                  source: value || 'INTERNE',
+                  etablissement: value === 'EXTERNE' ? current.etablissement : '',
+                  demandeParId: value === 'EXTERNE' ? '' : current.demandeParId,
+                }))}
               >
-                {medecins.map((medecin) => (
-                  <Option key={medecin.id} value={medecin.id}>{medecinLabel(medecin)}</Option>
+                {IMAGERIE_SOURCES.map((item) => (
+                  <Option key={item.value} value={item.value}>{item.label}</Option>
                 ))}
               </Select>
             </FormControl>
+            {form.source === 'EXTERNE' ? (
+              <>
+                <FormControl>
+                  <FormLabel>Établissement</FormLabel>
+                  <Input
+                    value={form.etablissement}
+                    onChange={(e) => setForm((current) => ({ ...current, etablissement: e.target.value }))}
+                    placeholder="Hôpital ou structure d'origine"
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Nom du médecin demandeur</FormLabel>
+                  <Input
+                    value={form.demandeParNom}
+                    onChange={(e) => setForm((current) => ({ ...current, demandeParNom: e.target.value }))}
+                    placeholder="Dr. Nom du médecin"
+                  />
+                </FormControl>
+              </>
+            ) : (
+              <FormControl>
+                <FormLabel>Médecin interne</FormLabel>
+                <MedecinSearchAutocomplete
+                  value={form.demandeParId || form.demandeParNom ? { id: form.demandeParId, nom: form.demandeParNom } : null}
+                  placeholder="Tapez le nom — sélectionnez ou conservez la saisie"
+                  onSelect={(medecin) => setForm((current) => ({
+                    ...current,
+                    demandeParId: medecin?.id || '',
+                    demandeParNom: medecin?.nom || '',
+                  }))}
+                />
+              </FormControl>
+            )}
             <FormControl>
               <FormLabel>But</FormLabel>
               <Input

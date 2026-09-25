@@ -58,7 +58,18 @@ final class ImagerieService
     public function paginate(ImagerieListQuery $query): PaginatedResult
     {
         $this->assertValid($query);
-        $result = $this->etudeRepository->paginate($query->page, $query->limit, $query->search, $query->statut, $query->patientId, $query->statuts);
+        $result = $this->etudeRepository->paginate(
+            $query->page,
+            $query->limit,
+            $query->search,
+            $query->statut,
+            $query->patientId,
+            $query->statuts,
+            $query->source,
+            $query->periode,
+            $query->dateFrom,
+            $query->dateTo,
+        );
 
         return new PaginatedResult(
             array_map(fn (EtudeImagerie $etude): array => $this->serializeSummary($etude), $result['items']),
@@ -81,11 +92,11 @@ final class ImagerieService
     /**
      * @return list<array{id: string, nom: string}>
      */
-    public function listMedecins(): array
+    public function listMedecins(?string $search = null): array
     {
         return array_values(array_filter(array_map(
             fn (Personnel $personnel): ?array => $this->serializePersonnel($personnel),
-            $this->personnelRepository->findActifsForLookup(),
+            $this->personnelRepository->findActifsForLookup(80, $search),
         )));
     }
 
@@ -115,7 +126,10 @@ final class ImagerieService
             $consultation = $demande->getConsultation();
             $indication = $input->indication ?: $demande->getNoteMedecin();
             $but = $input->but ?: $demande->getBut();
+            $source = EtudeImagerie::SOURCE_INTERNE;
+            $etablissement = null;
             $demandePar = $this->resolveDemandePar($input->demandeParId) ?? $demande->getPrescripteur();
+            $demandeParNom = $this->nullable($input->demandeParNom) ?? $this->personnelDisplayName($demandePar);
         } else {
             $patientId = trim((string) $input->patientId);
             if ('' === $patientId || null === $input->examenId) {
@@ -136,9 +150,22 @@ final class ImagerieService
             $consultation = null;
             $indication = $input->indication;
             $but = $input->but;
+            $source = EtudeImagerie::SOURCE_EXTERNE === strtoupper(trim($input->source))
+                ? EtudeImagerie::SOURCE_EXTERNE
+                : EtudeImagerie::SOURCE_INTERNE;
+            $etablissement = $this->nullable($input->etablissement);
             $demandePar = $this->resolveDemandePar($input->demandeParId);
-            if (!$demandePar instanceof Personnel) {
-                throw new BadRequestHttpException('Indiquez le médecin ayant demandé l\'examen.');
+            $demandeParNom = $this->nullable($input->demandeParNom) ?? $this->personnelDisplayName($demandePar);
+            if (EtudeImagerie::SOURCE_EXTERNE === $source) {
+                if (null === $etablissement) {
+                    throw new BadRequestHttpException('Indiquez l\'établissement d\'origine.');
+                }
+                if (null === $demandeParNom) {
+                    throw new BadRequestHttpException('Indiquez le nom du médecin demandeur.');
+                }
+                $demandePar = null;
+            } elseif (!$demandePar instanceof Personnel && null === $demandeParNom) {
+                throw new BadRequestHttpException('Sélectionnez un médecin interne ou saisissez son nom.');
             }
         }
 
@@ -152,6 +179,9 @@ final class ImagerieService
             ->setDemandeExamen($demande)
             ->setIndication($indication)
             ->setBut($this->nullable($but ?? null))
+            ->setSource($source)
+            ->setEtablissement($etablissement)
+            ->setDemandeParNom($demandeParNom)
             ->setDemandePar($demandePar)
             ->setCreatedAt($now)
             ->setCreatedBy($this->currentPersonnel());
@@ -351,6 +381,9 @@ final class ImagerieService
             'statut' => $etude->getStatut(),
             'indication' => $etude->getIndication(),
             'but' => $etude->getBut(),
+            'source' => $etude->getSource() ?: EtudeImagerie::SOURCE_INTERNE,
+            'etablissement' => $etude->getEtablissement(),
+            'demandeParNom' => $etude->getDemandeParNom() ?: $this->personnelDisplayName($etude->getDemandePar()),
             'demandePar' => $this->serializePersonnel($etude->getDemandePar()),
             'imagesCount' => $etude->getImages()->count(),
             'createdAt' => $etude->getCreatedAt()?->format(\DateTimeInterface::ATOM),
@@ -515,6 +548,20 @@ final class ImagerieService
             trim((string) $etude->getTechnique()),
             trim((string) $etude->getConclusion()),
         ], static fn (string $part): bool => '' !== $part)));
+    }
+
+    private function personnelDisplayName(?Personnel $personnel): ?string
+    {
+        if (!$personnel instanceof Personnel) {
+            return null;
+        }
+        $name = trim(implode(' ', array_filter([
+            $personnel->getNom(),
+            $personnel->getPostNom(),
+            $personnel->getPrenom(),
+        ])));
+
+        return '' === $name ? null : $name;
     }
 
     private function nullable(?string $value): ?string

@@ -88,7 +88,9 @@ final class ImageriePdfService
             'Indication' => $etude->getIndication() ?: '—',
             'But' => $etude->getBut() ?: '—',
             'Date de la demande' => $etude->getCreatedAt()?->format('d/m/Y') ?? '—',
-            'Médecin demandeur' => $this->doctorLabel($etude->getDemandePar()) ?: $demandeur,
+            'Source' => EtudeImagerie::SOURCE_EXTERNE === $etude->getSource() ? 'Externe' : 'Interne',
+            'Établissement' => $etude->getEtablissement() ?: (EtudeImagerie::SOURCE_EXTERNE === $etude->getSource() ? '—' : 'CHU UKV'),
+            'Médecin demandeur' => $this->demandeurNom($etude) ?: $demandeur,
         ], $patient);
 
         return <<<HTML
@@ -125,7 +127,9 @@ HTML;
             'Examen réalisé' => $etude->getExamen()?->getLibelle() ?? '—',
             'Indication' => $etude->getIndication() ?: '—',
             'Protocolé le' => $protocolDate?->format('d/m/Y') ?? '—',
-            'Médecin demandeur' => $this->doctorLabel($etude->getDemandePar()) ?: '—',
+            'Source' => EtudeImagerie::SOURCE_EXTERNE === $etude->getSource() ? 'Externe' : 'Interne',
+            'Établissement' => $etude->getEtablissement() ?: (EtudeImagerie::SOURCE_EXTERNE === $etude->getSource() ? '—' : 'CHU UKV'),
+            'Médecin demandeur' => $this->demandeurNom($etude) ?: '—',
         ], $patient);
         $resultat = $this->resultatHtml($etude);
 
@@ -296,6 +300,16 @@ CSS;
         }
 
         return '<img class="cap-signature-img" src="' . $dataUri . '" alt="Signature" />';
+    }
+
+    private function demandeurNom(EtudeImagerie $etude): string
+    {
+        $free = trim((string) $etude->getDemandeParNom());
+        if ('' !== $free) {
+            return str_starts_with(mb_strtolower($free), 'dr') ? $free : 'Dr. ' . $free;
+        }
+
+        return $this->doctorLabel($etude->getDemandePar());
     }
 
     private function doctorLabel(?Personnel $personnel): string

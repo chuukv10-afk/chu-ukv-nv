@@ -56,7 +56,7 @@ final class EtudesImagerieController extends AbstractController
     }
 
     #[Route('/medecins', name: 'api_imagerie_etudes_medecins', methods: ['GET'])]
-    public function medecins(): JsonResponse
+    public function medecins(Request $request): JsonResponse
     {
         if (
             !$this->isGranted(CliniquePermissions::IMAGERIE_READ)
@@ -66,7 +66,10 @@ final class EtudesImagerieController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        return $this->apiSuccess($this->imagerieService->listMedecins(), 'Médecins récupérés.');
+        return $this->apiSuccess(
+            $this->imagerieService->listMedecins($request->query->get('search')),
+            'Médecins récupérés.',
+        );
     }
 
     #[Route('/{id}', name: 'api_imagerie_etudes_show', methods: ['GET'], requirements: ['id' => '\d+'])]

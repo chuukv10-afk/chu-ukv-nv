@@ -63,7 +63,7 @@ export default function PatientFormModal({
       telephone: form.telephone?.trim() || null,
       adresse: form.adresse?.trim() || null,
       lieuNaissance: form.lieuNaissance?.trim() || null,
-      dateNaissance: form.dateNaissance,
+      dateNaissance: form.dateNaissance || null,
       sexe: form.sexe,
       groupeSanguin: form.groupeSanguin?.trim() || null,
       personneAprevenir: form.personneAprevenir?.trim() || null,
@@ -118,7 +118,7 @@ export default function PatientFormModal({
               <Input value={form.prenom} onChange={(e) => handleChange('prenom', e.target.value)} disabled={identityDisabled} slotProps={{ input: { maxLength: 50 } }} />
             </FormControl>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <FormControl required sx={{ flex: 1 }}>
+              <FormControl sx={{ flex: 1 }}>
                 <FormLabel>Date de naissance</FormLabel>
                 <Input type="date" value={form.dateNaissance} onChange={(e) => handleChange('dateNaissance', e.target.value)} disabled={identityDisabled} />
               </FormControl>

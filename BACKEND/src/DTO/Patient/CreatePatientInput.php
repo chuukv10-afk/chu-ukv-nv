@@ -30,8 +30,7 @@ final class CreatePatientInput
         #[Assert\Length(max: 30)]
         public ?string $lieuNaissance = null,
 
-        #[Assert\NotBlank(message: 'La date de naissance est obligatoire.')]
-        public string $dateNaissance = '',
+        public ?string $dateNaissance = null,
 
         #[Assert\NotBlank(message: 'Le sexe est obligatoire.')]
         #[Assert\Choice(choices: ['M', 'F'], message: 'Le sexe doit être M ou F.')]
@@ -67,6 +66,9 @@ final class CreatePatientInput
 
         public string $status = Patient::STATUS_ACTIF,
     ) {
+        if ('' === $this->dateNaissance) {
+            $this->dateNaissance = null;
+        }
     }
 
     #[Assert\Callback]
@@ -78,7 +80,7 @@ final class CreatePatientInput
                 ->addViolation();
         }
 
-        if ('' !== trim($this->dateNaissance) && false === \DateTimeImmutable::createFromFormat('Y-m-d', $this->dateNaissance)) {
+        if (null !== $this->dateNaissance && '' !== trim($this->dateNaissance) && false === \DateTimeImmutable::createFromFormat('Y-m-d', $this->dateNaissance)) {
             $context->buildViolation('La date de naissance doit être au format AAAA-MM-JJ.')
                 ->atPath('dateNaissance')
                 ->addViolation();
