@@ -107,6 +107,7 @@ export default function ImagerieDetailPage() {
   const [etude, setEtude] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(null);
   const [report, setReport] = useState('');
   const reportRef = useRef(null);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -176,18 +177,24 @@ export default function ImagerieDetailPage() {
   };
 
   const handlePrintBon = async () => {
+    setPdfLoading('bon');
     try {
       await openEtudeImagerieBonPdfApi(id);
     } catch (err) {
       showError(err.message || 'Impossible de générer le bon de demande.');
+    } finally {
+      setPdfLoading(null);
     }
   };
 
   const handlePrintCompteRendu = async () => {
+    setPdfLoading('cr');
     try {
       await openEtudeImageriePdfApi(id);
     } catch (err) {
       showError(err.message || 'Impossible de générer le compte-rendu.');
+    } finally {
+      setPdfLoading(null);
     }
   };
 
@@ -308,12 +315,24 @@ export default function ImagerieDetailPage() {
         {canExport ? (
           <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1.5 }}>
             {etude.statut !== 'ANNULEE' ? (
-              <Button variant="outlined" startDecorator={<FileText size={16} />} onClick={handlePrintBon}>
+              <Button
+                variant="outlined"
+                startDecorator={<FileText size={16} />}
+                loading={pdfLoading === 'bon'}
+                disabled={Boolean(pdfLoading)}
+                onClick={handlePrintBon}
+              >
                 Générer le bon de demande
               </Button>
             ) : null}
             {etude.statut === 'INTERPRETE' || etude.statut === 'VALIDE' ? (
-              <Button variant="outlined" startDecorator={<Printer size={16} />} onClick={handlePrintCompteRendu}>
+              <Button
+                variant="outlined"
+                startDecorator={<Printer size={16} />}
+                loading={pdfLoading === 'cr'}
+                disabled={Boolean(pdfLoading)}
+                onClick={handlePrintCompteRendu}
+              >
                 Générer le compte-rendu
               </Button>
             ) : null}
@@ -454,7 +473,13 @@ export default function ImagerieDetailPage() {
                   <Button color="success" startDecorator={<Check size={16} />} onClick={() => setConfirmAction('valider')}>Valider</Button>
                 ) : null}
                 {canExport && (etude.statut === 'INTERPRETE' || etude.statut === 'VALIDE') ? (
-                  <Button variant="outlined" startDecorator={<Printer size={16} />} onClick={handlePrintCompteRendu}>
+                  <Button
+                    variant="outlined"
+                    startDecorator={<Printer size={16} />}
+                    loading={pdfLoading === 'cr'}
+                    disabled={Boolean(pdfLoading)}
+                    onClick={handlePrintCompteRendu}
+                  >
                     Générer le compte-rendu
                   </Button>
                 ) : null}
