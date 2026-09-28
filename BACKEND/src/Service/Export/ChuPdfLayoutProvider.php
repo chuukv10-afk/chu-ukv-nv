@@ -2,6 +2,7 @@
 
 namespace App\Service\Export;
 
+use App\Util\CalendarDate;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
@@ -85,7 +86,10 @@ HTML;
 
     public function formatOfficialDateLine(?\DateTimeInterface $generatedAt = null): string
     {
-        $generatedAt ??= new \DateTimeImmutable();
+        $timezone = new \DateTimeZone(CalendarDate::TIMEZONE);
+        $generatedAt = $generatedAt instanceof \DateTimeInterface
+            ? \DateTimeImmutable::createFromInterface($generatedAt)->setTimezone($timezone)
+            : new \DateTimeImmutable('now', $timezone);
 
         return sprintf(
             'Fait à Boma, le %s à %s',

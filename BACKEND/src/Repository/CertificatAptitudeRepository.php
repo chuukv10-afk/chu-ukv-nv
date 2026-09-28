@@ -71,6 +71,11 @@ class CertificatAptitudeRepository extends ServiceEntityRepository
         ?string $dateTo = null,
     ): array {
         return $this->createFilteredQueryBuilder($search, $annee, $statut, $verdict, $motif, $serviceId, $filiereId, $sansFiliere, $imprime, $numero, $dateFrom, $dateTo)
+            ->resetDQLPart('orderBy')
+            ->orderBy('LOWER(c.nom)', 'ASC')
+            ->addOrderBy('LOWER(c.postNom)', 'ASC')
+            ->addOrderBy('LOWER(c.prenom)', 'ASC')
+            ->addOrderBy('c.id', 'ASC')
             ->getQuery()
             ->getResult();
     }

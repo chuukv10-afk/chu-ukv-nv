@@ -3,6 +3,7 @@
 namespace App\Service\Export;
 
 use App\Entity\Personnel;
+use App\Util\CalendarDate;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -121,7 +122,7 @@ final class TableExportService
             tableHtml: $tableHtml,
             filename: $this->buildFilename($filenamePrefix, 'pdf'),
             generatedBy: $this->resolveCurrentUserDisplayName(),
-            generatedAt: new \DateTimeImmutable(),
+            generatedAt: new \DateTimeImmutable('now', new \DateTimeZone(CalendarDate::TIMEZONE)),
             orientation: $orientation,
         );
     }
