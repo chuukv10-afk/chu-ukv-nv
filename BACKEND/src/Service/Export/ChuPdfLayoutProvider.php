@@ -396,6 +396,19 @@ body {
     text-align: center;
 }
 
+.chu-aptitude-stats th,
+.chu-aptitude-stats td {
+    font-size: 10px;
+    padding: 5px 6px;
+}
+
+.chu-aptitude-stats th:nth-child(4),
+.chu-aptitude-stats td:nth-child(4),
+.chu-aptitude-stats th:nth-child(5),
+.chu-aptitude-stats td:nth-child(5) {
+    text-align: center;
+}
+
 .chu-export-count td:first-child {
     width: 70%;
 }

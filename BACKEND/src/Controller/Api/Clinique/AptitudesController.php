@@ -166,17 +166,23 @@ final class AptitudesController extends AbstractController
         TableExportService $tableExportService,
         #[MapQueryString] AptitudeStatsQuery $query = new AptitudeStatsQuery(),
     ): Response {
+        $export = $this->aptitudeService->buildStatsExport($query);
+
         return $this->createTableExportResponse(
             $request,
             $tableExportService,
             $this->aptitudeService->statsExportHeaders(),
-            $this->aptitudeService->buildStatsExportRows($query),
+            $export['rows'],
             $this->aptitudeService->statsExportTitle($query),
             'statistiques-aptitude',
             'Aucune statistique à exporter pour les filtres sélectionnés.',
             [],
             [],
-            'landscape',
+            'portrait',
+            $export['summaryRows'],
+            $this->aptitudeService->statsExportPdfIntro($query, $export['total']),
+            $this->aptitudeService->statsExportPdfColumnWidths(),
+            'chu-aptitude-stats',
         );
     }
 

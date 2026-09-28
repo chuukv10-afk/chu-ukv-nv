@@ -729,47 +729,77 @@ final class AptitudeService
     }
 
     /**
-     * @return list<list<string|null>>
+     * Lignes du PDF / Excel des statistiques : effectif et taux par filière.
+     * Le numéro de ligne est ajouté par l'export, pas ici.
+     *
+     * @return array{rows: list<list<string>>, summaryRows: list<list<string>>, total: int}
      */
-    public function buildStatsExportRows(AptitudeStatsQuery $query): array
+    public function buildStatsExport(AptitudeStatsQuery $query): array
     {
         $stats = $this->stats($query);
+        $total = (int) $stats['totals']['total'];
         $rows = [];
-        $index = 1;
         foreach ($stats['byFiliere'] as $item) {
+            $count = (int) $item['total'];
             $rows[] = [
-                (string) $index,
-                $item['code'] ?? '—',
-                $item['libelle'],
-                (string) $item['total'],
-                (string) $item['apte'],
-                (string) $item['inapte'],
-                (string) $item['brouillon'],
-                (string) $item['signe'],
-                (string) $item['annule'],
+                (string) ($item['code'] ?? '—'),
+                (string) $item['libelle'],
+                (string) $count,
+                $this->formatTaux($count, $total),
             ];
-            ++$index;
         }
-        $totals = $stats['totals'];
-        $rows[] = [
-            '',
-            '',
-            'Total',
-            (string) $totals['total'],
-            (string) $totals['apte'],
-            (string) $totals['inapte'],
-            (string) $totals['brouillon'],
-            (string) $totals['signe'],
-            (string) $totals['annule'],
-        ];
 
-        return $rows;
+        return [
+            'rows' => $rows,
+            'summaryRows' => [[
+                '',
+                'Total',
+                (string) $total,
+                $total > 0 ? '100 %' : '0 %',
+            ]],
+            'total' => $total,
+        ];
     }
 
     /** @return list<string> */
     public function statsExportHeaders(): array
     {
-        return ['N°', 'Code', 'Filière', 'Total', 'APTE', 'INAPTE', 'Brouillon', 'Signé', 'Annulé'];
+        return ['N°', 'Code', 'Filière', 'Effectif', 'Taux'];
+    }
+
+    /**
+     * Largeurs du tableau PDF, dans l'ordre des en-têtes (N° inclus). Total = 100 %.
+     *
+     * @return list<string>
+     */
+    public function statsExportPdfColumnWidths(): array
+    {
+        return ['8%', '14%', '48%', '15%', '15%'];
+    }
+
+    public function statsExportPdfIntro(AptitudeStatsQuery $query, int $total): string
+    {
+        $left = [];
+        if (null !== $query->annee) {
+            $left[] = 'Année : ' . $query->annee;
+        }
+
+        $leftHtml = htmlspecialchars(implode('   ·   ', $left), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $nombre = htmlspecialchars((string) $total, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return '<table class="chu-export-count"><tr>'
+            . '<td>' . $leftHtml . '</td>'
+            . '<td class="chu-export-count-right">Nombre : ' . $nombre . '</td>'
+            . '</tr></table>';
+    }
+
+    private function formatTaux(int $part, int $total): string
+    {
+        if ($total <= 0) {
+            return '0 %';
+        }
+
+        return number_format($part / $total * 100, 1, ',', ' ') . ' %';
     }
 
     public function statsExportTitle(AptitudeStatsQuery $query): string
