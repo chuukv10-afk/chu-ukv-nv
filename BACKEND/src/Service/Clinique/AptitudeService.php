@@ -92,23 +92,19 @@ final class AptitudeService
         );
 
         $rows = [];
-        $index = 1;
         foreach ($items as $item) {
             $rows[] = [
-                (string) $index,
                 $item->getNumero() ?? '—',
                 $item->getFullName(),
                 $item->getSexe(),
                 $item->getService()?->getLibelle(),
-                $this->motifLabel($item),
                 $this->filiereLabel($item),
                 $item->getVerdict(),
-                $item->getStatut(),
+                $this->statutExportLabel($item->getStatut()),
                 $item->getSigneAt()?->format('d/m/Y'),
                 $item->getValideJusqua()?->format('d/m/Y'),
                 $item->isImprime() ? 'Oui' : 'Non',
             ];
-            ++$index;
         }
 
         return $rows;
@@ -119,7 +115,41 @@ final class AptitudeService
      */
     public function exportHeaders(): array
     {
-        return ['N°', 'Numéro', 'Candidat', 'Sexe', 'Service', 'Motif', 'Filière', 'Verdict', 'Statut', 'Signé le', 'Valable jusqu\'au', 'Imprimé'];
+        return ['N°', 'Numéro', 'Candidat', 'Sexe', 'Service', 'Filière', 'Verdict', 'Statut', 'Signé le', 'Valable jusqu\'au', 'Imprimé'];
+    }
+
+    /**
+     * Largeurs de la liste PDF, dans l'ordre des en-têtes (N° inclus). Total = 100 %.
+     *
+     * @return list<string>
+     */
+    public function exportPdfColumnWidths(): array
+    {
+        return ['4%', '15%', '17%', '5%', '11%', '13%', '6%', '7%', '8%', '8%', '6%'];
+    }
+
+    public function exportPdfIntro(AptitudeListQuery $query, int $count): string
+    {
+        $left = [];
+        if (null !== $query->filiereId) {
+            $filiere = $this->filiereRepository->find($query->filiereId);
+            if ($filiere instanceof Filiere) {
+                $left[] = 'Filière : ' . trim(sprintf('%s — %s', $filiere->getCode() ?? '', $filiere->getLibelle() ?? ''));
+            }
+        } elseif ($query->sansFiliere) {
+            $left[] = 'Filière : Non renseignée';
+        }
+        if (null !== $query->annee) {
+            $left[] = 'Année : ' . $query->annee;
+        }
+
+        $leftHtml = htmlspecialchars(implode('   ·   ', $left), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $nombre = htmlspecialchars((string) $count, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return '<table class="chu-export-count"><tr>'
+            . '<td>' . $leftHtml . '</td>'
+            . '<td class="chu-export-count-right">Nombre : ' . $nombre . '</td>'
+            . '</tr></table>';
     }
 
     /** @return list<array{id: int, code: string, libelle: string}> */
@@ -795,6 +825,16 @@ final class AptitudeService
         }
 
         return $certificat;
+    }
+
+    private function statutExportLabel(string $statut): string
+    {
+        return match ($statut) {
+            CertificatAptitude::STATUT_BROUILLON => 'Brouillon',
+            CertificatAptitude::STATUT_SIGNE => 'Signé',
+            CertificatAptitude::STATUT_ANNULE => 'Annulé',
+            default => $statut,
+        };
     }
 
     private function motifLabel(CertificatAptitude $certificat): string

@@ -28,6 +28,7 @@ final class TableExportService
      * @param list<int>                 $htmlColumnIndexes index dans $headers (incluant N°)
      * @param list<int>                 $richTextColumnIndexes index dans les valeurs de $dataRows (sans N°)
      * @param list<list<string|null>>   $summaryRows lignes sans la colonne N° (totaux)
+     * @param list<string>              $pdfColumnWidths largeurs CSS, une par en-tête
      */
     public function createResponse(
         string $format,
@@ -40,6 +41,9 @@ final class TableExportService
         array $richTextColumnIndexes = [],
         string $pdfOrientation = 'portrait',
         array $summaryRows = [],
+        ?string $pdfIntroHtml = null,
+        array $pdfColumnWidths = [],
+        string $pdfTableClass = '',
     ): Response {
         return match ($format) {
             'pdf' => $this->createPdfResponse(
@@ -51,6 +55,9 @@ final class TableExportService
                 $htmlColumnIndexes,
                 $pdfOrientation,
                 $summaryRows,
+                $pdfIntroHtml,
+                $pdfColumnWidths,
+                $pdfTableClass,
             ),
             'xlsx' => $this->createExcelResponse(
                 $headers,
@@ -68,6 +75,7 @@ final class TableExportService
      * @param list<string>            $headers
      * @param list<list<string|null>> $dataRows
      * @param list<int>               $htmlColumnIndexes
+     * @param list<string>            $columnWidths
      */
     public function createPdfResponse(
         array $headers,
@@ -78,6 +86,9 @@ final class TableExportService
         array $htmlColumnIndexes = [],
         string $orientation = 'portrait',
         array $summaryRows = [],
+        ?string $introHtml = null,
+        array $columnWidths = [],
+        string $tableClass = '',
     ): Response {
         $tableRows = [];
         foreach ($dataRows as $index => $row) {
@@ -92,15 +103,22 @@ final class TableExportService
             $summaryTableRows[] = array_merge([''], array_values($row));
         }
 
+        $tableHtml = $this->pdfExportService->buildTableHtml(
+            $headers,
+            $tableRows,
+            $emptyMessage,
+            $htmlColumnIndexes,
+            $summaryTableRows,
+            $columnWidths,
+            $tableClass,
+        );
+        if (null !== $introHtml && '' !== trim($introHtml)) {
+            $tableHtml = $introHtml . $tableHtml;
+        }
+
         return $this->pdfExportService->createTableDocumentResponse(
             reportTitle: mb_strtoupper($reportTitle, 'UTF-8'),
-            tableHtml: $this->pdfExportService->buildTableHtml(
-                $headers,
-                $tableRows,
-                $emptyMessage,
-                $htmlColumnIndexes,
-                $summaryTableRows,
-            ),
+            tableHtml: $tableHtml,
             filename: $this->buildFilename($filenamePrefix, 'pdf'),
             generatedBy: $this->resolveCurrentUserDisplayName(),
             generatedAt: new \DateTimeImmutable(),

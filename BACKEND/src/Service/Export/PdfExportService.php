@@ -92,6 +92,7 @@ final class PdfExportService
      * @param list<list<string|null>> $rows
      * @param list<int> $htmlColumnIndexes
      * @param list<list<string|null>> $summaryRows
+     * @param list<string> $columnWidths largeurs CSS (ex. 12%), une par colonne
      */
     public function buildTableHtml(
         array $headers,
@@ -99,6 +100,8 @@ final class PdfExportService
         string $emptyMessage,
         array $htmlColumnIndexes = [],
         array $summaryRows = [],
+        array $columnWidths = [],
+        string $tableClass = '',
     ): string {
         $headerCells = '';
 
@@ -144,8 +147,27 @@ final class PdfExportService
             $bodyRows = '<tr class="chu-empty-row"><td colspan="' . $colspan . '">' . $safeEmpty . '</td></tr>';
         }
 
+        $colgroup = '';
+        $tableClassName = 'chu-table';
+        if ([] !== $columnWidths) {
+            $tableClassName .= ' chu-table-fixed';
+            $colgroup = '<colgroup>';
+            foreach ($columnWidths as $width) {
+                $safeWidth = htmlspecialchars($width, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $colgroup .= '<col style="width:' . $safeWidth . '">';
+            }
+            $colgroup .= '</colgroup>';
+        }
+        if ('' !== trim($tableClass)) {
+            $safeExtra = preg_replace('/[^a-zA-Z0-9_ -]/', '', $tableClass) ?? '';
+            if ('' !== trim($safeExtra)) {
+                $tableClassName .= ' ' . trim($safeExtra);
+            }
+        }
+
         return <<<HTML
-<table class="chu-table">
+<table class="{$tableClassName}">
+    {$colgroup}
     <thead><tr>{$headerCells}</tr></thead>
     <tbody>{$bodyRows}</tbody>
 </table>

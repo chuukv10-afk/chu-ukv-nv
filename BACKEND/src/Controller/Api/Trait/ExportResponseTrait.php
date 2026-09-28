@@ -15,6 +15,7 @@ trait ExportResponseTrait
      * @param list<int>               $htmlColumnIndexes
      * @param list<int>               $richTextColumnIndexes
      * @param list<list<string|null>> $summaryRows
+     * @param list<string>            $pdfColumnWidths
      */
     protected function createTableExportResponse(
         Request $request,
@@ -28,6 +29,9 @@ trait ExportResponseTrait
         array $richTextColumnIndexes = [],
         string $pdfOrientation = 'portrait',
         array $summaryRows = [],
+        ?string $pdfIntroHtml = null,
+        array $pdfColumnWidths = [],
+        string $pdfTableClass = '',
     ): Response {
         $format = strtolower(trim((string) $request->query->get('format', 'xlsx')));
 
@@ -46,6 +50,9 @@ trait ExportResponseTrait
             $richTextColumnIndexes,
             $pdfOrientation,
             $summaryRows,
+            $pdfIntroHtml,
+            $pdfColumnWidths,
+            $pdfTableClass,
         );
     }
 }

@@ -310,9 +310,37 @@ body {
     color: #1E5AA8;
 }
 
+.chu-export-count {
+    width: 100%;
+    border-collapse: collapse;
+    margin: -6px 0 8px;
+}
+
+.chu-export-count td {
+    border: none;
+    padding: 0 0 2px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #1a1a1a;
+}
+
+.chu-export-count-right {
+    text-align: right;
+    white-space: nowrap;
+}
+
 .chu-table {
     width: 100%;
     border-collapse: collapse;
+}
+
+.chu-table-fixed {
+    table-layout: fixed;
+}
+
+.chu-table-fixed th,
+.chu-table-fixed td {
+    word-wrap: break-word;
 }
 
 .chu-table thead {
@@ -346,6 +374,34 @@ body {
 .chu-table td:first-child {
     text-align: center;
     width: 28px;
+}
+
+.chu-table-fixed th:first-child,
+.chu-table-fixed td:first-child {
+    width: auto;
+}
+
+.chu-aptitude-list th:nth-child(4),
+.chu-aptitude-list td:nth-child(4),
+.chu-aptitude-list th:nth-child(7),
+.chu-aptitude-list td:nth-child(7),
+.chu-aptitude-list th:nth-child(8),
+.chu-aptitude-list td:nth-child(8),
+.chu-aptitude-list th:nth-child(9),
+.chu-aptitude-list td:nth-child(9),
+.chu-aptitude-list th:nth-child(10),
+.chu-aptitude-list td:nth-child(10),
+.chu-aptitude-list th:nth-child(11),
+.chu-aptitude-list td:nth-child(11) {
+    text-align: center;
+}
+
+.chu-export-count td:first-child {
+    width: 70%;
+}
+
+.chu-export-count td:last-child {
+    width: 30%;
 }
 
 .chu-empty-row td {

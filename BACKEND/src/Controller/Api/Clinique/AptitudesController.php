@@ -62,17 +62,23 @@ final class AptitudesController extends AbstractController
         TableExportService $tableExportService,
         #[MapQueryString] AptitudeListQuery $query = new AptitudeListQuery(),
     ): Response {
+        $rows = $this->aptitudeService->buildExportRows($query);
+
         return $this->createTableExportResponse(
             $request,
             $tableExportService,
             $this->aptitudeService->exportHeaders(),
-            $this->aptitudeService->buildExportRows($query),
+            $rows,
             'Certificats d\'aptitude physique',
             'certificats-aptitude',
             'Aucun certificat trouvé pour les filtres sélectionnés.',
             [],
             [],
             'landscape',
+            [],
+            $this->aptitudeService->exportPdfIntro($query, count($rows)),
+            $this->aptitudeService->exportPdfColumnWidths(),
+            'chu-aptitude-list',
         );
     }
 
