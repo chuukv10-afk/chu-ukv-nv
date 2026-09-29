@@ -26,7 +26,7 @@ final class EtiquettePdfService
         foreach ($chunks as $index => $pair) {
             $left = $this->renderCard($pair[0]);
             $right = isset($pair[1]) ? $this->renderCard($pair[1]) : '';
-            $break = 0 !== $index && 0 === $index % 4 ? ' break' : '';
+            $break = 0 !== $index && 0 === $index % 5 ? ' break' : '';
             $rows .= '<tr class="row' . $break . '"><td class="cell">' . $left . '</td><td class="cell">' . $right . '</td></tr>';
         }
 
@@ -40,23 +40,24 @@ final class EtiquettePdfService
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { margin: 7mm 8mm; }
+        @page { margin: 6mm 8mm; }
         body { font-family: DejaVu Sans, sans-serif; color: #111; margin: 0; }
-        table.grid { width: 100%; border-collapse: separate; border-spacing: 5px 4px; }
+        table.grid { width: 100%; border-collapse: separate; border-spacing: 5px 3px; }
         tr.row { page-break-inside: avoid; }
         tr.break { page-break-before: always; }
         td.cell { width: 50%; vertical-align: top; }
         .card {
             border: 1px solid #1f2937;
             text-align: center;
-            padding: 5px 6px 6px;
+            padding: 4px 6px 5px;
             page-break-inside: avoid;
         }
-        .brand { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #111; margin: 0 0 4px; }
-        .qr { width: 108px; height: 108px; }
-        .caption { margin-top: 5px; }
-        .code { font-size: 12px; font-weight: 700; line-height: 1.2; }
-        .name { font-size: 13px; font-weight: 700; line-height: 1.2; margin-top: 2px; color: #111; }
+        .brand { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #111; margin: 0 0 2px; }
+        .qr { width: 84px; height: 84px; }
+        .caption { margin-top: 3px; }
+        .code { font-size: 11px; font-weight: 700; line-height: 1.15; }
+        .name { font-size: 12px; font-weight: 700; line-height: 1.15; margin-top: 2px; color: #111; }
+        .local { font-size: 11px; font-weight: 700; line-height: 1.15; margin-top: 1px; color: #111; }
         .empty { text-align: center; padding: 40px; color: #6b7280; }
     </style>
 </head>
@@ -93,7 +94,9 @@ HTML;
 
         $safeCode = htmlspecialchars($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $safeName = htmlspecialchars((string) ($bien->getType()?->getLibelle() ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeLocal = htmlspecialchars((string) ($bien->getLocal()?->getLibelle() ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $nameHtml = '' !== $safeName ? '<div class="name">' . $safeName . '</div>' : '';
+        $localHtml = '' !== $safeLocal ? '<div class="local">' . $safeLocal . '</div>' : '';
 
         return <<<HTML
 <div class="card">
@@ -102,6 +105,7 @@ HTML;
     <div class="caption">
         <div class="code">{$safeCode}</div>
         {$nameHtml}
+        {$localHtml}
     </div>
 </div>
 HTML;
