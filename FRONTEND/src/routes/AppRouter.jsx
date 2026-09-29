@@ -78,6 +78,7 @@ import AptitudeFormPage from '../features/clinique/aptitude/AptitudeFormPage.jsx
 import AptitudeStatsPage from '../features/clinique/aptitude/AptitudeStatsPage.jsx';
 import ProfilePage from '../features/profile/ProfilePage.jsx';
 import AptitudeVerificationPage from '../pages/public/AptitudeVerificationPage.jsx';
+import BienVerificationPage from '../pages/public/BienVerificationPage.jsx';
 import { PermissionGuard } from '../components/auth/PermissionGuard.jsx';
 import { PERMISSIONS } from '../constants/permissions.js';
 import { fetchMe } from '../features/auth/authService.js';
@@ -117,6 +118,7 @@ export default function AppRouter() {
     <Router>
       <Routes>
         <Route path={ROUTES.VERIFICATION_APTITUDE} element={<AptitudeVerificationPage />} />
+        <Route path={ROUTES.VERIFICATION_BIEN} element={<BienVerificationPage />} />
 
         <Route element={<GuestRoute />}>
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />

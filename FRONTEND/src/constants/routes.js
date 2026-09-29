@@ -2,6 +2,7 @@ export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',
   VERIFICATION_APTITUDE: '/verification/aptitude',
+  VERIFICATION_BIEN: '/verification/bien',
   DASHBOARD: '/dashboard',
   PROFILE: '/mon-profil',
   ACCESS_DENIED: '/acces-refuse',

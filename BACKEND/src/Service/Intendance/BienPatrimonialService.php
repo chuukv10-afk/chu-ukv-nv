@@ -476,6 +476,25 @@ final class BienPatrimonialService
     }
 
     /** @return array<string, mixed> */
+    public function serializePublicVerification(BienPatrimonial $bien): array
+    {
+        $summary = $this->serializeSummary($bien);
+
+        return [
+            'codeInventaire' => $summary['codeInventaire'],
+            'nom' => $summary['type']['libelle'] ?? null,
+            'famille' => $summary['famille']['libelle'] ?? null,
+            'service' => $summary['service']['libelle'] ?? null,
+            'local' => $summary['local']['libelle'] ?? null,
+            'etat' => $summary['etat'],
+            'marque' => $summary['marque'],
+            'modele' => $summary['modele'],
+            'numeroSerie' => $summary['numeroSerie'],
+            'enregistre' => true,
+        ];
+    }
+
+    /** @return array<string, mixed> */
     public function serializeSummary(BienPatrimonial $bien): array
     {
         $type = $bien->getType();

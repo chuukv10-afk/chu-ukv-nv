@@ -50,5 +50,9 @@ services:
         arguments:
             $publicFrontendUrl: '%app.public_frontend_url%'
 
+    App\Service\Intendance\EtiquettePdfService:
+        arguments:
+            $publicFrontendUrl: '%app.public_frontend_url%'
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

@@ -82,6 +82,7 @@ export const dashboard = {
 
 export const publicApi = {
   aptitudeCertificates: '/api/v1/public/aptitude-certificates',
+  biens: '/api/v1/public/biens',
 };
 
 export const admin = {

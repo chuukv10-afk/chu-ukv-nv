@@ -10,7 +10,10 @@ let redirecting = false;
 export function isPublicVerificationLocation() {
   const path = (window.location.pathname || '').replace(/\/$/, '') || '/';
   const hashPath = (window.location.hash || '').replace(/^#/, '').split('?')[0];
-  return path === ROUTES.VERIFICATION_APTITUDE || hashPath === ROUTES.VERIFICATION_APTITUDE;
+  return path === ROUTES.VERIFICATION_APTITUDE
+    || hashPath === ROUTES.VERIFICATION_APTITUDE
+    || path === ROUTES.VERIFICATION_BIEN
+    || hashPath === ROUTES.VERIFICATION_BIEN;
 }
 
 export function handleUnauthorizedApiResponse(status, endpoint = '') {
