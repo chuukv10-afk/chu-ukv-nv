@@ -103,12 +103,11 @@ class BienPatrimonialRepository extends ServiceEntityRepository
      */
     public function findCodeSeriesByPrefix(string $prefix): array
     {
-        $escaped = addcslashes($prefix, '%_\\');
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $prefix);
         $rows = $this->createQueryBuilder('b')
             ->select('b.codeInventaire AS code, IDENTITY(b.type) AS typeId')
-            ->andWhere('b.codeInventaire LIKE :prefix ESCAPE :escape')
+            ->andWhere("b.codeInventaire LIKE :prefix ESCAPE '!'")
             ->setParameter('prefix', $escaped . '%')
-            ->setParameter('escape', '\\')
             ->getQuery()
             ->getArrayResult();
 
