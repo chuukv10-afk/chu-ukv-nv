@@ -2,22 +2,26 @@
 
 namespace App\Service\Intendance;
 
+use App\Entity\FamilleBien;
 use App\Entity\Service;
 use App\Entity\TypeBien;
 use App\Repository\BienPatrimonialRepository;
 use App\Util\CalendarDate;
 
 /**
- * Convention :
- * numéro de famille  CHUB-{service}-{année}-{numéro}           ex. CHUB-PHARMO-2026-001 (Étagère)
- * code de l'objet    CHUB-{service}-{année}-{numéro}-{id}      ex. CHUB-PHARMO-2026-001-001
+ * CHUB-{service}-{famille}-{année}-{numéro}-{id}
+ * ex. CHUB-PHAR-IT-2026-03001-0001
  *
- * Le numéro (001, 002…) identifie le type dans le service pour l'année.
- * L'id identifie chaque objet de ce type.
+ * Le numéro (5 chiffres, modifiable) identifie la série.
+ * L'id (4 chiffres) identifie chaque objet et reste automatique.
  */
 final class InventaireCodeGenerator
 {
     public const PREFIX = 'CHUB';
+
+    private const NUMERO_WIDTH = 5;
+
+    private const ID_WIDTH = 4;
 
     public function __construct(
         private readonly BienPatrimonialRepository $bienPatrimonialRepository,
@@ -48,56 +52,82 @@ final class InventaireCodeGenerator
     }
 
     /**
-     * @return list<string>
+     * @return array{prefix: string, numero: string, suffixes: list<string>, codes: list<string>}
      */
-    public function proposer(Service $service, TypeBien $type, int $count = 1): array
+    public function proposer(Service $service, TypeBien $type, int $count = 1, ?string $numero = null): array
     {
         $count = max(1, min(200, $count));
         $year = (new \DateTimeImmutable('now', new \DateTimeZone(CalendarDate::TIMEZONE)))->format('Y');
-        $stem = sprintf('%s-%s-%s-', self::PREFIX, self::serviceSegment($service), $year);
-        [$serie, $nextId] = $this->nextSerieAndId($stem, (int) $type->getId());
+        $serviceSeg = self::serviceSegment($service);
+        $familleSeg = self::familleSegment($type->getFamille());
+        $prefix = sprintf('%s-%s-%s-%s-', self::PREFIX, $serviceSeg, $familleSeg, $year);
+        $chosen = $this->normalizeNumero($numero) ?? $this->pad($this->nextNumero($serviceSeg, $year), self::NUMERO_WIDTH);
+        $nextId = $this->nextObjectId($prefix, $chosen);
 
-        $family = $stem . $this->pad($serie);
+        $suffixes = [];
         $codes = [];
         for ($i = 0; $i < $count; ++$i) {
-            $codes[] = $family . '-' . $this->pad($nextId + $i);
+            $suffix = $this->pad($nextId + $i, self::ID_WIDTH);
+            $suffixes[] = $suffix;
+            $codes[] = $prefix . $chosen . '-' . $suffix;
         }
 
-        return $codes;
+        return [
+            'prefix' => $prefix,
+            'numero' => $chosen,
+            'suffixes' => $suffixes,
+            'codes' => $codes,
+        ];
     }
 
-    /**
-     * @return array{0: int, 1: int} numéro de famille, prochain id d'objet
-     */
-    private function nextSerieAndId(string $stem, int $typeId): array
+    public static function familleSegment(?FamilleBien $famille): string
     {
-        $pattern = '/^' . preg_quote($stem, '/') . '(\d+)-(\d+)$/';
-        $maxSerie = 0;
-        $itemsBySerie = [];
+        $code = strtoupper(trim((string) $famille?->getCode()));
+        $code = preg_replace('/[^A-Z0-9]/', '', $code) ?? '';
 
+        return '' !== $code ? $code : 'XX';
+    }
+
+    private function normalizeNumero(?string $numero): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $numero) ?? '';
+        if ('' === $digits) {
+            return null;
+        }
+
+        return $this->pad((int) $digits, self::NUMERO_WIDTH);
+    }
+
+    private function nextNumero(string $serviceSeg, string $year): int
+    {
+        $prefix = self::PREFIX . '-' . $serviceSeg . '-';
+        $pattern = '/^' . preg_quote($prefix, '/') . '[A-Z0-9]+-' . preg_quote($year, '/') . '-(\d+)-\d+$/';
+        $max = 0;
+        foreach ($this->bienPatrimonialRepository->findCodeSeriesByPrefix($prefix) as $row) {
+            if (1 === preg_match($pattern, $row['code'], $matches)) {
+                $max = max($max, (int) $matches[1]);
+            }
+        }
+
+        return $max + 1;
+    }
+
+    private function nextObjectId(string $prefix, string $numero): int
+    {
+        $stem = $prefix . $numero . '-';
+        $pattern = '/^' . preg_quote($stem, '/') . '(\d+)$/';
+        $max = 0;
         foreach ($this->bienPatrimonialRepository->findCodeSeriesByPrefix($stem) as $row) {
-            if (1 !== preg_match($pattern, $row['code'], $matches)) {
-                continue;
-            }
-            $serie = (int) $matches[1];
-            $item = (int) $matches[2];
-            $maxSerie = max($maxSerie, $serie);
-            if ($row['typeId'] === $typeId) {
-                $itemsBySerie[$serie] = max($itemsBySerie[$serie] ?? 0, $item);
+            if (1 === preg_match($pattern, $row['code'], $matches)) {
+                $max = max($max, (int) $matches[1]);
             }
         }
 
-        if ([] === $itemsBySerie) {
-            return [$maxSerie + 1, 1];
-        }
-
-        $serie = min(array_keys($itemsBySerie));
-
-        return [$serie, $itemsBySerie[$serie] + 1];
+        return $max + 1;
     }
 
-    private function pad(int $value): string
+    private function pad(int $value, int $width): string
     {
-        return str_pad((string) $value, 3, '0', STR_PAD_LEFT);
+        return str_pad((string) max(0, $value), $width, '0', STR_PAD_LEFT);
     }
 }

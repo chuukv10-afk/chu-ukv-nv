@@ -15,6 +15,12 @@ final class ProposerCodeQuery
 
         #[Assert\Range(min: 1, max: 200)]
         public int $count = 1,
+
+        #[Assert\Length(max: 8)]
+        public ?string $numero = null,
     ) {
+        if ('' === $this->numero) {
+            $this->numero = null;
+        }
     }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Box, Button, Checkbox, FormControl, FormLabel, Input, Modal, ModalDialog, Option, Select, Stack, Textarea, Typography,
 } from '@mui/joy';
@@ -52,15 +52,18 @@ export default function BienFormModal({
 }) {
   const [form, setForm] = useState(initialValues);
   const [locaux, setLocaux] = useState([]);
-  const [codeTouched, setCodeTouched] = useState(false);
+  const [codeParts, setCodeParts] = useState({ prefix: '', numero: '', suffixes: [] });
   const [proposing, setProposing] = useState(false);
+  const numeroRef = useRef('');
+  const proposeTimer = useRef(null);
   const isEdit = mode === 'edit';
   const grouped = !isEdit && Number(form.copies) > 1;
 
   useEffect(() => {
     if (open) {
       setForm(initialValues);
-      setCodeTouched(Boolean(initialValues.codeInventaire));
+      setCodeParts({ prefix: '', numero: '', suffixes: [] });
+      numeroRef.current = '';
     }
   }, [open, initialValues]);
 
@@ -74,31 +77,42 @@ export default function BienFormModal({
 
   const handleChange = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
-  const propose = async () => {
+  const applyProposal = (result) => {
+    const suffixes = result.suffixes ?? [];
+    const numero = result.numero ?? '';
+    numeroRef.current = numero;
+    setCodeParts({ prefix: result.prefix ?? '', numero, suffixes });
+    handleChange('codeInventaire', result.code ?? '');
+    handleChange('codes', result.codes ?? []);
+  };
+
+  const propose = async (numero) => {
     if (!form.serviceId || !form.typeId) return;
     setProposing(true);
     try {
       const result = await proposerCodeApi({
         serviceId: form.serviceId,
         typeId: form.typeId,
-        count: grouped ? Number(form.copies) || 2 : 1,
+        count: Number(form.copies) > 1 ? Number(form.copies) : 1,
+        numero: numero || undefined,
       });
-      if (grouped) {
-        handleChange('codes', result.codes ?? []);
-      } else {
-        handleChange('codeInventaire', result.code ?? '');
-      }
-      setCodeTouched(false);
+      applyProposal(result);
     } finally {
       setProposing(false);
     }
   };
 
   useEffect(() => {
-    if (!open || isEdit || codeTouched || !form.serviceId || !form.typeId) return;
+    if (!open || isEdit || !form.serviceId || !form.typeId) return;
     propose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, form.serviceId, form.typeId, form.copies]);
+  }, [open, isEdit, form.serviceId, form.typeId]);
+
+  useEffect(() => {
+    if (!open || isEdit || !form.serviceId || !form.typeId || !numeroRef.current) return;
+    propose(numeroRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.copies]);
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -115,6 +129,17 @@ export default function BienFormModal({
       dateAcquisition: form.dateAcquisition || null,
       observation: form.observation.trim() || null,
     };
+    if (!isEdit && codeParts.prefix && codeParts.numero) {
+      const numero = codeParts.numero.replace(/\D/g, '').padStart(5, '0');
+      const suffixes = codeParts.suffixes.length ? codeParts.suffixes : ['0001'];
+      const codes = suffixes.map((suffix) => `${codeParts.prefix}${numero}-${suffix}`);
+      if (grouped) {
+        onSubmit({ ...payload, copies: Number(form.copies), codes });
+        return;
+      }
+      onSubmit({ ...payload, codeInventaire: codes[0] });
+      return;
+    }
     if (grouped) {
       onSubmit({
         ...payload,
@@ -222,38 +247,50 @@ export default function BienFormModal({
               />
             </FormControl>
 
-            {grouped ? (
-              <Stack spacing={1}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography level="title-sm">Codes proposés ({form.codes?.length || 0})</Typography>
-                  <Button size="sm" variant="outlined" onClick={propose} loading={proposing}>Reproposer</Button>
-                </Stack>
-                {(form.codes ?? []).map((code, index) => (
-                  <Input
-                    key={`${code}-${index}`}
-                    value={code}
-                    onChange={(e) => {
-                      const next = [...(form.codes ?? [])];
-                      next[index] = e.target.value.toUpperCase();
-                      handleChange('codes', next);
-                      setCodeTouched(true);
-                    }}
-                    disabled={loading}
-                  />
-                ))}
-              </Stack>
+            {isEdit ? (
+              <FormControl required>
+                <FormLabel>Code inventaire</FormLabel>
+                <Input
+                  value={form.codeInventaire}
+                  onChange={(e) => handleChange('codeInventaire', e.target.value.toUpperCase())}
+                  disabled={loading}
+                />
+              </FormControl>
             ) : (
-              <Stack direction="row" spacing={1} alignItems="flex-end">
-                <FormControl required sx={{ flex: 1 }}>
-                  <FormLabel>Code inventaire</FormLabel>
+              <FormControl required>
+                <FormLabel>Code inventaire</FormLabel>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}>
+                  <Typography level="title-sm" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                    {codeParts.prefix || 'CHUB-…-'}
+                  </Typography>
                   <Input
-                    value={form.codeInventaire}
-                    onChange={(e) => { handleChange('codeInventaire', e.target.value.toUpperCase()); setCodeTouched(true); }}
-                    disabled={loading}
+                    value={codeParts.numero}
+                    placeholder="03001"
+                    disabled={loading || proposing || !form.serviceId || !form.typeId}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                      setCodeParts((current) => ({ ...current, numero: digits }));
+                      numeroRef.current = digits;
+                      window.clearTimeout(proposeTimer.current);
+                      proposeTimer.current = window.setTimeout(() => {
+                        if (digits) propose(digits);
+                      }, 400);
+                    }}
+                    slotProps={{ input: { inputMode: 'numeric' } }}
+                    sx={{ width: { xs: '100%', sm: 120 }, fontFamily: 'monospace', fontWeight: 700 }}
                   />
-                </FormControl>
-                <Button variant="outlined" onClick={propose} loading={proposing} disabled={loading || !form.serviceId || !form.typeId}>Reproposer</Button>
-              </Stack>
+                  <Typography level="title-sm" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                    -{codeParts.suffixes[0] || '0001'}
+                    {grouped && codeParts.suffixes.length > 1 ? ` … -${codeParts.suffixes[codeParts.suffixes.length - 1]}` : ''}
+                  </Typography>
+                  <Button variant="outlined" onClick={() => propose()} loading={proposing} disabled={loading || !form.serviceId || !form.typeId}>Reproposer</Button>
+                </Stack>
+                {grouped ? (
+                  <Typography level="body-xs" sx={{ color: 'neutral.500', mt: 0.75 }}>
+                    {(form.codes ?? []).join(' · ')}
+                  </Typography>
+                ) : null}
+              </FormControl>
             )}
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>

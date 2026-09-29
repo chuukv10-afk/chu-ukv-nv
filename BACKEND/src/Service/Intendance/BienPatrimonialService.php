@@ -133,11 +133,14 @@ final class BienPatrimonialService
         $this->assertValid($query);
         $type = $this->requireType($query->typeId, true);
         $service = $this->requireService($query->serviceId);
-        $codes = $this->codeGenerator->proposer($service, $type, $query->count);
+        $proposal = $this->codeGenerator->proposer($service, $type, $query->count, $query->numero);
 
         return [
-            'codes' => $codes,
-            'code' => $codes[0] ?? null,
+            'prefix' => $proposal['prefix'],
+            'numero' => $proposal['numero'],
+            'suffixes' => $proposal['suffixes'],
+            'codes' => $proposal['codes'],
+            'code' => $proposal['codes'][0] ?? null,
         ];
     }
 
@@ -186,7 +189,7 @@ final class BienPatrimonialService
         $service = $this->requireService($input->serviceId);
         $local = $this->resolveLocal($input->localId, $service);
 
-        $proposed = $this->codeGenerator->proposer($service, $type, $input->copies);
+        $proposed = $this->codeGenerator->proposer($service, $type, $input->copies)['codes'];
         $codes = [];
         for ($i = 0; $i < $input->copies; ++$i) {
             $override = isset($input->codes[$i]) ? (string) $input->codes[$i] : null;
@@ -589,7 +592,7 @@ final class BienPatrimonialService
     ): string {
         $raw = $requested;
         if (null === $raw || '' === trim($raw)) {
-            $raw = $fallback ?? $this->codeGenerator->proposer($service, $type)[0];
+            $raw = $fallback ?? $this->codeGenerator->proposer($service, $type)['codes'][0];
         }
 
         $code = InventaireCodeGenerator::normalize($raw);
