@@ -23,10 +23,11 @@ final class EtiquettePdfService
     {
         $rows = '';
         $chunks = array_chunk($biens, 2);
-        foreach ($chunks as $pair) {
+        foreach ($chunks as $index => $pair) {
             $left = $this->renderCard($pair[0]);
             $right = isset($pair[1]) ? $this->renderCard($pair[1]) : '';
-            $rows .= '<tr><td class="cell">' . $left . '</td><td class="cell">' . $right . '</td></tr>';
+            $break = 0 !== $index && 0 === $index % 4 ? ' break' : '';
+            $rows .= '<tr class="row' . $break . '"><td class="cell">' . $left . '</td><td class="cell">' . $right . '</td></tr>';
         }
 
         if ('' === $rows) {
@@ -39,20 +40,23 @@ final class EtiquettePdfService
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { margin: 10mm; }
+        @page { margin: 7mm 8mm; }
         body { font-family: DejaVu Sans, sans-serif; color: #111; margin: 0; }
-        table.grid { width: 100%; border-collapse: separate; border-spacing: 8px 10px; }
+        table.grid { width: 100%; border-collapse: separate; border-spacing: 5px 4px; }
+        tr.row { page-break-inside: avoid; }
+        tr.break { page-break-before: always; }
         td.cell { width: 50%; vertical-align: top; }
         .card {
-            border: 1.2px solid #1f2937;
+            border: 1px solid #1f2937;
             text-align: center;
-            padding: 10px 8px 12px;
+            padding: 5px 6px 6px;
+            page-break-inside: avoid;
         }
-        .brand { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #111; margin-bottom: 8px; }
-        .qr { width: 132px; height: 132px; }
-        .caption { margin-top: 12px; }
-        .code { font-size: 16px; font-weight: 700; line-height: 1.25; letter-spacing: 0.01em; }
-        .name { font-size: 15px; font-weight: 700; line-height: 1.25; margin-top: 6px; color: #111; }
+        .brand { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #111; margin: 0 0 4px; }
+        .qr { width: 108px; height: 108px; }
+        .caption { margin-top: 5px; }
+        .code { font-size: 12px; font-weight: 700; line-height: 1.2; }
+        .name { font-size: 13px; font-weight: 700; line-height: 1.2; margin-top: 2px; color: #111; }
         .empty { text-align: center; padding: 40px; color: #6b7280; }
     </style>
 </head>
