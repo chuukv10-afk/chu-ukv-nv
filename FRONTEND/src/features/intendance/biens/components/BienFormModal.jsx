@@ -2,10 +2,30 @@ import { useEffect, useState } from 'react';
 import {
   Box, Button, Checkbox, FormControl, FormLabel, Input, Modal, ModalDialog, Option, Select, Stack, Textarea, Typography,
 } from '@mui/joy';
+import Autocomplete from '@mui/joy/Autocomplete';
+import AutocompleteOption from '@mui/joy/AutocompleteOption';
 import { Archive } from 'lucide-react';
 import { fetchLocauxActifsApi } from '../../locaux/locauxApi.js';
 import { proposerCodeApi } from '../biensApi.js';
 import { BIEN_ETATS, EMPTY_BIEN_FORM } from '../bienConstants.js';
+
+function fold(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
+function matchesQuery(query, parts) {
+  if (!query) return true;
+  const needle = fold(query);
+  return parts.some((part) => fold(part).includes(needle));
+}
+
+const LISTBOX_SLOT = {
+  disablePortal: true,
+  sx: { zIndex: 20, maxHeight: 240, overflow: 'auto' },
+};
 
 const MODAL_SX = {
   borderRadius: 'xl',
@@ -138,11 +158,32 @@ export default function BienFormModal({
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <FormControl required sx={{ flex: 1 }}>
                 <FormLabel>Type</FormLabel>
-                <Select value={form.typeId === '' ? null : String(form.typeId)} onChange={(_, value) => handleChange('typeId', value ?? '')} disabled={loading}>
-                  {types.map((item) => (
-                    <Option key={item.id} value={String(item.id)}>{item.libelle} ({item.famille?.code})</Option>
-                  ))}
-                </Select>
+                <Autocomplete
+                  options={types}
+                  value={selectedType ?? null}
+                  disabled={loading}
+                  placeholder="Rechercher un type…"
+                  noOptionsText="Aucun type"
+                  openOnFocus
+                  sx={{ width: '100%' }}
+                  getOptionLabel={(option) => option?.libelle ?? ''}
+                  isOptionEqualToValue={(option, selected) => String(option.id) === String(selected.id)}
+                  filterOptions={(options, state) => options.filter((item) => matchesQuery(state.inputValue, [
+                    item.libelle, item.code, item.famille?.code, item.famille?.libelle,
+                  ]))}
+                  onChange={(_, selected) => handleChange('typeId', selected ? String(selected.id) : '')}
+                  slotProps={{ input: { autoComplete: 'off', required: true }, listbox: LISTBOX_SLOT }}
+                  renderOption={(props, option) => (
+                    <AutocompleteOption {...props} key={option.id}>
+                      <Box>
+                        <Typography level="title-sm">{option.libelle}</Typography>
+                        <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                          {option.code}{option.famille ? ` · ${option.famille.code} — ${option.famille.libelle}` : ''}
+                        </Typography>
+                      </Box>
+                    </AutocompleteOption>
+                  )}
+                />
               </FormControl>
               <FormControl required sx={{ flex: 1 }}>
                 <FormLabel>Service</FormLabel>
@@ -157,10 +198,28 @@ export default function BienFormModal({
 
             <FormControl>
               <FormLabel>Local (optionnel)</FormLabel>
-              <Select value={form.localId === '' ? null : String(form.localId)} onChange={(_, value) => handleChange('localId', value ?? '')} disabled={loading || !form.serviceId}>
-                <Option value="">Sans local</Option>
-                {locaux.map((item) => <Option key={item.id} value={String(item.id)}>{item.libelle}</Option>)}
-              </Select>
+              <Autocomplete
+                options={locaux}
+                value={locaux.find((item) => String(item.id) === String(form.localId)) ?? null}
+                disabled={loading || !form.serviceId}
+                placeholder={form.serviceId ? 'Rechercher un local…' : 'Choisissez d’abord un service'}
+                noOptionsText="Aucun local"
+                openOnFocus
+                sx={{ width: '100%' }}
+                getOptionLabel={(option) => option?.libelle ?? ''}
+                isOptionEqualToValue={(option, selected) => String(option.id) === String(selected.id)}
+                filterOptions={(options, state) => options.filter((item) => matchesQuery(state.inputValue, [item.libelle, item.code]))}
+                onChange={(_, selected) => handleChange('localId', selected ? String(selected.id) : '')}
+                slotProps={{ input: { autoComplete: 'off' }, listbox: LISTBOX_SLOT }}
+                renderOption={(props, option) => (
+                  <AutocompleteOption {...props} key={option.id}>
+                    <Box>
+                      <Typography level="title-sm">{option.libelle}</Typography>
+                      <Typography level="body-xs" sx={{ color: 'neutral.500' }}>{option.code}</Typography>
+                    </Box>
+                  </AutocompleteOption>
+                )}
+              />
             </FormControl>
 
             {grouped ? (
