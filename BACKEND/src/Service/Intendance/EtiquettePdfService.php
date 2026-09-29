@@ -53,9 +53,9 @@ final class EtiquettePdfService
             page-break-inside: avoid;
         }
         .brand { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #111; margin: 0 0 2px; }
-        .qr { width: 84px; height: 84px; }
+        .qr { width: 96px; height: 96px; }
         .caption { margin-top: 3px; }
-        .code { font-size: 11px; font-weight: 700; line-height: 1.15; }
+        .code { font-size: 13px; font-weight: 700; line-height: 1.15; }
         .name { font-size: 12px; font-weight: 700; line-height: 1.15; margin-top: 2px; color: #111; }
         .local { font-size: 11px; font-weight: 700; line-height: 1.15; margin-top: 1px; color: #111; }
         .empty { text-align: center; padding: 40px; color: #6b7280; }
