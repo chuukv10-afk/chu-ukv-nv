@@ -14,6 +14,7 @@ use App\Util\CalendarDate;
  *
  * Le numéro (5 chiffres, modifiable) identifie la série.
  * L'id (4 chiffres) identifie chaque objet et reste automatique.
+ * Sans équipement sur cette série, l'id part toujours de 0001 (11 exemplaires : 0001 à 0011).
  */
 final class InventaireCodeGenerator
 {
@@ -62,7 +63,7 @@ final class InventaireCodeGenerator
         $familleSeg = self::familleSegment($type->getFamille());
         $prefix = sprintf('%s-%s-%s-%s-', self::PREFIX, $serviceSeg, $familleSeg, $year);
         $chosen = $this->normalizeNumero($numero) ?? $this->pad($this->nextNumero($serviceSeg, $year), self::NUMERO_WIDTH);
-        $nextId = $this->nextObjectId($prefix, $chosen);
+        $nextId = max(1, $this->nextObjectId($prefix, $chosen));
 
         $suffixes = [];
         $codes = [];
@@ -112,18 +113,45 @@ final class InventaireCodeGenerator
         return $max + 1;
     }
 
+    /**
+     * Prochain id d'objet pour une série précise (préfixe + numéro).
+     * Aucun code sur cette série → 1, donc 0001.
+     */
     private function nextObjectId(string $prefix, string $numero): int
     {
         $stem = $prefix . $numero . '-';
-        $pattern = '/^' . preg_quote($stem, '/') . '(\d+)$/';
+        $codes = array_map(
+            static fn (array $row): string => (string) ($row['code'] ?? ''),
+            $this->bienPatrimonialRepository->findCodeSeriesByPrefix($stem),
+        );
+
+        return self::nextIdFromCodes($codes, $stem);
+    }
+
+    /**
+     * @param list<string> $codes
+     */
+    public static function nextIdFromCodes(array $codes, string $stem): int
+    {
+        $pattern = '/^' . preg_quote($stem, '/') . '(\d{4})$/';
         $max = 0;
-        foreach ($this->bienPatrimonialRepository->findCodeSeriesByPrefix($stem) as $row) {
-            if (1 === preg_match($pattern, $row['code'], $matches)) {
+        foreach ($codes as $code) {
+            if (1 === preg_match($pattern, $code, $matches)) {
                 $max = max($max, (int) $matches[1]);
             }
         }
 
         return $max + 1;
+    }
+
+    public static function numeroFromCode(string $code): ?string
+    {
+        $normalized = self::normalize($code);
+        if (1 !== preg_match('/^CHUB-[A-Z0-9]+-[A-Z0-9]+-\d{4}-(\d+)-\d+$/', $normalized, $matches)) {
+            return null;
+        }
+
+        return str_pad((string) max(0, (int) $matches[1]), self::NUMERO_WIDTH, '0', STR_PAD_LEFT);
     }
 
     private function pad(int $value, int $width): string

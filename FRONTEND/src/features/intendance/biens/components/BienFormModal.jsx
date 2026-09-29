@@ -22,6 +22,12 @@ function matchesQuery(query, parts) {
   return parts.some((part) => fold(part).includes(needle));
 }
 
+function buildObjectSuffixes(start, count) {
+  const first = Math.max(1, Number.parseInt(String(start ?? '1'), 10) || 1);
+  const total = Math.max(1, Math.min(200, Number(count) || 1));
+  return Array.from({ length: total }, (_, index) => String(first + index).padStart(4, '0'));
+}
+
 const LISTBOX_SLOT = {
   disablePortal: true,
   sx: { zIndex: 20, maxHeight: 240, overflow: 'auto' },
@@ -58,6 +64,8 @@ export default function BienFormModal({
   const proposeTimer = useRef(null);
   const isEdit = mode === 'edit';
   const grouped = !isEdit && Number(form.copies) > 1;
+  const copyCount = grouped ? Number(form.copies) : 1;
+  const objectSuffixes = buildObjectSuffixes(codeParts.suffixes[0] || '0001', copyCount);
 
   useEffect(() => {
     if (open) {
@@ -131,8 +139,7 @@ export default function BienFormModal({
     };
     if (!isEdit && codeParts.prefix && codeParts.numero) {
       const numero = codeParts.numero.replace(/\D/g, '').padStart(5, '0');
-      const suffixes = codeParts.suffixes.length ? codeParts.suffixes : ['0001'];
-      const codes = suffixes.map((suffix) => `${codeParts.prefix}${numero}-${suffix}`);
+      const codes = objectSuffixes.map((suffix) => `${codeParts.prefix}${numero}-${suffix}`);
       if (grouped) {
         onSubmit({ ...payload, copies: Number(form.copies), codes });
         return;
@@ -269,8 +276,12 @@ export default function BienFormModal({
                     disabled={loading || proposing || !form.serviceId || !form.typeId}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
-                      setCodeParts((current) => ({ ...current, numero: digits }));
                       numeroRef.current = digits;
+                      setCodeParts((current) => ({
+                        ...current,
+                        numero: digits,
+                        suffixes: buildObjectSuffixes('0001', copyCount),
+                      }));
                       window.clearTimeout(proposeTimer.current);
                       proposeTimer.current = window.setTimeout(() => {
                         if (digits) propose(digits);
@@ -280,14 +291,14 @@ export default function BienFormModal({
                     sx={{ width: { xs: '100%', sm: 120 }, fontFamily: 'monospace', fontWeight: 700 }}
                   />
                   <Typography level="title-sm" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
-                    -{codeParts.suffixes[0] || '0001'}
-                    {grouped && codeParts.suffixes.length > 1 ? ` … -${codeParts.suffixes[codeParts.suffixes.length - 1]}` : ''}
+                    -{objectSuffixes[0]}
+                    {grouped ? ` … -${objectSuffixes[objectSuffixes.length - 1]}` : ''}
                   </Typography>
                   <Button variant="outlined" onClick={() => propose()} loading={proposing} disabled={loading || !form.serviceId || !form.typeId}>Reproposer</Button>
                 </Stack>
-                {grouped ? (
+                {grouped && codeParts.prefix && codeParts.numero ? (
                   <Typography level="body-xs" sx={{ color: 'neutral.500', mt: 0.75 }}>
-                    {(form.codes ?? []).join(' · ')}
+                    {objectSuffixes.map((suffix) => `${codeParts.prefix}${codeParts.numero.replace(/\D/g, '').padStart(5, '0')}-${suffix}`).join(' · ')}
                   </Typography>
                 ) : null}
               </FormControl>

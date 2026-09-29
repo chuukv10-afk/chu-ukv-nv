@@ -189,7 +189,17 @@ final class BienPatrimonialService
         $service = $this->requireService($input->serviceId);
         $local = $this->resolveLocal($input->localId, $service);
 
-        $proposed = $this->codeGenerator->proposer($service, $type, $input->copies)['codes'];
+        $numero = null;
+        foreach ($input->codes as $submitted) {
+            if (!is_string($submitted)) {
+                continue;
+            }
+            $numero = InventaireCodeGenerator::numeroFromCode($submitted);
+            if (null !== $numero) {
+                break;
+            }
+        }
+        $proposed = $this->codeGenerator->proposer($service, $type, $input->copies, $numero)['codes'];
         $codes = [];
         for ($i = 0; $i < $input->copies; ++$i) {
             $override = isset($input->codes[$i]) ? (string) $input->codes[$i] : null;
