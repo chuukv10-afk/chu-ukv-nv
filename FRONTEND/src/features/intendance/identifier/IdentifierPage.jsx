@@ -72,7 +72,7 @@ export default function IntendanceIdentifierPage() {
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Input
                   startDecorator={<Search size={16} />}
-                  placeholder="Ex. CHUB-CHIR-EQ-26-1001"
+                  placeholder="Ex. CHUB-PHARMO-2026-001-001"
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   sx={{ flex: 1 }}

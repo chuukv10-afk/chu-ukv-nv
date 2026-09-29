@@ -99,18 +99,26 @@ class BienPatrimonialRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return list<string>
+     * @return list<array{code: string, typeId: int}>
      */
-    public function findCodesWithPrefix(string $prefix): array
+    public function findCodeSeriesByPrefix(string $prefix): array
     {
         $rows = $this->createQueryBuilder('b')
-            ->select('b.codeInventaire')
+            ->select('b.codeInventaire AS code, IDENTITY(b.type) AS typeId')
             ->andWhere('b.codeInventaire LIKE :prefix')
             ->setParameter('prefix', $prefix . '%')
             ->getQuery()
-            ->getSingleColumnResult();
+            ->getArrayResult();
 
-        return array_map(static fn (mixed $code): string => (string) $code, $rows);
+        $series = [];
+        foreach ($rows as $row) {
+            $series[] = [
+                'code' => (string) ($row['code'] ?? ''),
+                'typeId' => (int) ($row['typeId'] ?? 0),
+            ];
+        }
+
+        return $series;
     }
 
     public function countByType(TypeBien $type): int

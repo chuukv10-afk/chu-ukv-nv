@@ -133,7 +133,7 @@ final class BienPatrimonialService
         $this->assertValid($query);
         $type = $this->requireType($query->typeId, true);
         $service = $this->requireService($query->serviceId);
-        $codes = $this->codeGenerator->proposer($service, $type->getFamille() ?? throw new ConflictException('Type sans famille.'), $query->count);
+        $codes = $this->codeGenerator->proposer($service, $type, $query->count);
 
         return [
             'codes' => $codes,
@@ -148,7 +148,7 @@ final class BienPatrimonialService
         $famille = $type->getFamille() ?? throw new ConflictException('Type sans famille.');
         $service = $this->requireService($input->serviceId);
         $local = $this->resolveLocal($input->localId, $service);
-        $code = $this->resolveCode($input->codeInventaire, $service, $famille);
+        $code = $this->resolveCode($input->codeInventaire, $service, $type);
 
         $bien = (new BienPatrimonial())
             ->setCodeInventaire($code)
@@ -186,11 +186,11 @@ final class BienPatrimonialService
         $service = $this->requireService($input->serviceId);
         $local = $this->resolveLocal($input->localId, $service);
 
-        $proposed = $this->codeGenerator->proposer($service, $famille, $input->copies);
+        $proposed = $this->codeGenerator->proposer($service, $type, $input->copies);
         $codes = [];
         for ($i = 0; $i < $input->copies; ++$i) {
             $override = isset($input->codes[$i]) ? (string) $input->codes[$i] : null;
-            $codes[] = $this->resolveCode($override, $service, $famille, $proposed[$i] ?? null, $codes);
+            $codes[] = $this->resolveCode($override, $service, $type, $proposed[$i] ?? null, $codes);
         }
 
         $now = new \DateTimeImmutable();
@@ -237,7 +237,7 @@ final class BienPatrimonialService
 
         $type = $this->requireType($input->typeId, false);
         $famille = $type->getFamille() ?? throw new ConflictException('Type sans famille.');
-        $code = $this->resolveCode($input->codeInventaire, $bien->getService() ?? $this->requireService($input->serviceId), $famille, ignoreBien: $bien);
+        $code = $this->resolveCode($input->codeInventaire, $bien->getService() ?? $this->requireService($input->serviceId), $type, ignoreBien: $bien);
 
         $etatAvant = $bien->getEtat();
         $codeAvant = $bien->getCodeInventaire();
@@ -563,14 +563,14 @@ final class BienPatrimonialService
     private function resolveCode(
         ?string $requested,
         Service $service,
-        \App\Entity\FamilleBien $famille,
+        TypeBien $type,
         ?string $fallback = null,
         array $reserved = [],
         ?BienPatrimonial $ignoreBien = null,
     ): string {
         $raw = $requested;
         if (null === $raw || '' === trim($raw)) {
-            $raw = $fallback ?? $this->codeGenerator->proposer($service, $famille)[0];
+            $raw = $fallback ?? $this->codeGenerator->proposer($service, $type)[0];
         }
 
         $code = InventaireCodeGenerator::normalize($raw);
