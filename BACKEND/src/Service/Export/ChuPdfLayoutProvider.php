@@ -458,7 +458,7 @@ body {
 CSS;
     }
 
-    private function getLogoDataUri(): string
+    public function getLogoDataUri(): string
     {
         $logoPath = $this->assetsDir . DIRECTORY_SEPARATOR . 'logo.jfif';
         if (!is_file($logoPath)) {
