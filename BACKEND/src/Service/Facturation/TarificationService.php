@@ -24,6 +24,7 @@ final class TarificationService
         'NURSING' => 'NUR',
         'LABORATOIRE' => 'LAB',
         'IMAGERIE' => 'IMG',
+        'AUTRE' => 'AUT',
     ];
 
     private const SERVICE_ALIASES = [
