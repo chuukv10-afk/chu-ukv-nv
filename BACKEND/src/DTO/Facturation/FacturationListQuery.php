@@ -24,6 +24,9 @@ final class FacturationListQuery
 
         #[Assert\Length(max: 40)]
         public ?string $serviceGrille = null,
+
+        #[Assert\Choice(choices: ['GRILLE', 'MANUEL'])]
+        public ?string $origine = null,
     ) {
         if ('' === $this->search) {
             $this->search = null;
@@ -36,6 +39,9 @@ final class FacturationListQuery
         }
         if ('' === $this->serviceGrille) {
             $this->serviceGrille = null;
+        }
+        if ('' === $this->origine) {
+            $this->origine = null;
         }
     }
 }

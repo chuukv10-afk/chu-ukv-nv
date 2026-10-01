@@ -14,6 +14,8 @@ import { exportResourceApi } from '../../utils/exportApi.js';
 import { LOTRU_NEUTRAL, LOTRU_PRIMARY } from '../../theme/lotruPalette.js';
 import ActeFormModal from './components/ActeFormModal.jsx';
 import {
+  ACTE_ORIGINE_MANUEL,
+  ACTE_ORIGINES,
   ACTE_PAGE_SIZE_OPTIONS,
   DEFAULT_ACTE_PAGE_SIZE,
   EMPTY_ACTE_FORM,
@@ -54,6 +56,7 @@ export default function ActesFinanciersPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [serviceFilter, setServiceFilter] = useState('');
+  const [origineFilter, setOrigineFilter] = useState('');
   const [serviceGrilles, setServiceGrilles] = useState([]);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_ACTE_PAGE_SIZE);
@@ -74,7 +77,7 @@ export default function ActesFinanciersPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, serviceFilter, limit]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, serviceFilter, origineFilter, limit]);
 
   const refreshMeta = useCallback(async () => {
     try {
@@ -96,6 +99,7 @@ export default function ActesFinanciersPage() {
         limit,
         search: debouncedSearch || undefined,
         serviceGrille: serviceFilter || undefined,
+        origine: origineFilter || undefined,
       });
       setItems(result.items);
       setPagination(result.pagination);
@@ -104,7 +108,7 @@ export default function ActesFinanciersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, debouncedSearch, serviceFilter]);
+  }, [page, limit, debouncedSearch, serviceFilter, origineFilter]);
 
   useEffect(() => { load(page); }, [load, page]);
 
@@ -114,6 +118,7 @@ export default function ActesFinanciersPage() {
       await exportResourceApi(facturation.actes, format, {
         search: debouncedSearch || undefined,
         serviceGrille: serviceFilter || undefined,
+        origine: origineFilter || undefined,
       });
     } catch (error) {
       showError(error.message || 'Export impossible.');
@@ -205,7 +210,7 @@ export default function ActesFinanciersPage() {
     }
   };
 
-  const colSpan = showActions ? 8 : 7;
+  const colSpan = showActions ? 9 : 8;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -216,7 +221,7 @@ export default function ActesFinanciersPage() {
             <Box>
               <Typography level="h2" sx={{ fontWeight: 700 }}>Grille tarifaire</Typography>
               <Typography level="body-md" sx={{ color: 'neutral.500' }}>
-                Catalogue des actes (A0, A1, A, B, C). Import Excel ou saisie manuelle.
+                La grille importée est en lecture seule. Chaque acte saisi ici est marqué « Ajouté » et reste modifiable.
               </Typography>
             </Box>
           </Stack>
@@ -268,6 +273,17 @@ export default function ActesFinanciersPage() {
                 <Option key={service} value={service}>{service}</Option>
               ))}
             </Select>
+            <Select
+              value={origineFilter}
+              onChange={(_, value) => setOrigineFilter(value ?? '')}
+              placeholder="Origine"
+              sx={{ minWidth: 200 }}
+            >
+              <Option value="">Toutes les origines</Option>
+              {ACTE_ORIGINES.map((item) => (
+                <Option key={item.value} value={item.value}>{item.label}</Option>
+              ))}
+            </Select>
           </Stack>
         </Card>
 
@@ -278,11 +294,12 @@ export default function ActesFinanciersPage() {
         ) : null}
 
         <Sheet variant="outlined" sx={{ borderRadius: 'lg', overflow: 'auto' }}>
-          <Table stickyHeader hoverRow sx={{ minWidth: 1180 }}>
+          <Table stickyHeader hoverRow sx={{ minWidth: 1280 }}>
             <thead>
               <tr>
                 <th>Service</th>
                 <th>Acte</th>
+                <th>Origine</th>
                 <th style={{ textAlign: 'right' }}>A0</th>
                 <th style={{ textAlign: 'right' }}>A1</th>
                 <th style={{ textAlign: 'right' }}>A</th>
@@ -316,6 +333,15 @@ export default function ActesFinanciersPage() {
                       <Chip size="sm" variant="soft" color="neutral" sx={{ mt: 0.5 }}>Inactif</Chip>
                     ) : null}
                   </td>
+                  <td>
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      color={item.origine === ACTE_ORIGINE_MANUEL ? 'primary' : 'neutral'}
+                    >
+                      {item.origine === ACTE_ORIGINE_MANUEL ? 'Ajouté' : 'Grille importée'}
+                    </Chip>
+                  </td>
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifA0)}</td>
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifA1)}</td>
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifA)}</td>
@@ -323,14 +349,18 @@ export default function ActesFinanciersPage() {
                   <td style={{ textAlign: 'right' }}>{formatCdf(item.tarifC)}</td>
                   {showActions ? (
                     <td style={{ textAlign: 'right' }}>
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        {canUpdate ? (
-                          <IconButton size="sm" variant="plain" onClick={() => openEdit(item)}><Pencil size={16} /></IconButton>
-                        ) : null}
-                        {canDelete ? (
-                          <IconButton size="sm" variant="plain" color="danger" onClick={() => setPendingDelete(item)}><Trash2 size={16} /></IconButton>
-                        ) : null}
-                      </Stack>
+                      {item.origine === ACTE_ORIGINE_MANUEL ? (
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          {canUpdate ? (
+                            <IconButton size="sm" variant="plain" onClick={() => openEdit(item)}><Pencil size={16} /></IconButton>
+                          ) : null}
+                          {canDelete ? (
+                            <IconButton size="sm" variant="plain" color="danger" onClick={() => setPendingDelete(item)}><Trash2 size={16} /></IconButton>
+                          ) : null}
+                        </Stack>
+                      ) : (
+                        <Typography level="body-xs" sx={{ color: 'neutral.500' }}>Lecture seule</Typography>
+                      )}
                     </td>
                   ) : null}
                 </tr>

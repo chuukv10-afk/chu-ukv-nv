@@ -176,15 +176,30 @@ export function emptyFactureForm(dateFacture = todayIsoKinshasa()) {
   };
 }
 
+function parseAmount(value) {
+  const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
+  return Number.isNaN(amount) ? 0 : amount;
+}
+
+export function prixDiffereDeLaGrille(tarifUnitaire, acte, categorie) {
+  if (!acte) return false;
+  return Math.abs(parseAmount(tarifUnitaire) - tarifActePour(acte, categorie)) > 0.009;
+}
+
 export function repriceLigne(ligne, categorie) {
-  const unitaire = ligne.acte ? tarifActePour(ligne.acte, categorie) : Number(ligne.tarifUnitaire ?? 0);
+  const grille = ligne.acte ? tarifActePour(ligne.acte, categorie) : parseAmount(ligne.tarifUnitaire);
+  const requested = ligne.prixPersonnalise ? parseAmount(ligne.tarifUnitaire) : grille;
+  const prixPersonnalise = Boolean(ligne.prixPersonnalise) && Math.abs(requested - grille) > 0.009;
+  const unitaire = prixPersonnalise ? requested : grille;
   const quantite = Math.max(1, Number(ligne.quantite) || 1);
   const tarifBrut = unitaire * quantite;
   const remiseMontant = computeRemise(tarifBrut, ligne.remiseType, ligne.remiseValeur);
   return {
     ...ligne,
     quantite,
-    tarifUnitaire: unitaire,
+    tarifGrille: grille,
+    tarifUnitaire: prixPersonnalise ? ligne.tarifUnitaire : unitaire,
+    prixPersonnalise,
     tarifBrut,
     remiseType: ligne.remiseType || REMISE_NONE,
     remiseValeur: ligne.remiseType && ligne.remiseType !== REMISE_NONE ? ligne.remiseValeur : '',
@@ -218,6 +233,14 @@ export const ACTE_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 export const ACTE_STATUTS = [
   { value: 'ACTIF', label: 'Actif', color: 'success' },
   { value: 'INACTIF', label: 'Inactif', color: 'neutral' },
+];
+
+export const ACTE_ORIGINE_GRILLE = 'GRILLE';
+export const ACTE_ORIGINE_MANUEL = 'MANUEL';
+
+export const ACTE_ORIGINES = [
+  { value: ACTE_ORIGINE_GRILLE, label: 'Grille importée' },
+  { value: ACTE_ORIGINE_MANUEL, label: 'Ajouté' },
 ];
 
 export const EMPTY_ACTE_FORM = {

@@ -338,7 +338,7 @@ final class FactureService
 
             $service = $this->requireService($ligneInput->serviceId);
             $quantite = max(1, $ligneInput->quantite);
-            $unitaire = RemiseCalculator::money($acte->tarifPour($categorie));
+            $unitaire = $this->resolvePrixFacture($ligneInput->tarifUnitaire, $acte->tarifPour($categorie));
             $tarifBrut = RemiseCalculator::money((string) ((float) $unitaire * $quantite));
             $ligneKey = $this->ligneKey($ligneInput->acteId, $ligneInput->serviceId);
             $remiseSource = (!$canRemise && isset($preservedLignes[$ligneKey]))
@@ -381,6 +381,24 @@ final class FactureService
     }
 
     /**
+     * Prix de la ligne de facture. Un montant saisi reste sur la facture et ne modifie pas l'acte.
+     */
+    private function resolvePrixFacture(?string $requested, string $grille): string
+    {
+        $raw = trim((string) $requested);
+        if ('' === $raw) {
+            return RemiseCalculator::money($grille);
+        }
+
+        $normalized = str_replace([' ', ','], ['', '.'], $raw);
+        if (!is_numeric($normalized) || (float) $normalized < 0) {
+            throw new ConflictException('Le prix facturé de l\'acte est invalide.');
+        }
+
+        return RemiseCalculator::money($normalized);
+    }
+
+    /**
      * @param list<FactureLigneInput|array<string, mixed>> $lignes
      * @return list<FactureLigneInput>
      */
@@ -399,6 +417,9 @@ final class FactureService
                 (int) ($ligne['quantite'] ?? 0),
                 (string) ($ligne['remiseType'] ?? Facture::REMISE_NONE),
                 (string) ($ligne['remiseValeur'] ?? '0'),
+                isset($ligne['tarifUnitaire']) && '' !== trim((string) $ligne['tarifUnitaire'])
+                    ? (string) $ligne['tarifUnitaire']
+                    : null,
             );
         }
 

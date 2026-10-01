@@ -17,6 +17,9 @@ class ActeFinancier
 
     public const UNITE_FC = 'FC';
 
+    public const ORIGINE_GRILLE = 'GRILLE';
+    public const ORIGINE_MANUEL = 'MANUEL';
+
     public const LIBELLE_CONSULTATION_JOUR = 'Consultation médicale Jour';
     public const LIBELLE_CONSULTATION_NUIT = 'Consultation médicale Nuit';
 
@@ -66,6 +69,10 @@ class ActeFinancier
 
     #[ORM\Column(length: 20)]
     private ?string $statut = null;
+
+    /** GRILLE = ligne de la grille importée (lecture seule). MANUEL = acte saisi dans l'application. */
+    #[ORM\Column(length: 16, options: ['default' => 'GRILLE'])]
+    private string $origine = self::ORIGINE_GRILLE;
 
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
@@ -205,6 +212,23 @@ class ActeFinancier
         $this->statut = $statut;
 
         return $this;
+    }
+
+    public function getOrigine(): string
+    {
+        return $this->origine;
+    }
+
+    public function setOrigine(string $origine): static
+    {
+        $this->origine = $origine;
+
+        return $this;
+    }
+
+    public function isImportee(): bool
+    {
+        return self::ORIGINE_MANUEL !== $this->origine;
     }
 
     public function getCreatedAt(): ?\DateTimeImmutable

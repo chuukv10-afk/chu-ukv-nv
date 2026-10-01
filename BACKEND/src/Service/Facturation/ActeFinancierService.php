@@ -36,6 +36,7 @@ final class ActeFinancierService
             $query->search,
             $query->serviceGrille,
             $query->statut,
+            $query->origine,
         );
 
         return new PaginatedResult(
@@ -52,10 +53,10 @@ final class ActeFinancierService
     public function exportHeaders(string $format = 'xlsx'): array
     {
         if ('pdf' === $format) {
-            return ['N°', 'Service', 'Acte', 'A0', 'A1', 'A', 'B', 'C'];
+            return ['N°', 'Service', 'Acte', 'A0', 'A1', 'A', 'B', 'C', 'Origine'];
         }
 
-        return ['N°', 'Code', 'Service', 'Sous-catégorie', 'Acte', 'A0', 'A1', 'A', 'B', 'C', 'Unité', 'Statut'];
+        return ['N°', 'Code', 'Service', 'Sous-catégorie', 'Acte', 'A0', 'A1', 'A', 'B', 'C', 'Unité', 'Statut', 'Origine'];
     }
 
     /**
@@ -64,7 +65,7 @@ final class ActeFinancierService
     public function buildExportRows(FacturationListQuery $query, string $format = 'xlsx'): array
     {
         $this->assertValid($query);
-        $items = $this->acteFinancierRepository->findForExport($query->search, $query->serviceGrille);
+        $items = $this->acteFinancierRepository->findForExport($query->search, $query->serviceGrille, $query->origine);
 
         return array_map(
             fn (ActeFinancier $acte): array => $this->buildExportRow($acte, $format),
@@ -92,6 +93,7 @@ final class ActeFinancierService
                 $this->formatTarifExport($acte->getTarif()),
                 $this->formatTarifExport($acte->getTarifB()),
                 $this->formatTarifExport($acte->getTarifC()),
+                $this->origineLabel($acte),
             ];
         }
 
@@ -107,7 +109,13 @@ final class ActeFinancierService
             $this->formatTarifExport($acte->getTarifC()),
             $acte->getUnite(),
             $acte->getStatut(),
+            $this->origineLabel($acte),
         ];
+    }
+
+    private function origineLabel(ActeFinancier $acte): string
+    {
+        return ActeFinancier::ORIGINE_MANUEL === $acte->getOrigine() ? 'Ajouté' : 'Grille importée';
     }
 
     private function formatTarifExport(?string $value): string
@@ -142,6 +150,7 @@ final class ActeFinancierService
             ->setCreatedAt(new \DateTimeImmutable())
             ->setUnite(ActeFinancier::UNITE_FC);
         $this->apply($acte, $input);
+        $acte->setOrigine(ActeFinancier::ORIGINE_MANUEL);
 
         $this->entityManager->persist($acte);
         try {
@@ -157,6 +166,9 @@ final class ActeFinancierService
     {
         $this->assertValid($input);
         $acte = $this->getById($id);
+        if ($acte->isImportee()) {
+            throw new ConflictException('Un acte de la grille importée ne peut pas être modifié.');
+        }
         $service = trim($input->serviceGrille);
         $libelle = trim($input->libelle);
         $this->assertUniqueServiceLibelle($service, $libelle, $acte->getId());
@@ -174,6 +186,9 @@ final class ActeFinancierService
     public function delete(int $id): void
     {
         $acte = $this->getById($id);
+        if ($acte->isImportee()) {
+            throw new ConflictException('Un acte de la grille importée ne peut pas être supprimé.');
+        }
         if (ActeFinancier::CODE_CONSULTATION === $acte->getCode()) {
             throw new ConflictException('L\'acte consultation de référence ne peut pas être supprimé.');
         }
@@ -224,6 +239,7 @@ final class ActeFinancierService
             'tarifC' => $acte->getTarifC(),
             'unite' => $acte->getUnite(),
             'statut' => $acte->getStatut(),
+            'origine' => $acte->getOrigine(),
             'createdAt' => $acte->getCreatedAt()?->format(\DateTimeInterface::ATOM),
         ];
     }

@@ -20,6 +20,13 @@ final class FactureLigneInput
         public string $remiseType = 'NONE',
 
         public string $remiseValeur = '0',
+
+        /** Prix unitaire de cette facture. Vide = tarif de la grille. N'écrit jamais dans la grille. */
+        #[Assert\Length(max: 20)]
+        public ?string $tarifUnitaire = null,
     ) {
+        if ('' === trim((string) $this->tarifUnitaire)) {
+            $this->tarifUnitaire = null;
+        }
     }
 }

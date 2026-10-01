@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\ActeFinancier;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -19,26 +20,13 @@ class ActeFinancierRepository extends ServiceEntityRepository
     /**
      * @return array{items: list<ActeFinancier>, total: int}
      */
-    public function paginate(int $page, int $limit, ?string $search = null, ?string $serviceGrille = null, ?string $statut = null): array
+    public function paginate(int $page, int $limit, ?string $search = null, ?string $serviceGrille = null, ?string $statut = null, ?string $origine = null): array
     {
         $qb = $this->createQueryBuilder('a')
             ->orderBy('a.serviceGrille', 'ASC')
             ->addOrderBy('a.libelle', 'ASC');
 
-        $normalizedSearch = null !== $search ? trim($search) : '';
-        if ('' !== $normalizedSearch) {
-            $qb
-                ->andWhere('LOWER(a.code) LIKE :search OR LOWER(a.libelle) LIKE :search OR LOWER(a.sousCategorie) LIKE :search')
-                ->setParameter('search', '%' . mb_strtolower($normalizedSearch) . '%');
-        }
-
-        if (null !== $serviceGrille && '' !== trim($serviceGrille)) {
-            $qb->andWhere('a.serviceGrille = :serviceGrille')->setParameter('serviceGrille', trim($serviceGrille));
-        }
-
-        if (null !== $statut && '' !== trim($statut)) {
-            $qb->andWhere('a.statut = :statut')->setParameter('statut', strtoupper(trim($statut)));
-        }
+        $this->applyListFilters($qb, $search, $serviceGrille, $statut, $origine);
 
         $countQb = clone $qb;
         $total = (int) $countQb->select('COUNT(a.id)')->getQuery()->getSingleScalarResult();
@@ -79,12 +67,24 @@ class ActeFinancierRepository extends ServiceEntityRepository
     /**
      * @return list<ActeFinancier>
      */
-    public function findForExport(?string $search = null, ?string $serviceGrille = null): array
+    public function findForExport(?string $search = null, ?string $serviceGrille = null, ?string $origine = null): array
     {
         $qb = $this->createQueryBuilder('a')
             ->orderBy('a.serviceGrille', 'ASC')
             ->addOrderBy('a.libelle', 'ASC');
 
+        $this->applyListFilters($qb, $search, $serviceGrille, null, $origine);
+
+        return $qb->getQuery()->getResult();
+    }
+
+    private function applyListFilters(
+        QueryBuilder $qb,
+        ?string $search,
+        ?string $serviceGrille,
+        ?string $statut,
+        ?string $origine,
+    ): void {
         $normalizedSearch = null !== $search ? trim($search) : '';
         if ('' !== $normalizedSearch) {
             $qb
@@ -96,6 +96,13 @@ class ActeFinancierRepository extends ServiceEntityRepository
             $qb->andWhere('a.serviceGrille = :serviceGrille')->setParameter('serviceGrille', trim($serviceGrille));
         }
 
-        return $qb->getQuery()->getResult();
+        if (null !== $statut && '' !== trim($statut)) {
+            $qb->andWhere('a.statut = :statut')->setParameter('statut', strtoupper(trim($statut)));
+        }
+
+        $normalizedOrigine = null !== $origine ? strtoupper(trim($origine)) : '';
+        if (in_array($normalizedOrigine, [ActeFinancier::ORIGINE_GRILLE, ActeFinancier::ORIGINE_MANUEL], true)) {
+            $qb->andWhere('a.origine = :origine')->setParameter('origine', $normalizedOrigine);
+        }
     }
 }

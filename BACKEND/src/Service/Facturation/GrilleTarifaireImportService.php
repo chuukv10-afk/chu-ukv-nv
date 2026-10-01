@@ -82,7 +82,8 @@ final class GrilleTarifaireImportService
                 ->setTarifB($tarifB)
                 ->setTarifC($tarifC)
                 ->setUnite(ActeFinancier::UNITE_FC)
-                ->setStatut(ActeFinancier::STATUT_ACTIF);
+                ->setStatut(ActeFinancier::STATUT_ACTIF)
+                ->setOrigine(ActeFinancier::ORIGINE_GRILLE);
 
             if ($isNew) {
                 ++$imported;

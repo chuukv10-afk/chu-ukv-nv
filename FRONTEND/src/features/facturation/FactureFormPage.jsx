@@ -33,6 +33,7 @@ import {
   formatFc,
   formatRemiseLabel,
   patientLabel,
+  prixDiffereDeLaGrille,
   REGLEMENT_MODE_LABELS,
   REMISE_NONE,
   repriceLigne,
@@ -66,6 +67,11 @@ function toPayload(form, canRemise = false) {
       acteId: Number(ligne.acteId),
       serviceId: Number(ligne.serviceId),
       quantite: Number(ligne.quantite) || 1,
+      tarifUnitaire: String(
+        ligne.prixPersonnalise && (ligne.tarifUnitaire === '' || ligne.tarifUnitaire === null || ligne.tarifUnitaire === undefined)
+          ? '0'
+          : (ligne.tarifUnitaire ?? '0'),
+      ),
       remiseType: canRemise && ligne.remiseType ? ligne.remiseType : REMISE_NONE,
       remiseValeur: canRemise && ligne.remiseType && ligne.remiseType !== REMISE_NONE ? String(ligne.remiseValeur || '0') : '0',
     })),
@@ -191,19 +197,23 @@ export default function FactureFormPage() {
           notes: data.notes ?? '',
           remiseType: data.remiseType || REMISE_NONE,
           remiseValeur: data.remiseType && data.remiseType !== REMISE_NONE ? String(data.remiseValeur ?? '') : '',
-          lignes: (data.lignes ?? []).map((ligne) => repriceLigne({
-            acteId: ligne.acteId,
-            codeActe: ligne.codeActe,
-            libelle: ligne.libelle,
-            serviceGrille: ligne.serviceGrille,
-            serviceId: ligne.serviceId ? String(ligne.serviceId) : '',
-            serviceLibelle: ligne.serviceLibelle || ligne.service?.libelle || '',
-            quantite: ligne.quantite,
-            tarifUnitaire: Number(ligne.tarifUnitaire),
-            remiseType: ligne.remiseType || REMISE_NONE,
-            remiseValeur: ligne.remiseType && ligne.remiseType !== REMISE_NONE ? String(ligne.remiseValeur ?? '') : '',
-            acte: ligne.acte,
-          }, data.categorieTarifaire || DEFAULT_CATEGORIE_TARIFAIRE)),
+          lignes: (data.lignes ?? []).map((ligne) => {
+            const categorie = data.categorieTarifaire || DEFAULT_CATEGORIE_TARIFAIRE;
+            return repriceLigne({
+              acteId: ligne.acteId,
+              codeActe: ligne.codeActe,
+              libelle: ligne.libelle,
+              serviceGrille: ligne.serviceGrille,
+              serviceId: ligne.serviceId ? String(ligne.serviceId) : '',
+              serviceLibelle: ligne.serviceLibelle || ligne.service?.libelle || '',
+              quantite: ligne.quantite,
+              tarifUnitaire: Number(ligne.tarifUnitaire),
+              prixPersonnalise: prixDiffereDeLaGrille(ligne.tarifUnitaire, ligne.acte, categorie),
+              remiseType: ligne.remiseType || REMISE_NONE,
+              remiseValeur: ligne.remiseType && ligne.remiseType !== REMISE_NONE ? String(ligne.remiseValeur ?? '') : '',
+              acte: ligne.acte,
+            }, categorie);
+          }),
         });
       } catch (err) {
         if (!cancelled) setError(err.message || 'Facture introuvable.');
@@ -286,6 +296,28 @@ export default function FactureFormPage() {
             serviceId: String(service.id),
             serviceLibelle: `${service.code} — ${service.libelle}`,
           }
+          : ligne
+      )),
+    }));
+  };
+
+  const setPrix = (index, value) => {
+    setForm((current) => ({
+      ...current,
+      lignes: current.lignes.map((ligne, i) => (
+        i === index
+          ? repriceLigne({ ...ligne, tarifUnitaire: value, prixPersonnalise: true }, current.categorieTarifaire)
+          : ligne
+      )),
+    }));
+  };
+
+  const resetPrix = (index) => {
+    setForm((current) => ({
+      ...current,
+      lignes: current.lignes.map((ligne, i) => (
+        i === index
+          ? repriceLigne({ ...ligne, prixPersonnalise: false }, current.categorieTarifaire)
           : ligne
       )),
     }));
@@ -642,7 +674,7 @@ export default function FactureFormPage() {
               <Box>
                 <Typography level="title-md">Actes</Typography>
                 <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
-                  Prix issus de la grille pour {CATEGORIE_TARIFAIRE_LABELS[form.categorieTarifaire] ?? form.categorieTarifaire}.
+                  Prix proposé par la grille pour {CATEGORIE_TARIFAIRE_LABELS[form.categorieTarifaire] ?? form.categorieTarifaire}. Vous pouvez l’ajuster pour cette facture.
                 </Typography>
               </Box>
               <Typography level="title-lg">{formatFc(montantTotal)}</Typography>
@@ -727,7 +759,30 @@ export default function FactureFormPage() {
                         />
                       )}
                     </td>
-                    <td>{formatFc(ligne.tarifUnitaire)}</td>
+                    <td style={{ minWidth: 150 }}>
+                      {readOnly ? formatFc(ligne.tarifUnitaire) : (
+                        <Stack spacing={0.25}>
+                          <Input
+                            type="number"
+                            size="sm"
+                            value={ligne.tarifUnitaire}
+                            slotProps={{ input: { min: 0, step: '0.01' } }}
+                            endDecorator="FC"
+                            onChange={(event) => setPrix(index, event.target.value)}
+                          />
+                          {ligne.prixPersonnalise ? (
+                            <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                              <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                                Grille {formatFc(ligne.tarifGrille)}
+                              </Typography>
+                              <Button size="sm" variant="plain" onClick={() => resetPrix(index)} sx={{ minHeight: 0, px: 0.5, py: 0 }}>
+                                Reprendre
+                              </Button>
+                            </Stack>
+                          ) : null}
+                        </Stack>
+                      )}
+                    </td>
                     {(canRemise || Number(ligne.remiseMontant) > 0 || form.lignes.some((item) => Number(item.remiseMontant) > 0)) ? (
                       <td>
                         <RemiseFields
