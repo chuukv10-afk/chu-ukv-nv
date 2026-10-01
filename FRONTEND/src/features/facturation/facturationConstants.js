@@ -243,6 +243,46 @@ export const ACTE_ORIGINES = [
   { value: ACTE_ORIGINE_MANUEL, label: 'Ajouté' },
 ];
 
+/** Indices appliqués au tarif standard (catégorie A). */
+export const INDICE_TARIF_STANDARD = { A0: 0.6, A1: 0.8, B: 1.5, C: 2 };
+/** Exception concurrence : B et C seulement. A0 et A1 restent inchangés. */
+export const INDICE_TARIF_EXCEPTION = { A0: 0.6, A1: 0.8, B: 1.2, C: 1.4 };
+
+export function indicesTarifActe(exceptionConcurrence = false) {
+  return exceptionConcurrence ? INDICE_TARIF_EXCEPTION : INDICE_TARIF_STANDARD;
+}
+
+export function formatIndiceTarif(indice) {
+  return `× ${String(indice).replace('.', ',')}`;
+}
+
+export function serviceGrilleImagerie(serviceGrille) {
+  return String(serviceGrille || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .includes('imagerie');
+}
+
+export function proposerTarifCategorie(tarifA, indice) {
+  const amount = Math.round(parseAmount(tarifA) * Number(indice) * 100) / 100;
+  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+}
+
+export function proposerTarifsActe(tarifA, exceptionConcurrence = false) {
+  const indices = indicesTarifActe(exceptionConcurrence);
+  return {
+    tarifA0: proposerTarifCategorie(tarifA, indices.A0),
+    tarifA1: proposerTarifCategorie(tarifA, indices.A1),
+    tarifB: proposerTarifCategorie(tarifA, indices.B),
+    tarifC: proposerTarifCategorie(tarifA, indices.C),
+  };
+}
+
+export function montantsTarifEgaux(left, right) {
+  return Math.abs(parseAmount(left) - parseAmount(right)) < 0.009;
+}
+
 export const EMPTY_ACTE_FORM = {
   code: '',
   serviceGrille: '',
