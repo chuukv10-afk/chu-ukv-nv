@@ -235,6 +235,8 @@ export const ACTE_STATUTS = [
   { value: 'INACTIF', label: 'Inactif', color: 'neutral' },
 ];
 
+export const SERVICE_GRILLE_AUTRE = 'AUTRE';
+
 export const ACTE_ORIGINE_GRILLE = 'GRILLE';
 export const ACTE_ORIGINE_MANUEL = 'MANUEL';
 

@@ -9,6 +9,7 @@ import {
   indicesTarifActe,
   montantsTarifEgaux,
   proposerTarifsActe,
+  SERVICE_GRILLE_AUTRE,
   serviceGrilleImagerie,
 } from '../facturationConstants.js';
 
@@ -189,8 +190,9 @@ export default function ActeFormModal({
                 >
                   {Array.from(new Set([
                     ...serviceGrilles,
+                    SERVICE_GRILLE_AUTRE,
                     ...(form.serviceGrille ? [form.serviceGrille] : []),
-                  ])).map((service) => (
+                  ])).sort((left, right) => left.localeCompare(right, 'fr')).map((service) => (
                     <Option key={service} value={service}>{service}</Option>
                   ))}
                 </Select>
