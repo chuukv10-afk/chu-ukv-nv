@@ -513,7 +513,7 @@ export default function FactureFormPage() {
             ) : null}
             {canPay ? (
               <Button variant="outlined" startDecorator={<Wallet size={16} />} onClick={() => { setReglementError(''); setReglementOpen(true); }}>
-                Régler
+                Marquer comme payée
               </Button>
             ) : null}
             {canValider && !readOnly ? (
@@ -528,6 +528,22 @@ export default function FactureFormPage() {
             ) : null}
           </Stack>
         </Stack>
+
+        {canPay ? (
+          <Card variant="soft" color="primary" sx={{ borderRadius: 'lg', p: 2 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+              <Box>
+                <Typography level="title-sm">Facture approuvée</Typography>
+                <Typography level="body-sm">
+                  Reste à payer : {formatFc(montantReste)}. Vous pouvez la marquer payée totalement ou partiellement.
+                </Typography>
+              </Box>
+              <Button startDecorator={<Wallet size={16} />} onClick={() => { setReglementError(''); setReglementOpen(true); }}>
+                Marquer comme payée
+              </Button>
+            </Stack>
+          </Card>
+        ) : null}
 
         {error ? (
           <Typography level="body-sm" color="danger" sx={{ bgcolor: 'danger.50', p: 1.5, borderRadius: 'md' }}>
@@ -876,7 +892,7 @@ export default function FactureFormPage() {
       <ConfirmModal
         open={confirmAction === 'valider'}
         title="Approuver la facture"
-        message="Après approbation, la facture ne pourra plus être modifiée. Le règlement reste possible avec la permission dédiée."
+        message="Après approbation, la facture ne pourra plus être modifiée. Vous pourrez la marquer payée totalement ou partiellement."
         confirmLabel="Approuver"
         loading={confirmLoading}
         onClose={() => setConfirmAction(null)}

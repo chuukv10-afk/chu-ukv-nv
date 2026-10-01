@@ -152,6 +152,217 @@ final class AptitudeService
             . '</tr></table>';
     }
 
+    /**
+     * Rapport du filtre courant : synthèse du jour, synthèse par filière, puis le détail des candidats.
+     *
+     * @return array{
+     *     total: int,
+     *     filters: list<string>,
+     *     days: list<array{label: string, count: int, apte: int, inapte: int, filieres: list<array{label: string, count: int, apte: int, inapte: int, rows: list<array{numero: string, candidat: string, sexe: string, verdict: string, statut: string}>}>}>,
+     *     byFiliere: list<array{label: string, count: int, apte: int, inapte: int, taux: string}>
+     * }
+     */
+    public function buildJournalReport(AptitudeListQuery $query): array
+    {
+        $this->assertValid($query);
+        if (!$this->hasReportFilter($query)) {
+            throw new ConflictException('Appliquez au moins un filtre avant de générer le rapport.');
+        }
+
+        $items = $this->repository->findForExport(
+            $query->search,
+            $query->annee,
+            $query->statut,
+            $query->verdict,
+            $query->motif,
+            $query->serviceId,
+            $query->filiereId,
+            $query->sansFiliere,
+            $query->imprime,
+            $query->numero,
+            $query->dateFrom,
+            $query->dateTo,
+        );
+
+        $timezone = new \DateTimeZone(self::TIMEZONE);
+        /** @var array<string, array{label: string, filieres: array<string, array{label: string, rows: list<array{numero: string, candidat: string, sexe: string, verdict: string, statut: string, apte: bool, inapte: bool}>}>}> $grouped */
+        $grouped = [];
+        /** @var array<string, array{label: string, count: int, apte: int, inapte: int}> $filiereTotals */
+        $filiereTotals = [];
+
+        foreach ($items as $item) {
+            $instant = $item->getSigneAt() ?? $item->getCreatedAt();
+            $local = $instant instanceof \DateTimeInterface
+                ? \DateTimeImmutable::createFromInterface($instant)->setTimezone($timezone)
+                : new \DateTimeImmutable('now', $timezone);
+            $dayKey = $local->format('Y-m-d');
+            $filiereLabel = $this->filiereLabel($item);
+            $verdict = $item->getVerdict();
+
+            $grouped[$dayKey] ??= [
+                'label' => $this->frenchDay($local),
+                'filieres' => [],
+            ];
+            $grouped[$dayKey]['filieres'][$filiereLabel] ??= [
+                'label' => $filiereLabel,
+                'rows' => [],
+            ];
+            $grouped[$dayKey]['filieres'][$filiereLabel]['rows'][] = [
+                'numero' => $item->getNumero() ?? '—',
+                'candidat' => $item->getFullName(),
+                'sexe' => $item->getSexe(),
+                'verdict' => $verdict ?: '—',
+                'statut' => $this->statutExportLabel($item->getStatut()),
+                'apte' => CertificatAptitude::VERDICT_APTE === $verdict,
+                'inapte' => CertificatAptitude::VERDICT_INAPTE === $verdict,
+            ];
+
+            $filiereTotals[$filiereLabel] ??= ['label' => $filiereLabel, 'count' => 0, 'apte' => 0, 'inapte' => 0];
+            ++$filiereTotals[$filiereLabel]['count'];
+            if (CertificatAptitude::VERDICT_APTE === $verdict) {
+                ++$filiereTotals[$filiereLabel]['apte'];
+            } elseif (CertificatAptitude::VERDICT_INAPTE === $verdict) {
+                ++$filiereTotals[$filiereLabel]['inapte'];
+            }
+        }
+
+        ksort($grouped);
+        $total = count($items);
+        $days = [];
+        foreach ($grouped as $day) {
+            $filieres = array_values($day['filieres']);
+            usort($filieres, static fn (array $a, array $b): int => strcasecmp($a['label'], $b['label']));
+            $dayCount = 0;
+            $dayApte = 0;
+            $dayInapte = 0;
+            $filiereRows = [];
+            foreach ($filieres as $filiere) {
+                $count = count($filiere['rows']);
+                $apte = 0;
+                $inapte = 0;
+                $rows = [];
+                foreach ($filiere['rows'] as $row) {
+                    $apte += $row['apte'] ? 1 : 0;
+                    $inapte += $row['inapte'] ? 1 : 0;
+                    $rows[] = [
+                        'numero' => $row['numero'],
+                        'candidat' => $row['candidat'],
+                        'sexe' => $row['sexe'],
+                        'verdict' => $row['verdict'],
+                        'statut' => $row['statut'],
+                    ];
+                }
+                $dayCount += $count;
+                $dayApte += $apte;
+                $dayInapte += $inapte;
+                $filiereRows[] = [
+                    'label' => $filiere['label'],
+                    'count' => $count,
+                    'apte' => $apte,
+                    'inapte' => $inapte,
+                    'rows' => $rows,
+                ];
+            }
+            $days[] = [
+                'label' => $day['label'],
+                'count' => $dayCount,
+                'apte' => $dayApte,
+                'inapte' => $dayInapte,
+                'filieres' => $filiereRows,
+            ];
+        }
+
+        $byFiliere = array_values($filiereTotals);
+        usort($byFiliere, static fn (array $a, array $b): int => strcasecmp($a['label'], $b['label']));
+        foreach ($byFiliere as &$filiereTotal) {
+            $filiereTotal['taux'] = $this->formatTaux($filiereTotal['count'], $total);
+        }
+        unset($filiereTotal);
+
+        return [
+            'total' => $total,
+            'filters' => $this->reportFilterLabels($query),
+            'days' => $days,
+            'byFiliere' => $byFiliere,
+        ];
+    }
+
+    private function hasReportFilter(AptitudeListQuery $query): bool
+    {
+        return null !== $query->search
+            || null !== $query->annee
+            || null !== $query->statut
+            || null !== $query->verdict
+            || null !== $query->motif
+            || null !== $query->serviceId
+            || null !== $query->filiereId
+            || $query->sansFiliere
+            || null !== $query->imprime
+            || null !== $query->numero
+            || null !== $query->dateFrom
+            || null !== $query->dateTo;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function reportFilterLabels(AptitudeListQuery $query): array
+    {
+        $labels = [];
+        if (null !== $query->annee) {
+            $labels[] = 'Année : ' . $query->annee;
+        }
+        if (null !== $query->dateFrom || null !== $query->dateTo) {
+            $from = $query->dateFrom ? (new \DateTimeImmutable($query->dateFrom))->format('d/m/Y') : '…';
+            $to = $query->dateTo ? (new \DateTimeImmutable($query->dateTo))->format('d/m/Y') : '…';
+            $labels[] = 'Période : du ' . $from . ' au ' . $to;
+        }
+        if (null !== $query->motif) {
+            $labels[] = 'Motif : ' . match ($query->motif) {
+                CertificatAptitude::MOTIF_ADMISSION_UKV => 'Admission Universitaire UKV',
+                CertificatAptitude::MOTIF_EMPLOI => 'Emploi',
+                CertificatAptitude::MOTIF_AUTRE => 'Autre',
+                default => $query->motif,
+            };
+        }
+        if (null !== $query->serviceId) {
+            $service = $this->serviceRepository->find($query->serviceId);
+            $labels[] = 'Service : ' . ($service instanceof Service ? $service->getLibelle() : '—');
+        }
+        if (null !== $query->filiereId) {
+            $filiere = $this->filiereRepository->find($query->filiereId);
+            $labels[] = 'Filière : ' . ($filiere instanceof Filiere
+                ? trim(sprintf('%s — %s', $filiere->getCode() ?? '', $filiere->getLibelle() ?? ''))
+                : '—');
+        } elseif ($query->sansFiliere) {
+            $labels[] = 'Filière : Non renseignée';
+        }
+        if (null !== $query->statut) {
+            $labels[] = 'Statut : ' . $this->statutExportLabel($query->statut);
+        }
+        if (null !== $query->verdict) {
+            $labels[] = 'Verdict : ' . $query->verdict;
+        }
+        if (null !== $query->imprime) {
+            $labels[] = 'Impression : ' . ('oui' === $query->imprime ? 'Imprimé' : 'Non imprimé');
+        }
+        if (null !== $query->numero) {
+            $labels[] = 'N° : ' . $query->numero;
+        }
+        if (null !== $query->search) {
+            $labels[] = 'Recherche : ' . $query->search;
+        }
+
+        return $labels;
+    }
+
+    private function frenchDay(\DateTimeImmutable $date): string
+    {
+        $names = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
+        return ucfirst($names[(int) $date->format('w')]) . ' ' . $date->format('d/m/Y');
+    }
+
     /** @return list<array{id: int, code: string, libelle: string}> */
     public function listServices(): array
     {

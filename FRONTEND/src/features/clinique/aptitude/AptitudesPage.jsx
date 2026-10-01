@@ -35,6 +35,7 @@ import {
   openAptitudeBatchPdfApi,
   openAptitudeJetonsPdfApi,
   openAptitudePdfApi,
+  openAptitudeRapportPdfApi,
 } from './aptitudeApi.js';
 import { aptitudeFilterSx } from './aptitudeUi.js';
 import AptitudeImportModal from './components/AptitudeImportModal.jsx';
@@ -90,6 +91,7 @@ export default function AptitudesPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_APTITUDE_PAGE_SIZE);
   const [exportLoading, setExportLoading] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
   const [pdfLoadingId, setPdfLoadingId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(null);
@@ -160,6 +162,22 @@ export default function AptitudesPage() {
   }, [page, limit, filters]);
 
   useEffect(() => { load(page); }, [load, page]);
+
+  const filtersActive = Boolean(
+    debouncedSearch || debouncedNumero || annee || statut || (canViewVerdict && verdict) || motif
+    || serviceId || filiereId || dateFrom || dateTo || imprime === 'oui' || imprime === 'non',
+  );
+
+  const handleReport = async () => {
+    setReportLoading(true);
+    try {
+      await openAptitudeRapportPdfApi(filters);
+    } catch (err) {
+      showError(err.message || 'Impossible de générer le rapport.');
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   const handleExport = async (format) => {
     setExportLoading(format);
@@ -351,6 +369,19 @@ export default function AptitudesPage() {
             Statistiques
           </Button>
           {canExport ? <ExportButtons onExport={handleExport} loading={exportLoading} /> : null}
+          {canExport ? (
+            <Button
+              variant="outlined"
+              startDecorator={<FileText size={18} />}
+              disabled={!filtersActive}
+              loading={reportLoading}
+              title={filtersActive ? 'Rapport jour par jour et par filière' : 'Appliquez un filtre pour générer le rapport'}
+              onClick={handleReport}
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
+            >
+              Rapport
+            </Button>
+          ) : null}
           <Button
             variant="outlined"
             startDecorator={<FileText size={18} />}

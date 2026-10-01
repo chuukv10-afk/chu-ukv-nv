@@ -135,6 +135,10 @@ export async function exportAptitudesApi(format, params = {}) {
   return exportResourceApi(clinique.aptitudes, format, params);
 }
 
+export async function openAptitudeRapportPdfApi(params = {}) {
+  await openFileInBrowser(`${clinique.aptitudes}/rapport${buildQueryString(params)}`);
+}
+
 export async function downloadAptitudeImportTemplateApi() {
   await downloadFile(`${clinique.aptitudes}/import-modele`, 'GET', null, 'modele-import-etudiants-ukv.xlsx');
 }

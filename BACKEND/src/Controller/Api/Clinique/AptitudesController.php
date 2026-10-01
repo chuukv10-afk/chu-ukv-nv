@@ -9,6 +9,7 @@ use App\DTO\Clinique\AptitudeIdsQuery;
 use App\DTO\Clinique\AptitudeListQuery;
 use App\DTO\Clinique\AptitudeStatsQuery;
 use App\DTO\Clinique\UpsertAptitudeInput;
+use App\Entity\Personnel;
 use App\Exception\ConflictException;
 use App\Security\Permission\CliniquePermissions;
 use App\Security\Permission\PatientPermissions;
@@ -79,6 +80,26 @@ final class AptitudesController extends AbstractController
             $this->aptitudeService->exportPdfIntro($query, count($rows)),
             $this->aptitudeService->exportPdfColumnWidths(),
             'chu-aptitude-list',
+        );
+    }
+
+    #[Route('/rapport', name: 'api_clinique_aptitudes_rapport', methods: ['GET'])]
+    #[IsGranted(CliniquePermissions::APTITUDE_EXPORT)]
+    public function rapport(#[MapQueryString] AptitudeListQuery $query = new AptitudeListQuery()): Response
+    {
+        $generatedBy = '';
+        $user = $this->getUser();
+        if ($user instanceof Personnel) {
+            $generatedBy = trim(implode(' ', array_filter([
+                $user->getNom(),
+                $user->getPostNom(),
+                $user->getPrenom(),
+            ])));
+        }
+
+        return $this->aptitudePdfService->createJournalReportResponse(
+            $this->aptitudeService->buildJournalReport($query),
+            $generatedBy,
         );
     }
 

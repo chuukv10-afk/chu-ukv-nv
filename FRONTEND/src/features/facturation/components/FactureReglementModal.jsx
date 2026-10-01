@@ -14,9 +14,10 @@ const MODAL_SX = {
   boxShadow: 'lg',
 };
 
-function emptyReglementForm(reste) {
+function emptyReglementForm() {
   return {
-    montant: reste > 0 ? String(reste) : '',
+    couverture: 'total',
+    montant: '',
     mode: 'ESPECES',
     dateReglement: todayIsoKinshasa(),
     notes: '',
@@ -31,16 +32,34 @@ export default function FactureReglementModal({
   onClose,
   onSubmit,
 }) {
-  const [form, setForm] = useState(() => emptyReglementForm(reste));
+  const [form, setForm] = useState(() => emptyReglementForm());
+  const [localError, setLocalError] = useState('');
+  const resteValue = Number(reste) || 0;
+  const isTotal = form.couverture !== 'partiel';
 
   useEffect(() => {
-    if (open) setForm(emptyReglementForm(reste));
+    if (open) {
+      setForm(emptyReglementForm());
+      setLocalError('');
+    }
   }, [open, reste]);
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    const raw = isTotal ? String(resteValue) : String(form.montant || '').replace(',', '.');
+    const montant = Number(raw);
+    if (isTotal) {
+      if (!(resteValue > 0)) {
+        setLocalError('Cette facture n’a plus rien à payer.');
+        return;
+      }
+    } else if (!(montant > 0) || montant >= resteValue - 0.0001) {
+      setLocalError('Pour un paiement partiel, indiquez un montant inférieur au reste à payer.');
+      return;
+    }
+    setLocalError('');
     onSubmit({
-      montant: String(form.montant || '').replace(',', '.'),
+      montant: raw,
       mode: form.mode,
       dateReglement: form.dateReglement,
       notes: form.notes.trim() || null,
@@ -60,26 +79,40 @@ export default function FactureReglementModal({
               <Wallet size={20} />
             </Box>
             <Box>
-              <Typography level="title-lg" sx={{ fontWeight: 700 }}>Régler la facture</Typography>
+              <Typography level="title-lg" sx={{ fontWeight: 700 }}>Marquer comme payée</Typography>
               <Typography level="body-sm" sx={{ color: 'neutral.500' }}>
-                Reste à payer : {formatFc(reste)}
+                Reste à payer : {formatFc(resteValue)}
               </Typography>
             </Box>
           </Stack>
         </Box>
         <Box component="form" onSubmit={handleSubmit} sx={{ p: 3 }}>
           <Stack spacing={2}>
-            {error ? (
+            {error || localError ? (
               <Typography level="body-sm" color="danger" sx={{ bgcolor: 'danger.50', p: 1.5, borderRadius: 'md' }}>
-                {error}
+                {localError || error}
               </Typography>
             ) : null}
+            <FormControl required>
+              <FormLabel>Paiement</FormLabel>
+              <Select
+                value={form.couverture}
+                onChange={(_, value) => {
+                  setLocalError('');
+                  setForm((current) => ({ ...current, couverture: value || 'total' }));
+                }}
+              >
+                <Option value="total">Payée totalement</Option>
+                <Option value="partiel">Payée partiellement</Option>
+              </Select>
+            </FormControl>
             <FormControl required>
               <FormLabel>Montant</FormLabel>
               <Input
                 type="number"
-                value={form.montant}
-                slotProps={{ input: { min: 0.01, step: '0.01', max: reste } }}
+                value={isTotal ? String(resteValue) : form.montant}
+                disabled={isTotal}
+                slotProps={{ input: { min: 0.01, step: '0.01', max: isTotal ? undefined : resteValue } }}
                 onChange={(event) => setForm((current) => ({ ...current, montant: event.target.value }))}
               />
             </FormControl>
@@ -111,7 +144,9 @@ export default function FactureReglementModal({
             </FormControl>
             <Stack direction="row" spacing={1} justifyContent="flex-end">
               <Button variant="plain" disabled={loading} onClick={onClose}>Annuler</Button>
-              <Button type="submit" loading={loading}>Enregistrer le règlement</Button>
+              <Button type="submit" loading={loading}>
+                {isTotal ? 'Marquer payée totalement' : 'Enregistrer le paiement partiel'}
+              </Button>
             </Stack>
           </Stack>
         </Box>

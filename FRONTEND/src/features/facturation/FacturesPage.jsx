@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Button, Card, Chip, IconButton, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
-import { Eye, Plus, Printer, Receipt, Search, Trash2 } from 'lucide-react';
+import { Eye, Plus, Printer, Receipt, Search, Trash2, Wallet } from 'lucide-react';
 import AppPagination from '../../components/ui/AppPagination.jsx';
 import ConfirmModal from '../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../constants/permissions.js';
@@ -25,7 +25,8 @@ import {
   formatFc,
   patientLabel,
 } from './facturationConstants.js';
-import { deleteFactureApi, fetchFacturesApi, openFacturePdfApi } from './facturationApi.js';
+import FactureReglementModal from './components/FactureReglementModal.jsx';
+import { deleteFactureApi, fetchFacturesApi, openFacturePdfApi, reglerFactureApi } from './facturationApi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_FACTURE_PAGE_SIZE, total: 0, totalPages: 0 };
 
@@ -36,6 +37,7 @@ export default function FacturesPage() {
   const canCreate = hasPermission(PERMISSIONS.FACTURATION.FACTURE_CREATE);
   const canDelete = hasPermission(PERMISSIONS.FACTURATION.FACTURE_DELETE);
   const canExport = hasPermission(PERMISSIONS.FACTURATION.FACTURE_EXPORT);
+  const canRegler = hasPermission(PERMISSIONS.FACTURATION.FACTURE_REGLER);
 
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState(EMPTY_PAGINATION);
@@ -48,6 +50,9 @@ export default function FacturesPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_FACTURE_PAGE_SIZE);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingPay, setPendingPay] = useState(null);
+  const [reglementLoading, setReglementLoading] = useState(false);
+  const [reglementError, setReglementError] = useState('');
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   useEffect(() => {
@@ -78,6 +83,22 @@ export default function FacturesPage() {
   }, [page, limit, debouncedSearch, statut, categorie]);
 
   useEffect(() => { load(page); }, [load, page]);
+
+  const handleRegler = async (payload) => {
+    if (!pendingPay) return;
+    setReglementLoading(true);
+    setReglementError('');
+    try {
+      const updated = await reglerFactureApi(pendingPay.id, payload);
+      setItems((current) => current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+      setPendingPay(null);
+      showSuccess(Number(updated.montantReste) <= 0 ? 'Facture marquée payée totalement.' : 'Paiement partiel enregistré.');
+    } catch (error) {
+      setReglementError(error.message || 'Règlement impossible.');
+    } finally {
+      setReglementLoading(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!pendingDelete) return;
@@ -232,6 +253,17 @@ export default function FacturesPage() {
                           <Printer size={16} />
                         </IconButton>
                       ) : null}
+                      {canRegler && item.statut === 'VALIDEE' && Number(item.montantReste) > 0 ? (
+                        <IconButton
+                          size="sm"
+                          variant="plain"
+                          color="primary"
+                          title="Marquer comme payée"
+                          onClick={() => { setReglementError(''); setPendingPay(item); }}
+                        >
+                          <Wallet size={16} />
+                        </IconButton>
+                      ) : null}
                       {canDelete && item.statut === 'BROUILLON' ? (
                         <IconButton size="sm" variant="plain" color="danger" onClick={() => setPendingDelete(item)}>
                           <Trash2 size={16} />
@@ -255,6 +287,14 @@ export default function FacturesPage() {
           onLimitChange={setLimit}
         />
       </Stack>
+      <FactureReglementModal
+        open={Boolean(pendingPay)}
+        reste={Number(pendingPay?.montantReste) || 0}
+        loading={reglementLoading}
+        error={reglementError}
+        onClose={() => setPendingPay(null)}
+        onSubmit={handleRegler}
+      />
       <ConfirmModal
         open={Boolean(pendingDelete)}
         title="Supprimer la facture"
