@@ -153,13 +153,13 @@ final class AptitudeService
     }
 
     /**
-     * Rapport du filtre courant : synthèse du jour, synthèse par filière, puis le détail des candidats.
+     * Rapport synthétique du filtre courant : totaux par jour, par filière, et jour × filière.
      *
      * @return array{
      *     total: int,
      *     filters: list<string>,
-     *     days: list<array{label: string, count: int, apte: int, inapte: int, filieres: list<array{label: string, count: int, apte: int, inapte: int, rows: list<array{numero: string, candidat: string, sexe: string, verdict: string, statut: string}>}>}>,
-     *     byFiliere: list<array{label: string, count: int, apte: int, inapte: int, taux: string}>
+     *     days: list<array{label: string, count: int, filieres: list<array{label: string, count: int}>}>,
+     *     byFiliere: list<array{label: string, count: int, taux: string}>
      * }
      */
     public function buildJournalReport(AptitudeListQuery $query): array
@@ -185,9 +185,9 @@ final class AptitudeService
         );
 
         $timezone = new \DateTimeZone(self::TIMEZONE);
-        /** @var array<string, array{label: string, filieres: array<string, array{label: string, rows: list<array{numero: string, candidat: string, sexe: string, verdict: string, statut: string, apte: bool, inapte: bool}>}>}> $grouped */
+        /** @var array<string, array{label: string, filieres: array<string, array{label: string, count: int}>}> $grouped */
         $grouped = [];
-        /** @var array<string, array{label: string, count: int, apte: int, inapte: int}> $filiereTotals */
+        /** @var array<string, array{label: string, count: int}> $filiereTotals */
         $filiereTotals = [];
 
         foreach ($items as $item) {
@@ -197,7 +197,6 @@ final class AptitudeService
                 : new \DateTimeImmutable('now', $timezone);
             $dayKey = $local->format('Y-m-d');
             $filiereLabel = $this->filiereLabel($item);
-            $verdict = $item->getVerdict();
 
             $grouped[$dayKey] ??= [
                 'label' => $this->frenchDay($local),
@@ -205,25 +204,12 @@ final class AptitudeService
             ];
             $grouped[$dayKey]['filieres'][$filiereLabel] ??= [
                 'label' => $filiereLabel,
-                'rows' => [],
+                'count' => 0,
             ];
-            $grouped[$dayKey]['filieres'][$filiereLabel]['rows'][] = [
-                'numero' => $item->getNumero() ?? '—',
-                'candidat' => $item->getFullName(),
-                'sexe' => $item->getSexe(),
-                'verdict' => $verdict ?: '—',
-                'statut' => $this->statutExportLabel($item->getStatut()),
-                'apte' => CertificatAptitude::VERDICT_APTE === $verdict,
-                'inapte' => CertificatAptitude::VERDICT_INAPTE === $verdict,
-            ];
+            ++$grouped[$dayKey]['filieres'][$filiereLabel]['count'];
 
-            $filiereTotals[$filiereLabel] ??= ['label' => $filiereLabel, 'count' => 0, 'apte' => 0, 'inapte' => 0];
+            $filiereTotals[$filiereLabel] ??= ['label' => $filiereLabel, 'count' => 0];
             ++$filiereTotals[$filiereLabel]['count'];
-            if (CertificatAptitude::VERDICT_APTE === $verdict) {
-                ++$filiereTotals[$filiereLabel]['apte'];
-            } elseif (CertificatAptitude::VERDICT_INAPTE === $verdict) {
-                ++$filiereTotals[$filiereLabel]['inapte'];
-            }
         }
 
         ksort($grouped);
@@ -232,43 +218,10 @@ final class AptitudeService
         foreach ($grouped as $day) {
             $filieres = array_values($day['filieres']);
             usort($filieres, static fn (array $a, array $b): int => strcasecmp($a['label'], $b['label']));
-            $dayCount = 0;
-            $dayApte = 0;
-            $dayInapte = 0;
-            $filiereRows = [];
-            foreach ($filieres as $filiere) {
-                $count = count($filiere['rows']);
-                $apte = 0;
-                $inapte = 0;
-                $rows = [];
-                foreach ($filiere['rows'] as $row) {
-                    $apte += $row['apte'] ? 1 : 0;
-                    $inapte += $row['inapte'] ? 1 : 0;
-                    $rows[] = [
-                        'numero' => $row['numero'],
-                        'candidat' => $row['candidat'],
-                        'sexe' => $row['sexe'],
-                        'verdict' => $row['verdict'],
-                        'statut' => $row['statut'],
-                    ];
-                }
-                $dayCount += $count;
-                $dayApte += $apte;
-                $dayInapte += $inapte;
-                $filiereRows[] = [
-                    'label' => $filiere['label'],
-                    'count' => $count,
-                    'apte' => $apte,
-                    'inapte' => $inapte,
-                    'rows' => $rows,
-                ];
-            }
             $days[] = [
                 'label' => $day['label'],
-                'count' => $dayCount,
-                'apte' => $dayApte,
-                'inapte' => $dayInapte,
-                'filieres' => $filiereRows,
+                'count' => array_sum(array_column($filieres, 'count')),
+                'filieres' => $filieres,
             ];
         }
 

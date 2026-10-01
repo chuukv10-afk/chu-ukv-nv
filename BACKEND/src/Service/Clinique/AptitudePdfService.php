@@ -185,8 +185,8 @@ HTML,
      * @param array{
      *     total: int,
      *     filters: list<string>,
-     *     days: list<array{label: string, count: int, apte: int, inapte: int, filieres: list<array{label: string, count: int, apte: int, inapte: int, rows: list<array{numero: string, candidat: string, sexe: string, verdict: string, statut: string}>}>}>,
-     *     byFiliere: list<array{label: string, count: int, apte: int, inapte: int, taux: string}>
+     *     days: list<array{label: string, count: int, filieres: list<array{label: string, count: int}>}>,
+     *     byFiliere: list<array{label: string, count: int, taux: string}>
      * } $report
      */
     public function createJournalReportResponse(array $report, string $generatedBy = ''): Response
@@ -197,7 +197,7 @@ HTML,
             $this->renderJournalReport($report),
             $generatedBy,
             $now,
-            'landscape',
+            'portrait',
             $this->layoutProvider->formatOfficialDateLine($now),
             $generatedBy,
         );
@@ -205,7 +205,7 @@ HTML,
         return $this->pdfExportService->createDownloadResponse(
             $html,
             'rapport-aptitude-physique.pdf',
-            'landscape',
+            'portrait',
             inline: true,
         );
     }
@@ -214,8 +214,8 @@ HTML,
      * @param array{
      *     total: int,
      *     filters: list<string>,
-     *     days: list<array{label: string, count: int, apte: int, inapte: int, filieres: list<array{label: string, count: int, apte: int, inapte: int, rows: list<array{numero: string, candidat: string, sexe: string, verdict: string, statut: string}>}>}>,
-     *     byFiliere: list<array{label: string, count: int, apte: int, inapte: int, taux: string}>
+     *     days: list<array{label: string, count: int, filieres: list<array{label: string, count: int}>}>,
+     *     byFiliere: list<array{label: string, count: int, taux: string}>
      * } $report
      */
     private function renderJournalReport(array $report): string
@@ -235,78 +235,53 @@ HTML,
         $dayRows = '';
         foreach ($report['days'] as $day) {
             $dayRows .= sprintf(
-                '<tr><td>%s</td><td style="text-align:center;">%d</td><td style="text-align:center;">%d</td><td style="text-align:center;">%d</td></tr>',
+                '<tr><td>%s</td><td style="text-align:center;">%d</td></tr>',
                 $this->e($day['label']),
                 $day['count'],
-                $day['apte'],
-                $day['inapte'],
             );
         }
 
         $filiereRows = '';
         foreach ($report['byFiliere'] as $filiere) {
             $filiereRows .= sprintf(
-                '<tr><td>%s</td><td style="text-align:center;">%d</td><td style="text-align:center;">%d</td><td style="text-align:center;">%d</td><td style="text-align:center;">%s</td></tr>',
+                '<tr><td>%s</td><td style="text-align:center;">%d</td><td style="text-align:center;">%s</td></tr>',
                 $this->e($filiere['label']),
                 $filiere['count'],
-                $filiere['apte'],
-                $filiere['inapte'],
                 $this->e($filiere['taux']),
             );
         }
 
-        $detail = '';
+        $crossRows = '';
         foreach ($report['days'] as $day) {
-            $detail .= '<h2 style="font-size:13px;margin:16px 0 6px;">'
-                . $this->e($day['label'])
-                . ' — ' . $day['count'] . ' certificat(s)'
-                . ' · APTE ' . $day['apte']
-                . ' · INAPTE ' . $day['inapte']
-                . '</h2>';
             foreach ($day['filieres'] as $filiere) {
-                $names = '';
-                $index = 0;
-                foreach ($filiere['rows'] as $row) {
-                    ++$index;
-                    $names .= sprintf(
-                        '<tr><td style="text-align:center;">%d</td><td>%s</td><td>%s</td><td style="text-align:center;">%s</td><td style="text-align:center;">%s</td><td style="text-align:center;">%s</td></tr>',
-                        $index,
-                        $this->e($row['numero']),
-                        $this->e($row['candidat']),
-                        $this->e($row['sexe']),
-                        $this->e($row['verdict']),
-                        $this->e($row['statut']),
-                    );
-                }
-                $detail .= '<h3 style="font-size:11px;margin:10px 0 4px;">'
-                    . $this->e($filiere['label'])
-                    . ' — ' . $filiere['count']
-                    . ' · APTE ' . $filiere['apte']
-                    . ' · INAPTE ' . $filiere['inapte']
-                    . '</h3>'
-                    . '<table class="chu-table chu-table-fixed"><colgroup>'
-                    . '<col style="width:6%"><col style="width:20%"><col style="width:38%"><col style="width:8%"><col style="width:14%"><col style="width:14%">'
-                    . '</colgroup><thead><tr>'
-                    . '<th>N°</th><th>Numéro</th><th>Candidat</th><th>Sexe</th><th>Verdict</th><th>Statut</th>'
-                    . '</tr></thead><tbody>' . $names . '</tbody></table>';
+                $crossRows .= sprintf(
+                    '<tr><td>%s</td><td>%s</td><td style="text-align:center;">%d</td></tr>',
+                    $this->e($day['label']),
+                    $this->e($filiere['label']),
+                    $filiere['count'],
+                );
             }
         }
 
         return $intro
             . '<h2 style="font-size:13px;margin:12px 0 6px;">Jour par jour</h2>'
             . '<table class="chu-table chu-table-fixed"><colgroup>'
-            . '<col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%">'
-            . '</colgroup><thead><tr><th>Jour</th><th>Effectif</th><th>APTE</th><th>INAPTE</th></tr></thead><tbody>'
+            . '<col style="width:70%"><col style="width:30%">'
+            . '</colgroup><thead><tr><th>Jour</th><th>Effectif</th></tr></thead><tbody>'
             . $dayRows
             . '</tbody></table>'
             . '<h2 style="font-size:13px;margin:14px 0 6px;">Par filière</h2>'
             . '<table class="chu-table chu-table-fixed"><colgroup>'
-            . '<col style="width:40%"><col style="width:15%"><col style="width:15%"><col style="width:15%"><col style="width:15%">'
-            . '</colgroup><thead><tr><th>Filière</th><th>Effectif</th><th>APTE</th><th>INAPTE</th><th>Taux</th></tr></thead><tbody>'
+            . '<col style="width:50%"><col style="width:25%"><col style="width:25%">'
+            . '</colgroup><thead><tr><th>Filière</th><th>Effectif</th><th>Taux</th></tr></thead><tbody>'
             . $filiereRows
             . '</tbody></table>'
-            . '<h2 style="font-size:13px;margin:16px 0 6px;">Détail</h2>'
-            . $detail;
+            . '<h2 style="font-size:13px;margin:14px 0 6px;">Jour et filière</h2>'
+            . '<table class="chu-table chu-table-fixed"><colgroup>'
+            . '<col style="width:35%"><col style="width:45%"><col style="width:20%">'
+            . '</colgroup><thead><tr><th>Jour</th><th>Filière</th><th>Effectif</th></tr></thead><tbody>'
+            . $crossRows
+            . '</tbody></table>';
     }
 
     private function renderBody(CertificatAptitude $certificat): string
