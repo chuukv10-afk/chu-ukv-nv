@@ -6,8 +6,6 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 final class ExportFichesImprimablesInput
 {
-    public const MAX_MEDICAMENTS = 40;
-
     /**
      * @param list<int> $medicamentIds
      */
@@ -26,9 +24,7 @@ final class ExportFichesImprimablesInput
 
         #[Assert\Count(
             min: 1,
-            max: self::MAX_MEDICAMENTS,
             minMessage: 'Sélectionnez au moins un médicament.',
-            maxMessage: 'Maximum {{ limit }} médicaments par génération. Réduisez le pourcentage.',
         )]
         #[Assert\All([
             new Assert\Type('integer'),

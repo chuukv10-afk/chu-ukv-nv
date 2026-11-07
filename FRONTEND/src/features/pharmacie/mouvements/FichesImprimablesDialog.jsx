@@ -4,11 +4,7 @@ import {
   Stack, Typography,
 } from '@mui/joy';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import {
-  FICHES_IMPRIMABLES_MAX,
-  clampFichePercent,
-  splitFichesByPercent,
-} from './fichesImprimables.js';
+import { clampFichePercent, splitFichesByPercent } from './fichesImprimables.js';
 
 const PERCENT_PRESETS = [10, 25, 50];
 
@@ -40,7 +36,6 @@ export default function FichesImprimablesDialog({
   const safePageIndex = pages.length === 0 ? 0 : Math.min(pageIndex, pages.length - 1);
   const currentPage = pages[safePageIndex] ?? [];
   const selected = currentPage.filter((item) => !unchecked[item.id]);
-  const tooMany = selected.length > FICHES_IMPRIMABLES_MAX;
 
   const setChecked = (id, checked) => {
     setUnchecked((previous) => {
@@ -148,16 +143,6 @@ export default function FichesImprimablesDialog({
           ))}
         </Box>
 
-        {tooMany ? (
-          <Typography level="body-sm" color="warning">
-            Cette partie compte {selected.length} médicaments. Le serveur en traite {FICHES_IMPRIMABLES_MAX} à la fois : baissez le pourcentage ou décochez-en.
-          </Typography>
-        ) : (
-          <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-            Maximum {FICHES_IMPRIMABLES_MAX} médicaments par génération, pour ne pas saturer la mémoire du serveur.
-          </Typography>
-        )}
-
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
           <Stack direction="row" spacing={0.5} alignItems="center">
             <IconButton
@@ -182,7 +167,7 @@ export default function FichesImprimablesDialog({
           </Stack>
           <Button
             loading={loading}
-            disabled={loading || selected.length === 0 || tooMany}
+            disabled={loading || selected.length === 0}
             onClick={() => onGenerate(selected.map((item) => item.id), safePageIndex + 1, pages.length)}
           >
             Générer la partie {pages.length === 0 ? 0 : safePageIndex + 1}

@@ -1,5 +1,3 @@
-export const FICHES_IMPRIMABLES_MAX = 40;
-
 export function clampFichePercent(value) {
   const parsed = Math.round(Number(value));
   if (!Number.isFinite(parsed)) {
