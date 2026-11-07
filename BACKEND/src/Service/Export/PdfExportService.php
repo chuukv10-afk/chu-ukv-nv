@@ -44,6 +44,32 @@ final class PdfExportService
         );
     }
 
+    public function renderLetterhead(string $orientation = 'portrait'): string
+    {
+        return $this->layoutProvider->renderHeader($orientation);
+    }
+
+    public function wrapOfficialDocument(string $contentHtml, string $orientation = 'portrait'): string
+    {
+        return $this->layoutProvider->buildDocument(
+            '',
+            $contentHtml,
+            '',
+            new \DateTimeImmutable(),
+            $orientation,
+            null,
+            null,
+            null,
+            false,
+            true,
+        );
+    }
+
+    public function renderPdfBinary(string $html, string $orientation = 'portrait'): string
+    {
+        return (string) $this->createDownloadResponse($html, 'document.pdf', $orientation, false)->getContent();
+    }
+
     public function createDownloadResponse(
         string $html,
         string $filename,

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Card, Chip, FormControl, FormLabel, Input, Option, Select, Sheet, Stack, Table, Typography,
+  Box, Button, Card, Chip, FormControl, FormLabel, Input, Option, Select, Sheet, Stack, Table, Typography,
 } from '@mui/joy';
-import { ArrowLeftRight, Search } from 'lucide-react';
+import { ArrowLeftRight, Printer, Search } from 'lucide-react';
 import AppPagination from '../../../components/ui/AppPagination.jsx';
 import ExportButtons from '../../../components/export/ExportButtons.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
@@ -20,7 +20,7 @@ import {
   MOUVEMENT_PAGE_SIZE_OPTIONS,
   MOUVEMENT_TYPE_LABELS,
 } from './mouvementConstants.js';
-import { exportFichesStockApi, fetchMouvementsApi } from './mouvementsApi.js';
+import { downloadFichesImprimablesApi, exportFichesStockApi, fetchMouvementsApi } from './mouvementsApi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_MOUVEMENT_PAGE_SIZE, total: 0, totalPages: 0 };
 
@@ -94,6 +94,21 @@ export default function MouvementsPage() {
     }
   };
 
+  const handleImprimables = async () => {
+    setExportLoading('imprimables');
+    try {
+      await downloadFichesImprimablesApi({
+        dateFrom: range.dateFrom,
+        dateTo: range.dateTo,
+      });
+      showSuccess('Archive téléchargée : un PDF pour tous les médicaments actifs, et un PDF par médicament.');
+    } catch (error) {
+      showError(error.message || 'Génération des fiches à compléter impossible.');
+    } finally {
+      setExportLoading(null);
+    }
+  };
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack spacing={2.5}>
@@ -108,7 +123,18 @@ export default function MouvementsPage() {
             </Box>
           </Stack>
           {canExport ? (
-            <ExportButtons onExport={handleExport} loading={exportLoading} />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button
+                variant="solid"
+                startDecorator={<Printer size={18} />}
+                loading={exportLoading === 'imprimables'}
+                disabled={Boolean(exportLoading)}
+                onClick={handleImprimables}
+              >
+                Fiches à compléter
+              </Button>
+              <ExportButtons onExport={handleExport} loading={exportLoading} />
+            </Stack>
           ) : null}
         </Stack>
 
@@ -150,9 +176,14 @@ export default function MouvementsPage() {
               ) : null}
             </Stack>
             {canExport ? (
-              <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                PDF / Excel : une fiche par médicament (stock d’ouverture, mouvements, solde). Sans sélection, tous les produits concernés par la période.
-              </Typography>
+              <Stack spacing={0.5}>
+                <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                  PDF / Excel : une fiche par médicament (stock d’ouverture, mouvements, solde). Sans sélection, tous les produits concernés par la période.
+                </Typography>
+                <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
+                  Fiches à compléter : tous les médicaments actifs, sur la période choisie. L’archive contient un PDF global et un PDF par médicament, avec des lignes vierges jusqu’en bas de page.
+                </Typography>
+              </Stack>
             ) : null}
           </Stack>
         </Card>

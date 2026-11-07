@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\Medicament;
 use App\Entity\MouvementStock;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -69,6 +70,29 @@ class MouvementStockRepository extends ServiceEntityRepository
             ->addOrderBy('mv.id', 'ASC');
 
         $this->applyMedicamentFilter($qb, $medicamentId);
+        $this->applyPeriod($qb, $dateFrom, $dateTo);
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
+     * Mouvements des médicaments actifs, du plus ancien au plus récent.
+     *
+     * @return list<MouvementStock>
+     */
+    public function findForFicheActifs(?string $dateFrom, ?string $dateTo): array
+    {
+        $qb = $this->createQueryBuilder('mv')
+            ->leftJoin('mv.lot', 'l')->addSelect('l')
+            ->leftJoin('l.medicament', 'm')->addSelect('m')
+            ->leftJoin('m.unite', 'u')->addSelect('u')
+            ->leftJoin('m.famille', 'f')->addSelect('f')
+            ->andWhere('m.statut = :statut')
+            ->setParameter('statut', Medicament::STATUT_ACTIF)
+            ->orderBy('m.libelle', 'ASC')
+            ->addOrderBy('mv.createdAt', 'ASC')
+            ->addOrderBy('mv.id', 'ASC');
+
         $this->applyPeriod($qb, $dateFrom, $dateTo);
 
         return $qb->getQuery()->getResult();

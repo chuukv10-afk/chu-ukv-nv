@@ -41,4 +41,13 @@ final class MouvementsController extends AbstractController
     ): Response {
         return $ficheStockService->export($request, $query);
     }
+
+    #[Route('/fiches-stock/imprimables', name: 'api_pharmacie_mouvements_fiches_imprimables', methods: ['GET'])]
+    #[IsGranted(PharmaciePermissions::MOUVEMENT_EXPORT)]
+    public function exportFichesImprimables(
+        FicheStockService $ficheStockService,
+        #[MapQueryString] PharmacieListQuery $query = new PharmacieListQuery(),
+    ): Response {
+        return $ficheStockService->exportImprimablesActifs($query);
+    }
 }
