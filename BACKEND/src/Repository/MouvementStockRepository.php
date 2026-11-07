@@ -76,18 +76,25 @@ class MouvementStockRepository extends ServiceEntityRepository
     }
 
     /**
-     * Mouvements des médicaments actifs, du plus ancien au plus récent.
+     * Mouvements d'une sélection de médicaments, du plus ancien au plus récent.
      *
+     * @param list<int> $medicamentIds
      * @return list<MouvementStock>
      */
-    public function findForFicheActifs(?string $dateFrom, ?string $dateTo): array
+    public function findForFicheByMedicaments(array $medicamentIds, ?string $dateFrom, ?string $dateTo): array
     {
+        if ([] === $medicamentIds) {
+            return [];
+        }
+
         $qb = $this->createQueryBuilder('mv')
             ->leftJoin('mv.lot', 'l')->addSelect('l')
             ->leftJoin('l.medicament', 'm')->addSelect('m')
             ->leftJoin('m.unite', 'u')->addSelect('u')
             ->leftJoin('m.famille', 'f')->addSelect('f')
+            ->andWhere('m.id IN (:ids)')
             ->andWhere('m.statut = :statut')
+            ->setParameter('ids', $medicamentIds)
             ->setParameter('statut', Medicament::STATUT_ACTIF)
             ->orderBy('m.libelle', 'ASC')
             ->addOrderBy('mv.createdAt', 'ASC')
@@ -136,6 +143,38 @@ class MouvementStockRepository extends ServiceEntityRepository
             ->select('IDENTITY(l.medicament) AS medicamentId, mv.sens AS sens, COALESCE(SUM(mv.quantite), 0) AS qte')
             ->innerJoin('mv.lot', 'l')
             ->andWhere('mv.createdAt < :before')
+            ->setParameter('before', new \DateTimeImmutable($dateFrom . ' 00:00:00'))
+            ->groupBy('l.medicament')
+            ->addGroupBy('mv.sens')
+            ->getQuery()
+            ->getScalarResult();
+
+        $totals = [];
+        foreach ($rows as $row) {
+            $id = (int) $row['medicamentId'];
+            $qty = (int) $row['qte'];
+            $totals[$id] = ($totals[$id] ?? 0) + (MouvementStock::SENS_ENTREE === $row['sens'] ? $qty : -$qty);
+        }
+
+        return $totals;
+    }
+
+    /**
+     * @param list<int> $medicamentIds
+     * @return array<int, int>
+     */
+    public function signedStockByMedicamentIdsBefore(array $medicamentIds, string $dateFrom): array
+    {
+        if ([] === $medicamentIds) {
+            return [];
+        }
+
+        $rows = $this->createQueryBuilder('mv')
+            ->select('IDENTITY(l.medicament) AS medicamentId, mv.sens AS sens, COALESCE(SUM(mv.quantite), 0) AS qte')
+            ->innerJoin('mv.lot', 'l')
+            ->andWhere('l.medicament IN (:ids)')
+            ->andWhere('mv.createdAt < :before')
+            ->setParameter('ids', $medicamentIds)
             ->setParameter('before', new \DateTimeImmutable($dateFrom . ' 00:00:00'))
             ->groupBy('l.medicament')
             ->addGroupBy('mv.sens')

@@ -20,7 +20,8 @@ import {
   MOUVEMENT_PAGE_SIZE_OPTIONS,
   MOUVEMENT_TYPE_LABELS,
 } from './mouvementConstants.js';
-import { downloadFichesImprimablesApi, exportFichesStockApi, fetchMouvementsApi } from './mouvementsApi.js';
+import FichesImprimablesDialog from './FichesImprimablesDialog.jsx';
+import { exportFichesStockApi, fetchMouvementsApi, openFichesImprimablesApi } from './mouvementsApi.js';
 
 const EMPTY_PAGINATION = { page: 1, limit: DEFAULT_MOUVEMENT_PAGE_SIZE, total: 0, totalPages: 0 };
 
@@ -34,6 +35,7 @@ export default function MouvementsPage() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
   const [exportLoading, setExportLoading] = useState(null);
+  const [imprimablesOpen, setImprimablesOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [medicamentId, setMedicamentId] = useState('');
@@ -94,16 +96,19 @@ export default function MouvementsPage() {
     }
   };
 
-  const handleImprimables = async () => {
+  const handleImprimables = async (medicamentIds, partie, parties) => {
     setExportLoading('imprimables');
     try {
-      await downloadFichesImprimablesApi({
+      await openFichesImprimablesApi({
+        medicamentIds,
         dateFrom: range.dateFrom,
         dateTo: range.dateTo,
+        partie,
+        parties,
       });
-      showSuccess('Archive téléchargée : un PDF pour tous les médicaments actifs, et un PDF par médicament.');
+      showSuccess(`Partie ${partie}/${parties} ouverte : un PDF, une page par médicament.`);
     } catch (error) {
-      showError(error.message || 'Génération des fiches à compléter impossible.');
+      showError(error.payload?.errors?.[0]?.message || error.message || 'Génération des fiches à compléter impossible.');
     } finally {
       setExportLoading(null);
     }
@@ -129,7 +134,7 @@ export default function MouvementsPage() {
                 startDecorator={<Printer size={18} />}
                 loading={exportLoading === 'imprimables'}
                 disabled={Boolean(exportLoading)}
-                onClick={handleImprimables}
+                onClick={() => setImprimablesOpen(true)}
               >
                 Fiches à compléter
               </Button>
@@ -181,7 +186,7 @@ export default function MouvementsPage() {
                   PDF / Excel : une fiche par médicament (stock d’ouverture, mouvements, solde). Sans sélection, tous les produits concernés par la période.
                 </Typography>
                 <Typography level="body-xs" sx={{ color: 'neutral.500' }}>
-                  Fiches à compléter : tous les médicaments actifs, sur la période choisie. L’archive contient un PDF global et un PDF par médicament, avec des lignes vierges jusqu’en bas de page.
+                  Fiches à compléter : un PDF par partie, avec une page par médicament, sur la période choisie.
                 </Typography>
               </Stack>
             ) : null}
@@ -237,6 +242,14 @@ export default function MouvementsPage() {
             </tbody>
           </Table>
         </Sheet>
+
+        <FichesImprimablesDialog
+          open={imprimablesOpen}
+          medicaments={medicaments}
+          loading={exportLoading === 'imprimables'}
+          onClose={() => setImprimablesOpen(false)}
+          onGenerate={handleImprimables}
+        />
 
         <AppPagination
           page={pagination.page}

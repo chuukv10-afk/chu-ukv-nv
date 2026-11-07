@@ -1,5 +1,5 @@
 import { pharmacie } from '../../../api/endpoints.js';
-import { callApiGet, downloadFile } from '../../../api/apiClient.js';
+import { callApiGet, openFileFromRequest } from '../../../api/apiClient.js';
 import { exportResourceApi } from '../../../utils/exportApi.js';
 import { buildQueryString, paginatedResult, unwrapData } from '../shared/pharmacieApi.js';
 
@@ -12,11 +12,10 @@ export async function exportFichesStockApi(format, params = {}) {
   return exportResourceApi(`${pharmacie.mouvements}/fiches-stock`, format, params);
 }
 
-export async function downloadFichesImprimablesApi(params = {}) {
-  await downloadFile(
-    `${pharmacie.mouvements}/fiches-stock/imprimables${buildQueryString(params)}`,
-    'GET',
-    null,
-    'fiches-stock-actives.zip',
+export async function openFichesImprimablesApi(payload) {
+  await openFileFromRequest(
+    `${pharmacie.mouvements}/fiches-stock/imprimables`,
+    'POST',
+    payload,
   );
 }

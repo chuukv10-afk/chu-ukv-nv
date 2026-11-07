@@ -569,8 +569,8 @@ export async function downloadFile(endpoint, method = 'GET', body = null, fallba
   URL.revokeObjectURL(objectUrl);
 }
 
-export async function openFileInBrowser(endpoint) {
-  const response = await fetchFile(endpoint);
+export async function openFileFromRequest(endpoint, method = 'GET', body = null) {
+  const response = await fetchFile(endpoint, method, body);
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
   const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer');
@@ -581,6 +581,10 @@ export async function openFileInBrowser(endpoint) {
   }
 
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
+}
+
+export async function openFileInBrowser(endpoint) {
+  return openFileFromRequest(endpoint, 'GET');
 }
 
 export const callApiGet = (endpoint) => callApi(endpoint, 'GET');

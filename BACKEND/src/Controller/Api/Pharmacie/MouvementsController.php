@@ -3,6 +3,7 @@
 namespace App\Controller\Api\Pharmacie;
 
 use App\Controller\Api\Trait\JsonResponseTrait;
+use App\DTO\Pharmacie\ExportFichesImprimablesInput;
 use App\DTO\Pharmacie\PharmacieListQuery;
 use App\Security\Permission\PharmaciePermissions;
 use App\Service\Pharmacie\FicheStockService;
@@ -12,6 +13,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapQueryString;
+use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -42,12 +44,12 @@ final class MouvementsController extends AbstractController
         return $ficheStockService->export($request, $query);
     }
 
-    #[Route('/fiches-stock/imprimables', name: 'api_pharmacie_mouvements_fiches_imprimables', methods: ['GET'])]
+    #[Route('/fiches-stock/imprimables', name: 'api_pharmacie_mouvements_fiches_imprimables', methods: ['POST'])]
     #[IsGranted(PharmaciePermissions::MOUVEMENT_EXPORT)]
     public function exportFichesImprimables(
         FicheStockService $ficheStockService,
-        #[MapQueryString] PharmacieListQuery $query = new PharmacieListQuery(),
+        #[MapRequestPayload] ExportFichesImprimablesInput $input,
     ): Response {
-        return $ficheStockService->exportImprimablesActifs($query);
+        return $ficheStockService->exportImprimablesActifs($input);
     }
 }

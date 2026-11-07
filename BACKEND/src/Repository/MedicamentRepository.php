@@ -101,6 +101,28 @@ class MedicamentRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * @param list<int> $ids
+     * @return list<Medicament>
+     */
+    public function findActifsByIds(array $ids): array
+    {
+        if ([] === $ids) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('m')
+            ->leftJoin('m.unite', 'u')->addSelect('u')
+            ->leftJoin('m.famille', 'f')->addSelect('f')
+            ->andWhere('m.statut = :statut')
+            ->andWhere('m.id IN (:ids)')
+            ->setParameter('statut', Medicament::STATUT_ACTIF)
+            ->setParameter('ids', $ids)
+            ->orderBy('m.libelle', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function countByUnite(UniteMedicament $unite): int
     {
         return (int) $this->createQueryBuilder('m')

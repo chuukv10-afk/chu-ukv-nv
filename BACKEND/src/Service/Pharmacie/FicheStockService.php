@@ -2,6 +2,7 @@
 
 namespace App\Service\Pharmacie;
 
+use App\DTO\Pharmacie\ExportFichesImprimablesInput;
 use App\DTO\Pharmacie\PharmacieListQuery;
 use App\Entity\Medicament;
 use App\Entity\MouvementStock;
@@ -350,92 +351,55 @@ final class FicheStockService
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
-    public function exportImprimablesActifs(PharmacieListQuery $query): Response
+    public function exportImprimablesActifs(ExportFichesImprimablesInput $input): Response
     {
-        $errors = $this->validator->validate($query);
+        $errors = $this->validator->validate($input);
         if (count($errors) > 0) {
-            throw new ValidationFailedException($query, $errors);
-        }
-
-        if (!class_exists(\ZipArchive::class)) {
-            throw new BadRequestHttpException('L\'extension PHP zip est requise pour générer les fiches à compléter.');
+            throw new ValidationFailedException($input, $errors);
         }
 
         @set_time_limit(0);
-        $previousLimit = ini_get('memory_limit');
-        if (false !== $previousLimit && $this->memoryLimitBytes($previousLimit) < 1024 * 1024 * 1024) {
-            ini_set('memory_limit', '1024M');
+
+        $query = new PharmacieListQuery(dateFrom: $input->dateFrom, dateTo: $input->dateTo);
+        $fiches = $this->buildFichesForIds($query, $input->medicamentIds);
+        if ([] === $fiches) {
+            throw new BadRequestHttpException('Aucun médicament actif dans la sélection.');
         }
+        $this->mouvementStockRepository->getEntityManager()->clear();
+        gc_collect_cycles();
 
-        $zipPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'fiches_stock_' . bin2hex(random_bytes(8)) . '.zip';
-        $zip = new \ZipArchive();
-        $zipOpen = false;
+        $html = $this->pdfExportService->wrapOfficialDocument(
+            $this->buildPrintableDocumentHtml($fiches, $query),
+        );
+        $pdf = $this->pdfExportService->renderPdfBinary($html);
+        unset($html);
+        gc_collect_cycles();
 
-        try {
-            $fiches = $this->buildFichesActives($query);
-            $combinedHtml = $this->pdfExportService->wrapOfficialDocument(
-                $this->buildPrintableDocumentHtml($fiches, $query),
-            );
-            $combinedPdf = $this->pdfExportService->renderPdfBinary($combinedHtml);
-            unset($combinedHtml);
+        $filename = $this->imprimablesFilename($input->partie, $input->parties);
 
-            if (true !== $zip->open($zipPath, \ZipArchive::CREATE)) {
-                throw new \RuntimeException('Impossible de créer l\'archive des fiches.');
-            }
-            $zipOpen = true;
-
-            $zip->addFromString('toutes-les-fiches.pdf', $combinedPdf);
-            unset($combinedPdf);
-
-            $usedNames = [];
-            foreach ($fiches as $fiche) {
-                $singleHtml = $this->pdfExportService->wrapOfficialDocument(
-                    $this->buildPrintableDocumentHtml([$fiche], $query),
-                );
-                $singlePdf = $this->pdfExportService->renderPdfBinary($singleHtml);
-                unset($singleHtml);
-                $zip->addFromString('medicaments/' . $this->printablePdfName($fiche, $usedNames), $singlePdf);
-                unset($singlePdf);
-            }
-
-            $zip->close();
-            $zipOpen = false;
-            $content = file_get_contents($zipPath);
-            if (false === $content) {
-                throw new \RuntimeException('Impossible de lire l\'archive des fiches.');
-            }
-
-            $filename = 'fiches_stock_actives_' . (new \DateTimeImmutable())->format('Ymd_His') . '.zip';
-
-            return new Response($content, Response::HTTP_OK, [
-                'Content-Type' => 'application/zip',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-                'X-Export-Filename' => $filename,
-            ]);
-        } finally {
-            if ($zipOpen) {
-                $zip->close();
-            }
-            if (is_file($zipPath)) {
-                unlink($zipPath);
-            }
-            if (is_string($previousLimit) && '' !== $previousLimit) {
-                ini_set('memory_limit', $previousLimit);
-            }
-        }
+        return new Response($pdf, Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'X-Export-Filename' => $filename,
+        ]);
     }
 
     /**
+     * @param list<int> $medicamentIds
      * @return list<array<string, mixed>>
      */
-    private function buildFichesActives(PharmacieListQuery $query): array
+    private function buildFichesForIds(PharmacieListQuery $query, array $medicamentIds): array
     {
-        $actifs = $this->medicamentRepository->findActifs();
-        $mouvements = $this->mouvementStockRepository->findForFicheActifs($query->dateFrom, $query->dateTo);
+        $actifs = $this->medicamentRepository->findActifsByIds($medicamentIds);
+        $mouvements = $this->mouvementStockRepository->findForFicheByMedicaments(
+            $medicamentIds,
+            $query->dateFrom,
+            $query->dateTo,
+        );
 
         $openings = [];
         if (null !== $query->dateFrom && '' !== $query->dateFrom) {
-            $openings = $this->mouvementStockRepository->signedStockByMedicamentBefore($query->dateFrom);
+            $openings = $this->mouvementStockRepository->signedStockByMedicamentIdsBefore($medicamentIds, $query->dateFrom);
         }
 
         $byMedicament = [];
@@ -613,25 +577,14 @@ final class FicheStockService
         return $count + ($next - $remainder);
     }
 
-    /**
-     * @param array<string, mixed> $fiche
-     * @param array<string, true> $usedNames
-     */
-    private function printablePdfName(array $fiche, array &$usedNames): string
+    private function imprimablesFilename(?int $partie, ?int $parties): string
     {
-        $code = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string) $fiche['code']) ?? '';
-        $code = trim((string) $code, '-.');
-        if ('' === $code) {
-            $code = 'medicament';
+        $stamp = (new \DateTimeImmutable())->format('Ymd_His');
+        if (null !== $partie && null !== $parties) {
+            return sprintf('fiches_stock_partie_%d_sur_%d_%s.pdf', $partie, $parties, $stamp);
         }
 
-        $name = $code . '-' . $fiche['id'] . '.pdf';
-        if (isset($usedNames[$name])) {
-            $name = $code . '-' . $fiche['id'] . '-' . count($usedNames) . '.pdf';
-        }
-        $usedNames[$name] = true;
-
-        return $name;
+        return 'fiches_stock_partie_' . $stamp . '.pdf';
     }
 
     private function clip(string $value, int $max): string
@@ -686,29 +639,5 @@ table.fiche-grid tr.fiche-ouverture td {
 table.fiche-grid tr.fiche-vide td { height: 20px; }
 </style>
 HTML;
-    }
-
-    private function memoryLimitBytes(string $limit): int
-    {
-        $normalized = strtoupper(trim($limit));
-        if ('-1' === $normalized) {
-            return PHP_INT_MAX;
-        }
-
-        $factor = 1;
-        $unit = substr($normalized, -1);
-        $value = $normalized;
-        if ('G' === $unit) {
-            $factor = 1024 * 1024 * 1024;
-            $value = substr($normalized, 0, -1);
-        } elseif ('M' === $unit) {
-            $factor = 1024 * 1024;
-            $value = substr($normalized, 0, -1);
-        } elseif ('K' === $unit) {
-            $factor = 1024;
-            $value = substr($normalized, 0, -1);
-        }
-
-        return (int) $value * $factor;
     }
 }
