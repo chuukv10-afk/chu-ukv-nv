@@ -1,5 +1,6 @@
 export const MOUVEMENT_TYPE_LABELS = {
   ENTREE_RECEPTION: 'Entrée réception',
+  SORTIE_ANNULATION_RECEPTION: 'Annulation réception',
   SORTIE_VENTE: 'Sortie vente',
   ENTREE_ANNULATION_VENTE: 'Retour annulation vente',
   SORTIE_SERVICE: 'Sortie service',

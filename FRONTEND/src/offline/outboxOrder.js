@@ -12,6 +12,7 @@ const ACTION_RANK = [
   [/^pharmacie\.reception\.update$/, 32],
   [/^pharmacie\.reception\.delete$/, 33],
   [/^pharmacie\.reception\.valider$/, 40],
+  [/^pharmacie\.reception\.annuler$/, 41],
   [/^pharmacie\.lot\.update$/, 45],
   [/^pharmacie\.ajustement\.create$/, 50],
   [/^pharmacie\.vente\.create$/, 60],

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Box, Button, Card, Chip, FormControl, FormHelperText, FormLabel, IconButton, Input, Option, Select, Stack, Typography,
+  Box, Button, Card, Chip, FormControl, FormHelperText, FormLabel, IconButton, Input, Modal, ModalDialog, Option, Select, Stack, Typography,
 } from '@mui/joy';
-import { ArrowLeft, Check, PackagePlus, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Check, PackagePlus, Plus, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ui/ConfirmModal.jsx';
 import { PERMISSIONS } from '../../../constants/permissions.js';
 import { ROUTES } from '../../../constants/routes.js';
@@ -26,6 +26,7 @@ import {
   emptyReceptionForm,
 } from './receptionConstants.js';
 import {
+  annulerReceptionApi,
   createReceptionApi,
   deleteReceptionApi,
   fetchReceptionApi,
@@ -70,6 +71,7 @@ export default function ReceptionFormPage() {
   const canUpdate = hasPermission(PERMISSIONS.PHARMACIE.RECEPTION_UPDATE);
   const canDelete = hasPermission(PERMISSIONS.PHARMACIE.RECEPTION_DELETE);
   const canValider = hasPermission(PERMISSIONS.PHARMACIE.RECEPTION_VALIDER);
+  const canAnnuler = hasPermission(PERMISSIONS.PHARMACIE.RECEPTION_ANNULER);
 
   const [form, setForm] = useState(() => emptyReceptionForm(todayIso()));
   const [reception, setReception] = useState(null);
@@ -80,8 +82,11 @@ export default function ReceptionFormPage() {
   const [error, setError] = useState('');
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [annulerOpen, setAnnulerOpen] = useState(false);
+  const [motif, setMotif] = useState('');
 
-  const readOnly = reception?.statut === 'VALIDEE';
+  const readOnly = reception?.statut === 'VALIDEE' || reception?.statut === 'ANNULEE';
+  const showAnnuler = Boolean(canAnnuler && !isNew && reception?.statut === 'VALIDEE');
   const canSave = isNew ? canCreate : canUpdate && !readOnly;
 
   useEffect(() => {
@@ -261,6 +266,25 @@ export default function ReceptionFormPage() {
     }
   };
 
+  const handleAnnuler = async () => {
+    if (!motif.trim()) {
+      setError('Le motif est obligatoire pour annuler une réception validée.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const cancelled = await annulerReceptionApi(id, motif.trim());
+      setReception(cancelled);
+      setAnnulerOpen(false);
+      showSuccess('Réception annulée, stock retiré.');
+    } catch (err) {
+      setError(err.message || 'Annulation impossible.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     setConfirmLoading(true);
     try {
@@ -317,12 +341,28 @@ export default function ReceptionFormPage() {
                 Valider l’entrée
               </Button>
             ) : null}
+            {showAnnuler ? (
+              <Button
+                variant="outlined"
+                color="danger"
+                startDecorator={<Ban size={16} />}
+                onClick={() => { setMotif(''); setError(''); setAnnulerOpen(true); }}
+                disabled={saving}
+              >
+                Annuler la réception
+              </Button>
+            ) : null}
           </Stack>
         </Stack>
 
         {error ? (
           <Typography level="body-sm" color="danger" sx={{ bgcolor: 'danger.50', p: 1.5, borderRadius: 'md' }}>
             {error}
+          </Typography>
+        ) : null}
+        {reception?.statut === 'ANNULEE' && reception?.motifAnnulation ? (
+          <Typography level="body-sm" sx={{ bgcolor: 'danger.50', p: 1.5, borderRadius: 'md' }}>
+            Motif d’annulation : {reception.motifAnnulation}
           </Typography>
         ) : null}
 
@@ -468,7 +508,7 @@ export default function ReceptionFormPage() {
       <ConfirmModal
         open={confirmAction === 'valider'}
         title="Valider la réception"
-        message="Les lots entreront en stock. Cette action est irréversible."
+        message="Les lots entreront en stock. L’annulation restera possible tant que ce stock n’a pas été vendu ou délivré."
         confirmLabel="Valider l’entrée"
         color="success"
         loading={confirmLoading}
@@ -484,6 +524,28 @@ export default function ReceptionFormPage() {
         onClose={() => setConfirmAction(null)}
         onConfirm={handleDelete}
       />
+      <Modal open={annulerOpen} onClose={() => !saving && setAnnulerOpen(false)}>
+        <ModalDialog sx={{ maxWidth: 480, width: '100%' }}>
+          <Typography level="title-lg" sx={{ fontWeight: 700 }}>Annuler la réception</Typography>
+          <Typography level="body-sm" sx={{ color: 'neutral.600' }}>
+            Le stock encore disponible sur les lots de cette réception sera retiré.
+            Impossible si une partie a déjà été vendue ou délivrée.
+          </Typography>
+          <FormControl required>
+            <FormLabel>Motif</FormLabel>
+            <Input
+              value={motif}
+              onChange={(e) => setMotif(e.target.value)}
+              placeholder="Erreur de saisie, doublon, retour fournisseur…"
+              slotProps={{ input: { maxLength: 255 } }}
+            />
+          </FormControl>
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button variant="plain" color="neutral" onClick={() => setAnnulerOpen(false)} disabled={saving}>Fermer</Button>
+            <Button color="danger" onClick={handleAnnuler} loading={saving}>Confirmer l’annulation</Button>
+          </Stack>
+        </ModalDialog>
+      </Modal>
     </Box>
   );
 }

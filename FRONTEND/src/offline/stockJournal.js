@@ -55,6 +55,14 @@ export function movementsFromOutboxRow(row, medicamentsById = new Map()) {
     }, medicamentsById));
   }
 
+  if (action === 'pharmacie.reception.annuler') {
+    return lignes.map((ligne, index) => movementLine(row, index, 'SORTIE_ANNULATION_RECEPTION', 'SORTIE', ligne, {
+      documentType: 'RECEPTION',
+      motif: payload.motif || '',
+      lot: { id: ligne.lotId, numeroLot: ligne.numeroLot || 'OFF' },
+    }, medicamentsById));
+  }
+
   if (
     action === 'pharmacie.vente.complete'
     || action === 'pharmacie.vente.create_and_valider'

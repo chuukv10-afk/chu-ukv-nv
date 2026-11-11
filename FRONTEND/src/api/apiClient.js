@@ -14,7 +14,7 @@ import { isAuthBypassEndpoint, matchWritePolicy, shouldBypassCache } from '../of
 import { readOfflineSession } from '../offline/session.js';
 import { refreshAccessToken } from '../offline/tokenRefresh.js';
 import { assertPharmacyWrite } from '../offline/pharmacyRules.js';
-import { adjustLocalLot, decrementLocalStock, incrementLocalStock, restoreLocalStock, updateLocalLotMeta } from '../offline/stockLocal.js';
+import { adjustLocalLot, decrementLocalStock, incrementLocalStock, restoreLocalStock, reverseReceptionStock, updateLocalLotMeta } from '../offline/stockLocal.js';
 import { priceVenteLignes } from '../offline/ventePricing.js';
 import { runSyncCycle } from '../offline/syncEngine.js';
 import { isHistoriqueDate, toDateVenteIso } from '../features/pharmacie/ventes/venteConstants.js';
@@ -179,6 +179,11 @@ async function applyLocalStock(action, payload) {
     payload.lignes = lignes;
     await incrementLocalStock(lignes);
   }
+  if (action === 'pharmacie.reception.annuler') {
+    const lignes = await lignesForDocument('reception', payload.id, payload.lignes);
+    payload.lignes = lignes;
+    await reverseReceptionStock(lignes, { strict: true });
+  }
   if (action === 'pharmacie.ajustement.create') {
     payload.medicamentId = await adjustLocalLot(payload.lotId, payload.type, payload.quantite);
   }
@@ -211,6 +216,9 @@ async function enqueueWrite(method, endpoint, body) {
         restoreLignes: policy.action.includes('vente') || policy.action.includes('delivrer') ? lignes : [],
       });
       if (cancelled) {
+        if (pending.action === 'pharmacie.reception.valider') {
+          await reverseReceptionStock(pending.payload?.lignes || pending.optimistic?.lignes || lignes);
+        }
         return {
           success: true,
           offline: true,
@@ -313,7 +321,8 @@ async function buildOptimistic(action, payload) {
     return {
       id: payload.id,
       numero: 'OFF-REC',
-      statut: action.endsWith('.valider') ? 'VALIDEE' : 'BROUILLON',
+      statut: action.endsWith('.annuler') ? 'ANNULEE' : (action.endsWith('.valider') ? 'VALIDEE' : 'BROUILLON'),
+      motifAnnulation: payload.motif || null,
       createdAt: now,
       dateReception: (payload.dateReception || now).toString().slice(0, 10),
       fournisseurId: payload.fournisseurId,

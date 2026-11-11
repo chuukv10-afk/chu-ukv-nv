@@ -402,6 +402,13 @@ export async function assertPharmacyWrite(action, payload = {}) {
     await assertFournisseurActif(next.fournisseurId);
   }
 
+  if (action === 'pharmacie.reception.annuler') {
+    if (!text(next.motif)) {
+      throw fail('Le motif est obligatoire pour annuler une réception validée.');
+    }
+    assertMaxLen(next.motif, 255, 'Le motif est trop long.');
+  }
+
   if (
     action === 'pharmacie.demande_service.create'
     || action === 'pharmacie.demande_service.create_and_delivrer'

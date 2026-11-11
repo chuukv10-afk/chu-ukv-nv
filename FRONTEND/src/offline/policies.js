@@ -31,6 +31,7 @@ export const WRITE_POLICIES = [
   { method: 'POST', test: (path) => path === '/api/v1/pharmacie/receptions', action: 'pharmacie.reception.create', module: 'pharmacie' },
   { method: 'PUT', test: (path) => /\/api\/v1\/pharmacie\/receptions\/[^/]+$/.test(path), action: 'pharmacie.reception.update', module: 'pharmacie', idFromPath: (path) => idFrom(path, /receptions\/([^/]+)$/) },
   { method: 'POST', test: (path) => /\/receptions\/[^/]+\/valider$/.test(path), action: 'pharmacie.reception.valider', module: 'pharmacie', idFromPath: (path) => idFrom(path, /receptions\/([^/]+)\/valider$/) },
+  { method: 'POST', test: (path) => /\/receptions\/[^/]+\/annuler$/.test(path), action: 'pharmacie.reception.annuler', module: 'pharmacie', idFromPath: (path) => idFrom(path, /receptions\/([^/]+)\/annuler$/) },
   { method: 'DELETE', test: (path) => /\/api\/v1\/pharmacie\/receptions\/[^/]+$/.test(path), action: 'pharmacie.reception.delete', module: 'pharmacie', idFromPath: (path) => idFrom(path, /receptions\/([^/]+)$/) },
 
   { method: 'POST', test: (path) => path === '/api/v1/pharmacie/ajustements', action: 'pharmacie.ajustement.create', module: 'pharmacie' },

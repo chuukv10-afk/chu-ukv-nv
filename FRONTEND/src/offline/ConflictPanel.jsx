@@ -28,6 +28,7 @@ const ACTION_LABELS = {
   'pharmacie.reception.create': 'Réception',
   'pharmacie.reception.update': 'Modification de réception',
   'pharmacie.reception.valider': 'Validation de réception',
+  'pharmacie.reception.annuler': 'Annulation de réception',
   'pharmacie.demande_service.create': 'Demande de service',
   'pharmacie.demande_service.create_and_delivrer': 'Approvisionnement de service antérieur',
   'pharmacie.demande_service.delivrer': 'Délivrance service',

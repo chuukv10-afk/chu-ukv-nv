@@ -90,6 +90,7 @@ export const PERMISSIONS = {
     RECEPTION_UPDATE: 'pharmacie.reception.update',
     RECEPTION_DELETE: 'pharmacie.reception.delete',
     RECEPTION_VALIDER: 'pharmacie.reception.valider',
+    RECEPTION_ANNULER: 'pharmacie.reception.annuler',
     LOT_READ: 'pharmacie.lot.read',
     LOT_UPDATE: 'pharmacie.lot.update',
     MOUVEMENT_READ: 'pharmacie.mouvement.read',

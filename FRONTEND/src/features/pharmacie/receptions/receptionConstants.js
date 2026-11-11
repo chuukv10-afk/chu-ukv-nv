@@ -1,6 +1,7 @@
 export const RECEPTION_STATUTS = [
   { value: 'BROUILLON', label: 'Brouillon', color: 'neutral' },
   { value: 'VALIDEE', label: 'Validée', color: 'success' },
+  { value: 'ANNULEE', label: 'Annulée', color: 'danger' },
 ];
 
 export const RECEPTION_STATUT_LABELS = RECEPTION_STATUTS.reduce((acc, item) => {

@@ -32,6 +32,11 @@ export async function validerReceptionApi(id) {
   return unwrapData(response);
 }
 
+export async function annulerReceptionApi(id, motif = '') {
+  const response = await callApiPost(`${pharmacie.receptions}/${id}/annuler`, { motif });
+  return unwrapData(response);
+}
+
 export async function deleteReceptionApi(id) {
   return callApiDelete(`${pharmacie.receptions}/${id}`);
 }

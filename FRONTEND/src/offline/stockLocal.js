@@ -179,18 +179,33 @@ export async function adjustLocalLot(lotId, type, quantite) {
   throw error;
 }
 
-export async function reverseReceptionStock(lignes = []) {
+export async function reverseReceptionStock(lignes = [], { strict = false } = {}) {
   for (const ligne of lignes) {
     const quantite = Number(ligne.quantite || 0);
     if (quantite <= 0) continue;
     const current = await getLocalStock(ligne.medicamentId);
-    if (!current) continue;
+    if (!current) {
+      if (strict) {
+        const error = new Error('Stock local inconnu. Synchronisez avant d’annuler cette réception hors-ligne.');
+        error.offline = true;
+        throw error;
+      }
+      continue;
+    }
     const lots = [...(current.lots || [])];
     const numero = String(ligne.numeroLot || '').trim().toUpperCase();
     const lot = (ligne.lotId != null && ligne.lotId !== ''
       ? lots.find((item) => String(item.id) === String(ligne.lotId))
       : null)
       || (numero ? lots.find((item) => String(item.numeroLot || '').toUpperCase() === numero) : null);
+    const reste = lot ? Number(lot.quantiteRestante || 0) : Number(current.stockDisponible || 0);
+    if (strict && reste < quantite) {
+      const error = new Error(
+        `Impossible d’annuler : le lot ${numero || ''} n’a plus assez de stock (reste ${reste}, réception ${quantite}).`,
+      );
+      error.offline = true;
+      throw error;
+    }
     if (lot) {
       lot.quantiteRestante = Math.max(0, Number(lot.quantiteRestante || 0) - quantite);
     }
@@ -222,6 +237,10 @@ export async function reverseLocalMutationStock(action, payload = {}) {
   }
   if (action === 'pharmacie.reception.valider') {
     await reverseReceptionStock(lignes);
+    return;
+  }
+  if (action === 'pharmacie.reception.annuler') {
+    await incrementLocalStock(lignes);
     return;
   }
   if (action === 'pharmacie.ajustement.create') {

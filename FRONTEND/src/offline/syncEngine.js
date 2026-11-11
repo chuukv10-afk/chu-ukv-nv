@@ -208,6 +208,9 @@ export async function pushOutbox({ retryConflicts = false } = {}) {
       if (item.status === 'pending' && item.action === 'pharmacie.reception.valider') {
         await decrementLocalStock(item.payload?.lignes || []);
       }
+      if (item.status === 'pending' && item.action === 'pharmacie.reception.annuler') {
+        await incrementLocalStock(item.payload?.lignes || []);
+      }
       if (item.status === 'pending' && item.action === 'pharmacie.ajustement.create') {
         const ligne = [{
           medicamentId: item.payload.medicamentId,
