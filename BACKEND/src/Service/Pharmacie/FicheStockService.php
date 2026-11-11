@@ -21,6 +21,7 @@ final class FicheStockService
 {
     private const TYPE_LABELS = [
         MouvementStock::TYPE_ENTREE_RECEPTION => 'Entrée réception',
+        MouvementStock::TYPE_SORTIE_ANNULATION_RECEPTION => 'Annulation réception',
         MouvementStock::TYPE_SORTIE_VENTE => 'Sortie vente',
         MouvementStock::TYPE_ENTREE_ANNULATION_VENTE => 'Retour annulation vente',
         MouvementStock::TYPE_SORTIE_SERVICE => 'Sortie service',

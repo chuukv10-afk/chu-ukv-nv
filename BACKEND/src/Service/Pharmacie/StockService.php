@@ -127,11 +127,12 @@ final class StockService
         int $documentId,
         bool $requireVendable = true,
         ?\DateTimeImmutable $effectiveAt = null,
+        bool $allowBloque = false,
     ): MouvementStock {
         if ($quantite <= 0) {
             throw new ConflictException('La quantité du mouvement doit être positive.');
         }
-        if (Lot::STATUT_BLOQUE === $lot->getStatut()) {
+        if (!$allowBloque && Lot::STATUT_BLOQUE === $lot->getStatut()) {
             throw new ConflictException(sprintf('Le lot %s est bloqué.', $lot->getNumeroLot()));
         }
         if ($requireVendable && !$this->isVendable($lot)) {

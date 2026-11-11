@@ -3,6 +3,7 @@
 namespace App\Controller\Api\Pharmacie;
 
 use App\Controller\Api\Trait\JsonResponseTrait;
+use App\DTO\Pharmacie\AnnulerReceptionInput;
 use App\DTO\Pharmacie\PharmacieListQuery;
 use App\DTO\Pharmacie\UpsertReceptionInput;
 use App\Security\Permission\PharmaciePermissions;
@@ -58,6 +59,19 @@ final class ReceptionsController extends AbstractController
     public function valider(ReceptionService $receptionService, int $id): JsonResponse
     {
         return $this->apiSuccess($receptionService->serializeDetail($receptionService->valider($id)), 'Réception validée, stock mis à jour.');
+    }
+
+    #[Route('/{id}/annuler', name: 'api_pharmacie_receptions_annuler', methods: ['POST'], requirements: ['id' => '\d+'])]
+    #[IsGranted(PharmaciePermissions::RECEPTION_ANNULER)]
+    public function annuler(
+        ReceptionService $receptionService,
+        int $id,
+        #[MapRequestPayload] AnnulerReceptionInput $input,
+    ): JsonResponse {
+        return $this->apiSuccess(
+            $receptionService->serializeDetail($receptionService->annuler($id, $input)),
+            'Réception annulée, stock retiré.',
+        );
     }
 
     #[Route('/{id}', name: 'api_pharmacie_receptions_delete', methods: ['DELETE'], requirements: ['id' => '\d+'])]

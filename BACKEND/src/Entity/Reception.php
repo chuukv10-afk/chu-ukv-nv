@@ -17,6 +17,7 @@ class Reception implements BlameableInterface
 
     public const STATUT_BROUILLON = 'BROUILLON';
     public const STATUT_VALIDEE = 'VALIDEE';
+    public const STATUT_ANNULEE = 'ANNULEE';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -42,6 +43,16 @@ class Reception implements BlameableInterface
     #[ORM\Column(type: Types::DECIMAL, precision: 8, scale: 2, nullable: true)]
     private ?string $tauxMarge = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $annuleAt = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Personnel $annulePar = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $motifAnnulation = null;
+
     /**
      * @var Collection<int, ReceptionLigne>
      */
@@ -58,7 +69,7 @@ class Reception implements BlameableInterface
      */
     public static function getStatuts(): array
     {
-        return [self::STATUT_BROUILLON, self::STATUT_VALIDEE];
+        return [self::STATUT_BROUILLON, self::STATUT_VALIDEE, self::STATUT_ANNULEE];
     }
 
     public function getId(): ?int
@@ -122,6 +133,42 @@ class Reception implements BlameableInterface
     public function setStatut(string $statut): static
     {
         $this->statut = $statut;
+
+        return $this;
+    }
+
+    public function getAnnuleAt(): ?\DateTimeImmutable
+    {
+        return $this->annuleAt;
+    }
+
+    public function setAnnuleAt(?\DateTimeImmutable $annuleAt): static
+    {
+        $this->annuleAt = $annuleAt;
+
+        return $this;
+    }
+
+    public function getAnnulePar(): ?Personnel
+    {
+        return $this->annulePar;
+    }
+
+    public function setAnnulePar(?Personnel $annulePar): static
+    {
+        $this->annulePar = $annulePar;
+
+        return $this;
+    }
+
+    public function getMotifAnnulation(): ?string
+    {
+        return $this->motifAnnulation;
+    }
+
+    public function setMotifAnnulation(?string $motifAnnulation): static
+    {
+        $this->motifAnnulation = $motifAnnulation;
 
         return $this;
     }

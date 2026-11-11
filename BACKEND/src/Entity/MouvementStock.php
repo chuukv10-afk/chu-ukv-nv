@@ -13,6 +13,7 @@ class MouvementStock implements BlameableInterface
     use BlameableTrait;
 
     public const TYPE_ENTREE_RECEPTION = 'ENTREE_RECEPTION';
+    public const TYPE_SORTIE_ANNULATION_RECEPTION = 'SORTIE_ANNULATION_RECEPTION';
     public const TYPE_SORTIE_VENTE = 'SORTIE_VENTE';
     public const TYPE_ENTREE_ANNULATION_VENTE = 'ENTREE_ANNULATION_VENTE';
     public const TYPE_SORTIE_SERVICE = 'SORTIE_SERVICE';

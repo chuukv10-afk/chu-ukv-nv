@@ -6,6 +6,7 @@ use App\DTO\Clinique\CreateConsultationInput;
 use App\DTO\Clinique\CreateVisiteInput;
 use App\DTO\Clinique\UpdateConsultationInput;
 use App\DTO\Patient\CreatePatientInput;
+use App\DTO\Pharmacie\AnnulerReceptionInput;
 use App\DTO\Pharmacie\AnnulerVenteInput;
 use App\DTO\Pharmacie\CreateAjustementInput;
 use App\DTO\Pharmacie\CreateFamilleMedicamentInput;
@@ -188,6 +189,7 @@ final class SyncPushService
             'pharmacie.reception.create' => $this->receptionCreate($payload),
             'pharmacie.reception.update' => $this->receptionUpdate($payload),
             'pharmacie.reception.valider' => $this->receptionValider($payload),
+            'pharmacie.reception.annuler' => $this->receptionAnnuler($payload),
             'pharmacie.reception.delete' => $this->receptionDelete($payload),
             'pharmacie.ajustement.create' => $this->ajustementCreate($payload),
             'pharmacie.medicament.create' => $this->medicamentCreate($payload),
@@ -439,6 +441,22 @@ final class SyncPushService
     private function receptionValider(array $payload): array
     {
         $reception = $this->receptionService->valider($this->requireServerId($payload['id'] ?? 0, 'Réception'));
+
+        return ['reception', (string) $reception->getId(), $this->receptionService->serializeDetail($reception)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: string, 1: string, 2: array<string, mixed>}
+     */
+    private function receptionAnnuler(array $payload): array
+    {
+        $reception = $this->receptionService->annuler(
+            $this->requireServerId($payload['id'] ?? 0, 'Réception'),
+            new AnnulerReceptionInput(
+                motif: isset($payload['motif']) ? (string) $payload['motif'] : null,
+            ),
+        );
 
         return ['reception', (string) $reception->getId(), $this->receptionService->serializeDetail($reception)];
     }

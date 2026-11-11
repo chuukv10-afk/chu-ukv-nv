@@ -3,6 +3,7 @@
 namespace App\Service\Pharmacie;
 
 use App\DTO\Common\PaginatedResult;
+use App\DTO\Pharmacie\AnnulerReceptionInput;
 use App\DTO\Pharmacie\PharmacieListQuery;
 use App\DTO\Pharmacie\ReceptionLigneInput;
 use App\DTO\Pharmacie\UpsertReceptionInput;
@@ -10,6 +11,7 @@ use App\Entity\Fournisseur;
 use App\Entity\Lot;
 use App\Entity\Medicament;
 use App\Entity\MouvementStock;
+use App\Entity\Personnel;
 use App\Entity\Reception;
 use App\Entity\ReceptionLigne;
 use App\Exception\ConflictException;
@@ -19,6 +21,7 @@ use App\Repository\LotRepository;
 use App\Repository\MedicamentRepository;
 use App\Repository\ReceptionRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -31,6 +34,7 @@ final class ReceptionService
         private readonly MedicamentRepository $medicamentRepository,
         private readonly LotRepository $lotRepository,
         private readonly StockService $stockService,
+        private readonly Security $security,
         private readonly ValidatorInterface $validator,
     ) {
     }
@@ -89,6 +93,67 @@ final class ReceptionService
         return $reception;
     }
 
+    public function annuler(int $id, AnnulerReceptionInput $input): Reception
+    {
+        $this->assertValid($input);
+        $reception = $this->getById($id);
+        if (Reception::STATUT_ANNULEE === $reception->getStatut()) {
+            throw new ConflictException('Cette réception est déjà annulée.');
+        }
+        if (Reception::STATUT_VALIDEE !== $reception->getStatut()) {
+            throw new ConflictException('Seule une réception validée peut être annulée. Supprimez le brouillon plutôt.');
+        }
+
+        $motif = trim((string) $input->motif);
+        $toReverse = [];
+        foreach ($reception->getLignes() as $ligne) {
+            $medicament = $ligne->getMedicament();
+            $numeroLot = (string) $ligne->getNumeroLot();
+            $lot = $this->lotRepository->findOneByMedicamentAndNumero($medicament, $numeroLot);
+            if (null === $lot) {
+                throw new ConflictException(sprintf(
+                    'Impossible d\'annuler : le lot %s de « %s » est introuvable.',
+                    $numeroLot,
+                    $medicament?->getLibelle() ?? 'médicament',
+                ));
+            }
+            if ($lot->getQuantiteRestante() < $ligne->getQuantite()) {
+                throw new ConflictException(sprintf(
+                    'Impossible d\'annuler : le lot %s de « %s » n\'a plus assez de stock (reste %d, réception %d). Du stock issu de cette réception a déjà été sorti.',
+                    $numeroLot,
+                    $medicament?->getLibelle() ?? 'médicament',
+                    $lot->getQuantiteRestante(),
+                    $ligne->getQuantite(),
+                ));
+            }
+            $toReverse[] = [$lot, $ligne];
+        }
+
+        foreach ($toReverse as [$lot, $ligne]) {
+            $mouvement = $this->stockService->applySortie(
+                $lot,
+                $ligne->getQuantite(),
+                MouvementStock::TYPE_SORTIE_ANNULATION_RECEPTION,
+                MouvementStock::DOC_RECEPTION,
+                (int) $reception->getId(),
+                false,
+                null,
+                true,
+            );
+            $mouvement->setMotif($motif);
+        }
+
+        $user = $this->security->getUser();
+        $reception
+            ->setStatut(Reception::STATUT_ANNULEE)
+            ->setAnnuleAt(new \DateTimeImmutable())
+            ->setAnnulePar($user instanceof Personnel ? $user : null)
+            ->setMotifAnnulation($motif);
+        $this->entityManager->flush();
+
+        return $reception;
+    }
+
     public function delete(int $id): void
     {
         $reception = $this->requireBrouillon($id);
@@ -119,6 +184,8 @@ final class ReceptionService
             'tauxMarge' => $reception->getTauxMarge(),
             'statut' => $reception->getStatut(),
             'lignesCount' => $reception->getLignes()->count(),
+            'motifAnnulation' => $reception->getMotifAnnulation(),
+            'annuleAt' => $reception->getAnnuleAt()?->format(\DateTimeInterface::ATOM),
             'fournisseurId' => $fournisseur?->getId(),
             'fournisseur' => $fournisseur ? [
                 'id' => $fournisseur->getId(),

@@ -36,6 +36,7 @@ final class PharmaciePermissions
     public const RECEPTION_UPDATE = 'pharmacie.reception.update';
     public const RECEPTION_DELETE = 'pharmacie.reception.delete';
     public const RECEPTION_VALIDER = 'pharmacie.reception.valider';
+    public const RECEPTION_ANNULER = 'pharmacie.reception.annuler';
 
     public const LOT_READ = 'pharmacie.lot.read';
     public const LOT_UPDATE = 'pharmacie.lot.update';
@@ -98,6 +99,11 @@ final class PharmaciePermissions
                 [
                     'code' => self::RECEPTION_VALIDER,
                     'libelle' => 'Valider une réception (entrée en stock)',
+                    'module' => Permission::MODULE_PHARMACIE,
+                ],
+                [
+                    'code' => self::RECEPTION_ANNULER,
+                    'libelle' => 'Annuler une réception déjà validée (sortie du stock encore disponible)',
                     'module' => Permission::MODULE_PHARMACIE,
                 ],
                 [
